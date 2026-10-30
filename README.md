@@ -8,8 +8,8 @@
 
 | 路径 | 作用 |
 | --- | --- |
-`SpiritScout/` | 产品本体。灵枢 v0.23.0，Python 3.11+，FastAPI Web 控制台 + 多 Agent 编排。详见 [SpiritScout/README.md](SpiritScout/README.md)
-`start-local.ps1` | 本机启动器（不走 Docker）：依赖自检 → 导出执行后端与模型 key 环境变量 → 前台起 Web 控制台
+`SpiritScout/` | 产品本体。灵枢 v0.23.1，Python 3.11+，FastAPI Web 控制台 + 多 Agent 编排。详见 [SpiritScout/README.md](SpiritScout/README.md)
+`start-local.ps1` | 本机启动器（不走 Docker）：环境与依赖自检（缺运行依赖自动 `pip install`，缺 venv/pip/解释器版本只给命令不动手）→ 导出执行后端与模型 key 环境变量 → 前台起 Web 控制台。`-NoInstall` 只报告不装
 `启动服务.cmd` | 双击入口，包一层 `start-local.ps1 -Port 8010`
 `deploy-spiritscout.ps1` | Docker Desktop 一键部署（CTF 的 shell/python 工具硬依赖 bubblewrap，Windows 原生沙箱不可用时需要它）
 `_work/build_release.py` | 组装「解压即用」便携包：内嵌 CPython 3.11 + site-packages + app + configs + data，再打 zip
@@ -21,10 +21,13 @@
 
 ```powershell
 py -3.11 -m venv SpiritScout\.venv
-SpiritScout\.venv\Scripts\python.exe -m pip install -e "SpiritScout[toolkit]"
 copy SpiritScout\configs\system.example.yaml SpiritScout\configs\system.yaml
 .\启动服务.cmd
 ```
+
+只有 venv 需要你亲手建（装在哪、用哪个解释器由你定）；建好后双击启动，缺的运行依赖
+与可选工具包由 `start-local.ps1` 自己 `pip install`，首次要几分钟。不想让它联网装东西就
+手动跑 `powershell -ExecutionPolicy Bypass -File .\start-local.ps1 -NoInstall`，只报命令。
 
 浏览器打开 <http://127.0.0.1:8010>。关闭那个窗口即停止服务。
 
@@ -43,21 +46,18 @@ copy SpiritScout\configs\system.example.yaml SpiritScout\configs\system.yaml
 `packages/` 751M、`_stage/` 224M | 构建产物与旧暂存 | `python _work/build_release.py` |
 **本地靶场 `local-range/`** | 自建 CTF 判题平台与跑批工作目录，属于测试基础设施而非产品；其中 `work-*` 含真实 flag 与会话产物 | 不在本仓库，也不再维护 |
 `评估报告.md` | 内部选型评估，含本地靶场的 flag 值与私有模型网关地址 | 不在本仓库 |
-`Rotom/`、`AiScan-N/` | 第三方参考项目，非本仓库源码 | 见下方「参考过的项目」 |
-
-## 参考过的项目（已从本工作区移除，仅作选型记录）
-
-- **[JerryXie599/Rotom](https://github.com/JerryXie599/Rotom)** — 轻量比赛型 CTF Agent，Cairn 黑板架构。
-- **[SecNN/AiScan-N](https://github.com/SecNN/AiScan-N)** — 只有 README，本体是闭源二进制，无法嵌入。
-
-两者与本仓库代码零交叉引用（双向 grep 均无命中），需要时按上面的地址重新 clone。
 
 ## 发布产物
 
-Release 只附纯 Python 包，不附便携包（便携包内嵌解释器与第三方依赖）：
+Release 附三种包，按需取用：
 
-- `spiritscout-0.23.0-py3-none-any.whl` — `pip install spiritscout-0.23.0-py3-none-any.whl`
-- `spiritscout-0.23.0.tar.gz` — sdist
+- `spiritscout-0.23.1-py3-none-any.whl` — 二进制轮包。带 CTF 工具箱要用
+  `pip install "spiritscout[toolkit] @ file:///…whl"` 这种 PEP 508 直接引用形式；
+  写成 `xxx.whl[toolkit]` 会被 pip **静默丢弃 extras**，一个工具箱依赖都不装且不报错。
+- `spiritscout-0.23.1.tar.gz` — sdist 源码分发，含 `src/` 与 `tests/`
+- `SpiritScout-0.23.1-portable.zip`（约 228M）— 免安装便携包：内嵌 CPython 3.11 与
+  全部依赖，解压后双击 `1-启动服务.bat` 即用，目标机不需要装 Python，路径带中文也没问题。
+  自己重建：`python _work/build_release.py`（构建后再跑 `_work/validate_release.py` 冒烟）
 
 装好后直接 `python -m spiritscout --port 8010`；注意 `--config` 与模型注册表按**当前工作目录**
 解析，从仓库外安装时需要显式传 `--config` 指向你自己的 `system.yaml`。

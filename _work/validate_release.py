@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import socket
 import subprocess
 import sys
@@ -16,7 +17,9 @@ import time
 import urllib.request
 from pathlib import Path
 
-PKG = Path(r"C:\Users\admin\Desktop\全自动打靶\packages\SpiritScout-0.23.0-portable")
+VERSION = (Path(r"C:\Users\admin\Desktop\全自动打靶\SpiritScout") / "src" / "spiritscout" /
+           "__init__.py").read_text(encoding="utf-8").split('__version__ = "')[1].split('"')[0]
+PKG = Path(r"C:\Users\admin\Desktop\全自动打靶\packages") / f"SpiritScout-{VERSION}-portable"
 PY = PKG / "runtime" / "python.exe"
 CONSOLE_PORT = 8092
 
@@ -38,6 +41,20 @@ def free(port: int) -> bool:
         return s.connect_ex(("127.0.0.1", port)) != 0
 
 
+def can_bind(port: int) -> bool:
+    """端口能不能真拿来 listen。
+
+    free() 只看「有没有人占着」，看不出 Windows 的保留端口段：那种端口连不上，
+    但也绑不上，控制台会直接以 WinError 10013 退出。
+    """
+    with socket.socket() as s:
+        try:
+            s.bind(("127.0.0.1", port))
+            return True
+        except OSError:
+            return False
+
+
 def get(url: str, timeout: float = 5.0) -> tuple[int, str]:
     try:
         with urllib.request.urlopen(url, timeout=timeout) as r:
@@ -52,7 +69,8 @@ def step(title: str) -> None:
 
 def run_py(code: str, timeout: int = 600) -> tuple[int, str]:
     r = subprocess.run([str(PY), "-X", "utf8", "-c", code], capture_output=True,
-                       text=True, env=clean_env(), cwd=str(PKG), timeout=timeout)
+                       text=True, encoding="utf-8", errors="replace",
+                       env=clean_env(), cwd=str(PKG), timeout=timeout)
     return r.returncode, ((r.stdout or "").strip() + "\n" + (r.stderr or "").strip()).strip()
 
 
@@ -69,9 +87,33 @@ def boot(argv: list[str], port: int, wait: float = 180.0) -> subprocess.Popen:
     return proc
 
 
+def snapshot(root: Path) -> set[Path]:
+    return {p for p in root.rglob("*") if p.is_file()} if root.exists() else set()
+
+
+def sweep(root: Path, before: set[Path]) -> list[str]:
+    """删掉这次验包跑出来的运行数据。
+
+    验包会把控制台真起起来一次，data\\ 下就会多出黑板、资源目录之类的文件；
+    不清掉的话下一步 --zip-only 会把「被人点开过一次」的包打出去。
+    """
+    removed = []
+    for p in sorted(snapshot(root) - before):
+        try:
+            p.unlink()
+            removed.append(str(p.relative_to(root)))
+        except OSError:
+            removed.append(f"{p}（删不掉）")
+    for d in sorted((p for p in root.rglob("*") if p.is_dir()), reverse=True):
+        if not any(d.iterdir()):
+            d.rmdir()
+    return removed
+
+
 def main() -> int:
     print("包:", PKG, "| python:", PY.exists())
     fails: list[str] = []
+    data_before = snapshot(PKG / "data")
 
     step("1) 依赖 import")
     rc, out = run_py(
@@ -106,7 +148,8 @@ def main() -> int:
                         "print('exe', sys.executable);"
                         "print('litellm', bool(__import__('litellm')));"
                         "print('stdlib', __import__('os').__file__)"],
-                       capture_output=True, text=True, env=clean_env(), cwd=str(PKG))
+                       capture_output=True, text=True, encoding="utf-8",
+                       errors="replace", env=clean_env(), cwd=str(PKG))
     print("Scripts\\python.exe:\n" + (r.stdout or r.stderr).strip()[:500])
     if r.returncode != 0 or str(PKG / "runtime") not in (r.stdout or ""):
         fails.append("Scripts/python.exe 独立可用")
@@ -129,13 +172,15 @@ def main() -> int:
         fails.append("MCP 摘除不干净")
 
     step("5) 控制台启动")
-    if not free(CONSOLE_PORT):
-        print("端口占用，跳过", CONSOLE_PORT)
-        fails.append(f"{CONSOLE_PORT} 占用")
+    port = next((p for p in range(CONSOLE_PORT, CONSOLE_PORT + 20)
+                 if free(p) and can_bind(p)), None)
+    if port is None:
+        print(f"{CONSOLE_PORT} 起连续 20 个端口都不可用（被占或是 Windows 保留段），跳过")
+        fails.append("没有可绑定的端口")
     else:
         proc = boot(["-m", "spiritscout", "--config", str(PKG / "configs" / "system.yaml"),
-                     "--port", str(CONSOLE_PORT)], CONSOLE_PORT)
-        code, body = get(f"http://127.0.0.1:{CONSOLE_PORT}/")
+                     "--port", str(port)], port)
+        code, body = get(f"http://127.0.0.1:{port}/")
         print("GET / ->", code, "|", body[:160].replace("\n", " "))
         alive = code in (200, 302, 307, 401, 403)
         if not alive:
@@ -146,7 +191,7 @@ def main() -> int:
                 proc.wait(timeout=30)
             except subprocess.TimeoutExpired:
                 proc.kill()
-        log = PKG.parent / f"_boot_{CONSOLE_PORT}.log"
+        log = PKG.parent / f"_boot_{port}.log"
         tail = log.read_text(encoding="utf-8", errors="replace")[-2500:]
         print("--- 控制台日志尾部 ---\n" + tail)
 
@@ -157,6 +202,12 @@ def main() -> int:
     print("包根误建 .spiritscout:", stray or "无")
     if stray:
         fails.append("数据落到了包根 .spiritscout")
+        for p in PKG.glob(".spiritscout/*"):
+            shutil.rmtree(p, ignore_errors=True) if p.is_dir() else p.unlink(missing_ok=True)
+
+    step("7) 清场（下一步 --zip-only 打的必须是没跑过的包）")
+    removed = sweep(PKG / "data", data_before)
+    print("清掉验包跑出的文件:", removed or "无")
 
     print("\n================ 结果 ================")
     if fails:
