@@ -38,6 +38,8 @@ py -3.11 -m venv SpiritScout\.venv
 对不存在的文件直接返回空列表），但开工会被拦：注册表为空时会话不启动并提示「请先配置至少一个模型」
 （[`SpiritScout/src/spiritscout/web/sessions.py:811`](SpiritScout/src/spiritscout/web/sessions.py#L811)）。
 在 Web「模型」页加供应商即可，程序会自己把这个文件写出来。
+同目录的 `agent_models.yaml`（按 Agent 指派模型）**没有 `.example` 模板**，别被「从 example 复制」的习惯带偏：
+它由 Web「编队」页维护，手工写 `assignments: {}` 与 `naming:` 即可，缺了只是全跟随档位路由。
 
 只要界面点一遍、不真解题：把 `SpiritScout/configs/models.mock.yaml` 复制成 `models.yaml`，
 模拟模型是确定性应答、不消耗 token。
@@ -61,21 +63,6 @@ py -3.11 -m venv SpiritScout\.venv
 `system.yaml` 里 playwright/chrome 同样写了 `true`，所以两者一致；但 `ida`/`yakit` 没写，走 `False`。
 `yakit` 靠 `default_risk: intrusive` 兜住危险审批，`ida` 是只读工具，均无需改。
 要在别的 MCP 服务上拿到「逐次声明本次行为」的审批，必须显式写 `risk_by_action: true`，不能指望默认。
-
-## 本仓库不包含什么（有意为之）
-
-| 排除项 | 原因 | 怎么恢复 |
-| --- | --- | --- |
-`SpiritScout/.venv/` 918M | 依赖 | `pip install -e "SpiritScout[toolkit]"` |
-`SpiritScout/.spiritscout/` | 现行运行期状态根：启动器把 cwd 设在 `SpiritScout\`，而 `configs/system.yaml` 里 `workspace.root: .spiritscout` 是相对路径，所以黑板、会话、审计报告、以及可能出现的密钥库 `vault.db`/`vault.key`/`auth.key` 都落在这里 | 不用恢复，首次运行自动重建 |
-仓库根那份 `.spiritscout/`（12M） | 早期以仓库根为工作目录跑出来的**游离状态**，属于 0.12.9 世代（2026-10-27~28），里面是已下线本地靶场的真实 flag 值与拓扑记录 | 已移出工作区（不在本仓库，也不再维护）；条数、层级、时间范围等脱敏清点见 [experience-export/legacy-state-0.12.9.json](experience-export/legacy-state-0.12.9.json) |
-`SpiritScout/configs/models.yaml` | 真实供应商端点与模型分配 | 从 `.example.yaml`（真实端点）或 `.mock.yaml`（模拟模型）复制；不建也能起服务，但会话会被预检拦住，Web「模型」页加供应商也会自己写出这个文件
-`SpiritScout/configs/agent_models.yaml` | 按 Agent 指派模型与命名候选链 | **没有 `.example` 模板**（易被漏掉）。它由 Web「编队」页维护，手工建一个 `assignments: {}\nnaming: []` 即可；文件缺失时全跟随档位路由，不影响启动
-`.env`、任何 `*.key`、`*.db` | 凭据与本地库 | 全局排除，见 `.gitignore` |
-`__pycache__/`、`.ruff_cache/`、`.tools/chrome-mcp/npm-cache` 58M | 缓存 | 自动重建 |
-`packages/` 941M | 构建产物落点：227M 便携包 zip + 709M 打包前的暂存目录 + 0.23.1 的 wheel/sdist 共 2.3M + 2.5M 的 0.16.x 存档 | `python _work/build_release.py`（三步顺序见 [packages/README.md](packages/README.md)）。旧的 0.23.0 产物与 `_stage/` 224M 旧暂存已删：wheel/sdist 在 v0.23.0 Release 上还能下载，0.23.0 便携包从未作为资产发布、内容又被 0.23.1 完全覆盖（两代 `site-packages` 只差一个过期元数据，老冻结清单里 130 个依赖新包 130/130 都在） |
-**本地靶场 `local-range/`** | 自建 CTF 判题平台与跑批工作目录，属于测试基础设施而非产品；其中 `work-*` 含真实 flag 与会话产物 | 不在本仓库，也不再维护 |
-`评估报告.md` | 内部选型评估，含本地靶场的 flag 值与私有模型网关地址 | 不在本仓库 |
 
 ## 发布产物
 
