@@ -55,9 +55,12 @@ Release 附三种包，按需取用：
   `pip install "spiritscout[toolkit] @ file:///…whl"` 这种 PEP 508 直接引用形式；
   写成 `xxx.whl[toolkit]` 会被 pip **静默丢弃 extras**，一个工具箱依赖都不装且不报错。
 - `spiritscout-0.23.1.tar.gz` — sdist 源码分发，含 `src/` 与 `tests/`
-- `SpiritScout-0.23.1-portable.zip`（约 228M）— 免安装便携包：内嵌 CPython 3.11 与
+- `SpiritScout-0.23.1-portable.zip`（约 227MB，解压后 613MB）— 免安装便携包：内嵌 CPython 3.11 与
   全部依赖，解压后双击 `1-启动服务.bat` 即用，目标机不需要装 Python，路径带中文也没问题。
-  自己重建：`python _work/build_release.py`（构建后再跑 `_work/validate_release.py` 冒烟）
+  自己重建，按这个顺序三步：`python _work/build_release.py`（只组装暂存目录）→
+  `python _work/validate_release.py`（把包当别人拿到手那样冒烟跑一遍，跑完清掉它在
+  `data\` 里留下的运行数据）→ `python _work/build_release.py --zip-only`（打 zip）。
+  先验后打是有意的：冒烟会把控制台真起一次，先打 zip 就把「被人点开过一次」的包发出去。
 
 装好后直接 `python -m spiritscout --port 8010`；注意 `--config` 与模型注册表按**当前工作目录**
 解析，从仓库外安装时需要显式传 `--config` 指向你自己的 `system.yaml`。
