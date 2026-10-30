@@ -21,7 +21,6 @@
 
 ```powershell
 py -3.11 -m venv SpiritScout\.venv
-copy SpiritScout\configs\system.example.yaml SpiritScout\configs\system.yaml
 .\启动服务.cmd
 ```
 
@@ -31,8 +30,37 @@ copy SpiritScout\configs\system.example.yaml SpiritScout\configs\system.yaml
 
 浏览器打开 <http://127.0.0.1:8010>。关闭那个窗口即停止服务。
 
+`configs/system.yaml` **已随仓库提交，并且是跑通过的配置**，新克隆下来直接启动就行；
+不要再拿 `copy system.example.yaml system.yaml` 覆盖它——example 是带注释的最小模板，
+覆盖会冲掉本机 MCP 名单和沙箱后端设置，两份的差异见下一节。
+
+模型注册表 `configs/models.yaml` 不在仓库里，缺了服务照样起（[`SpiritScout/src/spiritscout/web/modelcfg.py:81`](SpiritScout/src/spiritscout/web/modelcfg.py#L81)
+对不存在的文件直接返回空列表），但开工会被拦：注册表为空时会话不启动并提示「请先配置至少一个模型」
+（[`SpiritScout/src/spiritscout/web/sessions.py:811`](SpiritScout/src/spiritscout/web/sessions.py#L811)）。
+在 Web「模型」页加供应商即可，程序会自己把这个文件写出来。
+
 只要界面点一遍、不真解题：把 `SpiritScout/configs/models.mock.yaml` 复制成 `models.yaml`，
 模拟模型是确定性应答、不消耗 token。
+
+## 两份 system 配置：为什么不是简单地「照 example 覆盖」
+
+仓库同时提交 [`SpiritScout/configs/system.yaml`](SpiritScout/configs/system.yaml)（本机现行）
+和 [`system.example.yaml`](SpiritScout/configs/system.example.yaml)（上游最小模板）。
+把两份按 `段.键` 摊平到叶子（列表按下标展开）分别是 105 与 93 个键。
+两者有意保留差异，diff 一遍的结果记在这里：
+
+| 只在哪份里写出 | 键 | 影响 |
+| --- | --- | --- |
+| 只有 `system.yaml` | `executor.sandbox_backend: auto` | 代码默认也是 `auto`（[`settings.py:129`](SpiritScout/src/spiritscout/config/settings.py#L129)），写出来是为了看得见；不写不会变行为 |
+| 只有 `system.yaml` | `ida`、`yakit` 两个 MCP 服务，以及每个服务的 `transport`/`timeout` | example 里没有这两项，覆盖即失去逆向与 Yakit 工具；就算手工搬过去，`timeout` 不写会退回 180 秒默认（[`settings.py:190`](SpiritScout/src/spiritscout/config/settings.py#L190)），`ida` 分析大型二进制要 600 秒 |
+| 只有 `example` | `bus.connect_timeout_seconds`、`bus.namespace`、`bus.redis_url_env`、`bus.shared_request_rps` | 四个都有同名代码默认且数值与 example 一致（[`settings.py:82-85`](SpiritScout/src/spiritscout/config/settings.py#L82)），现行配置不缺功能 |
+| 只有 `example` | `web.admin_username_env`、`web.admin_password_env` | 同上，[`settings.py:165-168`](SpiritScout/src/spiritscout/config/settings.py#L165) 的默认就是这两个环境变量名 |
+
+一个容易踩的默认值差异：`mcp_servers[].risk_by_action` 的**代码默认是 `False`**
+（[`settings.py:192`](SpiritScout/src/spiritscout/config/settings.py#L192)），example 却给 playwright/chrome 显式写了 `true`。
+`system.yaml` 里 playwright/chrome 同样写了 `true`，所以两者一致；但 `ida`/`yakit` 没写，走 `False`。
+`yakit` 靠 `default_risk: intrusive` 兜住危险审批，`ida` 是只读工具，均无需改。
+要在别的 MCP 服务上拿到「逐次声明本次行为」的审批，必须显式写 `risk_by_action: true`，不能指望默认。
 
 ## 本仓库不包含什么（有意为之）
 
@@ -41,10 +69,11 @@ copy SpiritScout\configs\system.example.yaml SpiritScout\configs\system.yaml
 `SpiritScout/.venv/` 918M | 依赖 | `pip install -e "SpiritScout[toolkit]"` |
 `SpiritScout/.spiritscout/` | 现行运行期状态根：启动器把 cwd 设在 `SpiritScout\`，而 `configs/system.yaml` 里 `workspace.root: .spiritscout` 是相对路径，所以黑板、会话、审计报告、以及可能出现的密钥库 `vault.db`/`vault.key`/`auth.key` 都落在这里 | 不用恢复，首次运行自动重建 |
 仓库根那份 `.spiritscout/`（12M） | 早期以仓库根为工作目录跑出来的**游离状态**，属于 0.12.9 世代（2026-10-27~28），里面是已下线本地靶场的真实 flag 值与拓扑记录 | 已移出工作区（不在本仓库，也不再维护）；条数、层级、时间范围等脱敏清点见 [experience-export/legacy-state-0.12.9.json](experience-export/legacy-state-0.12.9.json) |
-`SpiritScout/configs/models.yaml`、`agent_models.yaml` | 真实供应商端点与模型分配 | 从 `.example.yaml` / `.mock.yaml` 复制 |
+`SpiritScout/configs/models.yaml` | 真实供应商端点与模型分配 | 从 `.example.yaml`（真实端点）或 `.mock.yaml`（模拟模型）复制；不建也能起服务，但会话会被预检拦住，Web「模型」页加供应商也会自己写出这个文件
+`SpiritScout/configs/agent_models.yaml` | 按 Agent 指派模型与命名候选链 | **没有 `.example` 模板**（易被漏掉）。它由 Web「编队」页维护，手工建一个 `assignments: {}\nnaming: []` 即可；文件缺失时全跟随档位路由，不影响启动
 `.env`、任何 `*.key`、`*.db` | 凭据与本地库 | 全局排除，见 `.gitignore` |
 `__pycache__/`、`.ruff_cache/`、`.tools/chrome-mcp/npm-cache` 58M | 缓存 | 自动重建 |
-`packages/` 941M | 构建产物落点：227M 便携包 zip + 709M 打包前的暂存目录 + 2.5M 的 0.16.x 存档 | `python _work/build_release.py`（三步顺序见 [packages/README.md](packages/README.md)）。旧的 0.23.0 产物与 `_stage/` 224M 旧暂存已删：wheel/sdist 在 v0.23.0 Release 上还能下载，0.23.0 便携包从未作为资产发布、内容又被 0.23.1 完全覆盖（两代 `site-packages` 只差一个过期元数据，老冻结清单里 130 个依赖新包 130/130 都在） |
+`packages/` 941M | 构建产物落点：227M 便携包 zip + 709M 打包前的暂存目录 + 0.23.1 的 wheel/sdist 共 2.3M + 2.5M 的 0.16.x 存档 | `python _work/build_release.py`（三步顺序见 [packages/README.md](packages/README.md)）。旧的 0.23.0 产物与 `_stage/` 224M 旧暂存已删：wheel/sdist 在 v0.23.0 Release 上还能下载，0.23.0 便携包从未作为资产发布、内容又被 0.23.1 完全覆盖（两代 `site-packages` 只差一个过期元数据，老冻结清单里 130 个依赖新包 130/130 都在） |
 **本地靶场 `local-range/`** | 自建 CTF 判题平台与跑批工作目录，属于测试基础设施而非产品；其中 `work-*` 含真实 flag 与会话产物 | 不在本仓库，也不再维护 |
 `评估报告.md` | 内部选型评估，含本地靶场的 flag 值与私有模型网关地址 | 不在本仓库 |
 
