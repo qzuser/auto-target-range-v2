@@ -13,7 +13,7 @@
 `启动服务.cmd` | 双击入口，包一层 `start-local.ps1 -Port 8010`
 `deploy-spiritscout.ps1` | Docker Desktop 一键部署（CTF 的 shell/python 工具硬依赖 bubblewrap，Windows 原生沙箱不可用时需要它）
 `_work/build_release.py` | 组装「解压即用」便携包：内嵌 CPython 3.11 + site-packages + app + configs + data，再打 zip
-`_work/validate_release.py` | 构建后冒烟：包内解释器导入、控制台起停
+`_work/validate_release.py` | 打包前的冒烟：包内解释器导入、沙箱解释器探测、配置数据落点、控制台真起停；跑完清掉它在 `data\` 留下的运行数据，好让下一步打出一个没被人点开过的包
 `experience-export/` | 113 条运行期沉淀的方法论洞察（已脱敏），来源与脱敏规则见该目录 README
 `packages/`（未提交） | 构建产物落点：wheel / sdist / portable zip，通过 GitHub Release 分发
 
@@ -39,11 +39,12 @@ copy SpiritScout\configs\system.example.yaml SpiritScout\configs\system.yaml
 | 排除项 | 原因 | 怎么恢复 |
 | --- | --- | --- |
 `SpiritScout/.venv/` 918M | 依赖 | `pip install -e "SpiritScout[toolkit]"` |
-`.spiritscout/`（两处，共 412M） | 运行期状态根：黑板、会话、审计报告、密钥库 `vault.db`/`vault.key`/`auth.key` | 不用恢复，首次运行自动重建 |
+`SpiritScout/.spiritscout/` | 现行运行期状态根：启动器把 cwd 设在 `SpiritScout\`，而 `configs/system.yaml` 里 `workspace.root: .spiritscout` 是相对路径，所以黑板、会话、审计报告、以及可能出现的密钥库 `vault.db`/`vault.key`/`auth.key` 都落在这里 | 不用恢复，首次运行自动重建 |
+仓库根那份 `.spiritscout/`（12M） | 早期以仓库根为工作目录跑出来的**游离状态**，属于 0.12.9 世代（2026-10-27~28），里面是已下线本地靶场的真实 flag 值与拓扑记录 | 已移出工作区（不在本仓库，也不再维护）；条数、层级、时间范围等脱敏清点见 [experience-export/legacy-state-0.12.9.json](experience-export/legacy-state-0.12.9.json) |
 `SpiritScout/configs/models.yaml`、`agent_models.yaml` | 真实供应商端点与模型分配 | 从 `.example.yaml` / `.mock.yaml` 复制 |
 `.env`、任何 `*.key`、`*.db` | 凭据与本地库 | 全局排除，见 `.gitignore` |
 `__pycache__/`、`.ruff_cache/`、`.tools/chrome-mcp/npm-cache` 58M | 缓存 | 自动重建 |
-`packages/` 751M、`_stage/` 224M | 构建产物与旧暂存 | `python _work/build_release.py` |
+`packages/` 941M | 构建产物落点：227M 便携包 zip + 709M 打包前的暂存目录 + 2.5M 的 0.16.x 存档 | `python _work/build_release.py`（三步顺序见 [packages/README.md](packages/README.md)）。旧的 0.23.0 产物与 `_stage/` 224M 旧暂存已删：wheel/sdist 在 v0.23.0 Release 上还能下载，0.23.0 便携包从未作为资产发布、内容又被 0.23.1 完全覆盖（两代 `site-packages` 只差一个过期元数据，老冻结清单里 130 个依赖新包 130/130 都在） |
 **本地靶场 `local-range/`** | 自建 CTF 判题平台与跑批工作目录，属于测试基础设施而非产品；其中 `work-*` 含真实 flag 与会话产物 | 不在本仓库，也不再维护 |
 `评估报告.md` | 内部选型评估，含本地靶场的 flag 值与私有模型网关地址 | 不在本仓库 |
 

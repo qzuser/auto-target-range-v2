@@ -6,6 +6,12 @@
 
 `experience-insights.json` —— 113 条可复用的解题洞察，每条含 `insight` 结论、`context` 适用场景、`tags` 标签、`source_model`、`captured_at`。
 
+`legacy-state-0.12.9.json` —— 0.12.9 世代（2026-10-27~28）那份运行期状态根的**脱敏清点记录**：
+只记条数、层级分布、时间范围、有多少条记录里出现过 flag 字面量，不落任何原文。
+那份状态根本身（`blackboard.db` 11.9M + `usage.db` + `probe-audit.jsonl`）是早期以仓库根为
+工作目录跑出来的游离数据——配置认的当前状态根是 `SpiritScout/.spiritscout`（启动器
+`cwd = SpiritScout`），两边从来不是同一个落点。它已移出工作区，本文件是它留下的唯一痕迹。
+
 ## 来源
 
 `SpiritScout/.spiritscout/experience.db` 的 `insights` 表。该表由

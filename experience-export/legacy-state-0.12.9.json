@@ -1,0 +1,58 @@
+{
+  "schema": 1,
+  "kind": "legacy-state-record",
+  "what": "0.12.9 世代（2026-10-27~28）以仓库根为工作目录跑出来的运行期状态；配置认的当前状态根是 SpiritScout/.spiritscout（启动器 cwd=SpiritScout），这份属于游离的旧数据，已从工作区移出。本文件是它的脱敏清点记录。",
+  "redaction": "所有 flag 字面量替换为 flag{REDACTED}；本地靶场端口与题目路径只保留计数，不落原文。",
+  "source_dbs": [
+    "blackboard.db",
+    "usage.db",
+    "probe-audit.jsonl"
+  ],
+  "blackboard": {
+    "bb_records": 79,
+    "by_layer": {
+      "target_auth": {
+        "count": 13,
+        "kinds": {}
+      },
+      "task_state": {
+        "count": 36,
+        "kinds": {
+          "task": 35
+        }
+      },
+      "topology": {
+        "count": 30,
+        "kinds": {
+          "secretary": 1,
+          "finding": 28
+        }
+      }
+    },
+    "history_rows": 508,
+    "outbox_rows": 508,
+    "tool_invocations": 111,
+    "runtime_events": 1027,
+    "checkpoints": 694,
+    "approval_records": 111,
+    "time_range": [
+      "2026-10-27T11:20:46.021436+00:00",
+      "2026-10-28T00:15:32.317599+00:00"
+    ],
+    "runs": [
+      [
+        "completed",
+        11
+      ]
+    ],
+    "records_containing_flag_literals": 47
+  },
+  "usage": {
+    "baseline_rows": 1,
+    "model_calls": 4
+  },
+  "distilled_elsewhere": [
+    "experience-export/experience-insights.json（113 条方法论洞察，已脱敏并收录进仓库）",
+    "SpiritScout/docs/运行期经验沉淀.md（14 条洞察 + 21 条约束）"
+  ]
+}
