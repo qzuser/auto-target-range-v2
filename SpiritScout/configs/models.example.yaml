@@ -1,0 +1,120 @@
+# 模型注册表（设计书 4.9.4，硬约束 C9）——云端模型驱动。
+# 本系统的 Agent 只是框架：规划、决策、分析、payload 生成等大部分操作
+# 由这里配置的云端大模型完成；规则引擎只保留范围/合规/预算/裁决护栏。
+#
+# 两段结构：
+#   providers = 供应商（一个 base_url + 一把密钥 + 协议类型），如 ark / deepseek；
+#   models    = 供应商下启用的模型（能力画像/档位/思考强度），用 provider_ref 归属。
+# 同一个供应商下的多个模型共用接入信息与密钥，不用逐个模型重复填。
+# 也可在 Web 控制台侧栏「模型」里图形化维护：添加供应商 → 一键「获取模型列表」
+# 从云端拉取可用模型并勾选启用；端点没有模型列表接口时，在供应商内手动填模型 ID。
+#
+# 密钥不落本文件（合规 G8，禁止明文 key 落盘）：在 Web「模型」页供应商里
+# 直填 API Key，加密存入本机密钥库（按供应商保管，重启后仍有效）。
+#
+# 模型 ID 即身份：编队页直接把模型 ID 指派给 Agent，密钥、审计与预算也按它
+# 对应；同一个模型 ID 不能注册两次（同一端点要配两种参数时，请用端点侧不同
+# 的模型名/接入点 ID）。
+#
+# provider（供应商类型）：openai_compatible / anthropic_compatible。
+# api_format 端点协议（默认 auto 按类型推导，一般不用填）：
+#   chat_completions   OpenAI 对话补全（messages/choices；方舟/DeepSeek/Qwen 等
+#                      绝大多数 OpenAI 兼容端点，auto 默认走这条）
+#   responses          OpenAI Responses 协议（input+instructions/output items；
+#                      仅 o 系/gpt-5 等原生 Responses 端点需显式指定）
+#   anthropic_messages Anthropic Messages 协议（Claude 系列，auto 自动选）
+#
+# 差异化分工是六协作模式（4.9.3）与级联升级（6.10）的基础，建议至少配 2 档。
+#
+# context_window：模型上下文窗口（token），填 0 或省略表示未声明。
+#
+# max_output_tokens：单次输出上限（token），填 0 或省略表示不向端点发送
+# max_tokens——由端点按模型自身设定决定（推荐默认）。思考型模型会在思考上
+# 消耗输出额度，设小了正文会被截成半截 JSON；确有需要收紧的模型才显式填值。
+# Anthropic Messages 协议必填该项：档案未声明时按 32000 保底下发。
+#
+# reasoning_effort_levels：该模型支持的思考强度取值——**由各模型自己声明，
+# 没有统一枚举**（有的模型是 low/medium/high，有的另有 ultra 之类，有的完全
+# 不吃这一项）。灵枢下发任务时只能从这个列表里挑，列表为空则该模型不发送
+# 思考强度、用端点默认档。取值会原样下发：
+#   - OpenAI 兼容端点：作为 reasoning_effort 字段发给端点，端点不认会明确报错；
+#   - Anthropic 兼容端点：纯数字（如 4096）按原生思考预算 thinking.budget_tokens
+#     发送；档位名（如 high）作为 reasoning_effort 发给端点，怎么解释由端点决定
+#     （Claude 系模型由底层换算成思考预算）。
+# 拿不准端点支持哪些档位时留空最稳（不发送 = 不会因参数被拒而调用失败）。
+#
+# 未配置 key 前系统无法发起 LLM 调用；离线开发/测试请用 configs/models.mock.yaml。
+
+providers:
+  # ========== 火山引擎方舟（Ark）==========
+  # OpenAI 兼容端点：https://ark.cn-beijing.volces.com/api/plan/v3
+  # Anthropic 兼容端点：https://ark.cn-beijing.volces.com/api/plan
+  # API Key 在 Web「模型」页该供应商里直填（加密存入本机密钥库，不落明文）
+  - name: ark                        # 供应商名（自取，模型用 provider_ref 引用）
+    provider: openai_compatible
+    base_url: https://ark.cn-beijing.volces.com/api/plan/v3
+    api_format: auto
+
+  # 其他供应商示例（取消注释即可；模型侧用 provider_ref 引用供应商名；
+  # 密钥同样在 Web 页直填。手写本文件时也可以直接省略供应商——
+  # Web「添加供应商」对话框内置各厂商预设，选中即带入协议与地址）
+  # - name: deepseek
+  #   provider: openai_compatible
+  #   base_url: https://api.deepseek.com
+  # - name: qwen
+  #   provider: openai_compatible
+  #   base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+  # - name: openai
+  #   provider: openai_compatible
+  #   base_url: https://api.openai.com/v1          # 或你的中转端点
+  # - name: anthropic
+  #   provider: anthropic_compatible
+  #   base_url: https://api.anthropic.com          # 或你的中转端点
+
+models:
+  # model 填模型名（如 ark-code-latest）或推理接入点 ID（ep-xxxxxxxx）
+  - model: ark-code-latest
+    provider_ref: ark
+    capabilities: [reasoning, code, chinese, security]
+    context_window: 0               # 0 = 未声明；按端点文档填实际窗口
+    max_output_tokens: 0            # 0 = 不发送（端点自定）；确要收紧才填值
+    reasoning_effort_levels: []     # 端点支持的档位（如 [low, medium, high]）；不确定就留空
+    cost_input_per_mtok: 0.0        # 美元/百万 token，请按实际报价配置；0 表示尚未配置
+    cost_output_per_mtok: 0.0
+    rate_limit_rpm: 300
+    quality_score: 1.0
+
+  # 主备关系（4.9.2）：is_fallback_for 列出「本模型作为谁的备机」——主模型
+  # 连续失败时网关自动切到备机（审计留痕 model.fallback）。
+  # - model: ark-code-backup
+  #   provider_ref: ark
+  #   capabilities: [chinese]
+  #   is_fallback_for: [ark-code-latest]
+
+  # 其他模型示例
+  # - model: deepseek-chat
+  #   provider_ref: deepseek
+  #   capabilities: [reasoning, code, chinese, security]
+  #   context_window: 128000
+  #   reasoning_effort_levels: []     # deepseek-reasoner 类由端点自管思考，不必填
+  #   quality_score: 1.0
+  # - model: qwen-max
+  #   provider_ref: qwen
+  #   capabilities: [reasoning, code, chinese]
+  #   context_window: 131072
+  #   quality_score: 0.98
+  # - model: gpt-4o
+  #   provider_ref: openai
+  #   capabilities: [reasoning, code, security]
+  #   context_window: 128000
+  #   reasoning_effort_levels: [minimal, low, medium, high]
+  #   quality_score: 1.0
+  # - model: claude-sonnet-4-5
+  #   provider_ref: anthropic
+  #   capabilities: [reasoning, code, security]
+  #   context_window: 200000
+  #   reasoning_effort_levels: [1024, 4096, 16384]   # 数字 = 原生思考预算（token）
+  #   quality_score: 1.0
+
+# 缓存提示默认沿用端点行为，不附加参数。仅兼容端点可设 anthropic_ephemeral。
+# 模型条目可声明 prompt_caching / cost_cached_input_per_mtok / cost_cache_write_per_mtok。

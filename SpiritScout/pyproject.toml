@@ -1,0 +1,86 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "spiritscout"
+dynamic = ["version"]
+description = "灵枢（SpiritScout）多智能体安全测试工作台，支持 SRC、CTF 与智能体竞赛"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+dependencies = [
+    "pydantic>=2.10",
+    "pyyaml>=6.0",
+    "jinja2>=3.1",
+    "httpx>=0.27",
+    "litellm==1.102.0",    # 兼容 MCP 1.x；1.103+ 的 MCP 支持面向 2.x
+    "langgraph>=0.2",
+    "langchain-core>=0.3",
+    "fastapi>=0.115",      # Web 控制台
+    "uvicorn>=0.30",
+    "cryptography>=42",    # 密钥库加密（Fernet）
+    "mcp>=1.28.1,<2",      # 与固定 LiteLLM 版本保持一致的 MCP 1.x SDK
+    "tzdata>=2025.1",      # Windows/精简镜像也能解析 IANA 时区（仪表盘北京时间）
+]
+
+[project.optional-dependencies]
+toolkit = [
+    "pwntools>=4.12",       # 交互/构造/exploit 基建
+    "pycryptodome>=3.20",   # 现代密码学原语
+    "pillow>=10.0",         # 图像解析与 LSB 隐写
+    "sympy>=1.13",          # 数学求解（RSA/离散结构）
+    "gmpy2>=2.1",           # 大整数快速运算
+    "z3-solver>=4.13",      # 约束求解（逆向/密码）
+    "scapy>=2.6",           # 流量构造与解析
+    "exifread>=3.0",        # 图片元数据
+    "stegano>=0.11",        # LSB 隐写
+    "olefile>=0.46",        # Office 文档结构
+    "binwalk>=2.1",         # 固件/文件嵌入扫描
+    "sqlmap>=1.8",          # SQL 注入自动化
+]
+redis = ["redis>=5.0"]
+nats = ["nats-py>=2.6"]
+chroma = ["chromadb>=1.0"]
+report = ["weasyprint>=62", "python-docx>=1.1"]
+test = ["ruff==0.16.10"]
+dev = ["pytest>=8.0", "ruff==0.16.10"]
+
+[project.scripts]
+spiritscout = "spiritscout.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.dynamic]
+version = {attr = "spiritscout.__version__"}
+
+[tool.setuptools.package-data]
+# 运行期按 __file__ 相对路径读取的非代码资产：控制台前端、知识库种子、
+# 报告模板——缺了任何一类，安装产物都是残废（pip 装完打不开页面/起不了知识库/出不了报告）
+spiritscout = [
+    "web/static/*.html",
+    "web/static/js/*.js",
+    "web/static/css/*.css",
+    "web/static/*.svg",
+    "knowledge/data/*.json",
+    "agents/report/templates/*.j2",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+preview = false
+
+[tool.ruff.lint]
+# 只留能挡住真问题的规则：语法/未定义/导入顺序，可变类属性，
+# bugbear（zip 忘了 strict、闭包捕获循环变量这种），以及几组低噪音的现代化检查。
+# 中文全角标点（RUF001-003）、行长和 pydocstyle 刻意不开——中文注释必然超行长。
+select = [
+    "E4", "E7", "E9", "F", "I", "RUF012",
+    "B",
+    "PIE",
+    "SIM102", "SIM105", "SIM112",
+    "UP017", "UP037",
+    "RET502",
+]

@@ -1,0 +1,257 @@
+"""资源控制台路由：管理对话隔离于测试会话，所有变更显式版本校验。"""
+
+from __future__ import annotations
+
+import sqlite3
+from pathlib import Path
+from typing import Any, Literal
+
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.concurrency import run_in_threadpool
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SecretStr,
+    StrictBool,
+    ValidationError,
+)
+
+from spiritscout.core.exceptions import SpiritScoutError
+from spiritscout.resources.assistant import ResourceAssistant, validate_skill
+from spiritscout.resources.store import ResourceStore, redact_credentials, validate_mcp
+
+
+class ResourceChange(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    data: dict[str, Any]
+    expected_version: int = Field(default=0, ge=0)
+
+
+class ExaSettingsChange(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    api_key_value: SecretStr | None = None
+    enabled: StrictBool = True
+    clear_key: StrictBool = False
+    expected_version: int = Field(default=0, ge=0)
+
+
+class ResourceMessage(BaseModel):
+    message: str = Field(min_length=1, max_length=16000)
+
+
+class ConfirmChange(BaseModel):
+    confirm: StrictBool
+
+
+def public_mcp(config: Any, version: int = 0, origin: str = "config") -> dict[str, Any]:
+    data = config.model_dump()
+    for key in ("headers", "env"):
+        data[key + "_keys"] = list(data.pop(key))
+    return {
+        "id": config.name,
+        "version": version,
+        "origin": origin,
+        "data": redact_credentials(data),
+    }
+
+
+def mount_resources(
+    app: FastAPI, cfg: Any, store: ResourceStore, assistant: ResourceAssistant,
+) -> None:
+    def fail(exc: Exception) -> HTTPException:
+        if isinstance(exc, ValidationError):
+            errors = [
+                {
+                    "field": ".".join(str(part) for part in item["loc"]),
+                    "message": item["msg"],
+                }
+                for item in exc.errors(include_input=False)
+            ]
+            return HTTPException(
+                422,
+                {
+                    "message": "配置校验失败："
+                    + "；".join(
+                        item["field"] + " " + item["message"] for item in errors
+                    ),
+                    "errors": errors,
+                },
+            )
+        return HTTPException(
+            409 if isinstance(exc, SpiritScoutError) else 422,
+            str(exc)[:600],
+        )
+
+    def exa_settings_view() -> dict[str, Any]:
+        from spiritscout.tools.web_search import effective_search
+
+        row = next((item for item in store.settings("search") if item["id"] == "exa"), None)
+        selected, key = effective_search(cfg.search, store)
+        stored = bool(row and row["data"].get("api_key"))
+        return {"version": row["version"] if row else 0, "enabled": selected.enabled,
+                "key_configured": bool(key), "stored_key": stored,
+                "key_source": "saved" if stored else "environment" if key else "none",
+                "allowed_modes": ["src", "ctf"], "competition_allowed": False,
+                "billing_policy": "free_first_paid_only_for_blockers"}
+
+    @app.get("/api/resources/search/exa")
+    def exa_settings() -> dict[str, Any]:
+        return exa_settings_view()
+
+    @app.put("/api/resources/search/exa")
+    async def save_exa_settings(request: Request) -> dict[str, Any]:
+        # 单独捕获校验错误并移除 input，避免非法载荷将密钥原文回显。
+        try:
+            payload = ExaSettingsChange.model_validate(await request.json())
+            value = payload.api_key_value.get_secret_value().strip() if payload.api_key_value else ""
+            if len(value) > 4096 or any(ord(char) < 32 for char in value):
+                raise ValueError("密钥格式不正确，请粘贴 Exa 控制台生成的 API Key")
+            if payload.clear_key and value:
+                raise ValueError("清除密钥时不能同时填写新密钥")
+            row = next((item for item in store.settings("search") if item["id"] == "exa"), None)
+            data = dict(row["data"] if row else {})
+            if payload.clear_key:
+                data.pop("api_key", None)
+            elif value:
+                data["api_key"] = value
+            data["enabled"] = payload.enabled
+            store.save("search", "exa", data, payload.expected_version)
+            return exa_settings_view()
+        except (ValueError, TypeError, SpiritScoutError) as exc:
+            raise fail(exc) from exc
+
+    @app.get("/api/resources/mcp")
+    def mcp_list() -> dict[str, Any]:
+        overrides = {row["id"]: row for row in store.settings("mcp")}
+        return {
+            "items": [
+                public_mcp(
+                    item,
+                    overrides.get(item.name, {}).get("version", 0),
+                    "managed" if item.name in overrides else "config",
+                )
+                for item in store.effective_mcp(cfg.mcp_servers)
+            ],
+            "activation": "新启动会话生效；不会热替换正在执行的 MCP 连接",
+        }
+
+    @app.put("/api/resources/mcp/{name}")
+    def mcp_save(name: str, payload: ResourceChange) -> dict[str, Any]:
+        try:
+            existing = next(
+                (
+                    item
+                    for item in store.effective_mcp(cfg.mcp_servers)
+                    if item.name == name
+                ),
+                None,
+            )
+            data = {
+                **(existing.model_dump() if existing else {}),
+                **payload.data,
+                "name": name,
+            }
+            spec = validate_mcp(data)
+            version = store.save(
+                "mcp", name, spec.model_dump(), payload.expected_version
+            )
+            return public_mcp(spec, version, "managed")
+        except (ValueError, SpiritScoutError) as exc:
+            raise fail(exc) from exc
+
+    @app.get("/api/resources/skills")
+    def skill_list(
+        q: str = Query("", max_length=200),
+        offset: int = Query(0, ge=0),
+        limit: int = Query(40, ge=1, le=100),
+    ) -> dict[str, Any]:
+        items = store.skills(q)
+        return {
+            "items": items[offset : offset + limit],
+            "total": len(items),
+            "has_more": offset + limit < len(items),
+        }
+
+    @app.get("/api/resources/skills/{key}")
+    def skill_detail(key: str) -> dict[str, Any]:
+        # 按主键精确取，不走检索：skills(key) 会把 key 切词打分，
+        # "custom-reference" 未必还排在里面
+        item = store.skill(key, include_body=True)
+        if not item:
+            raise HTTPException(404, "Skill 不存在")
+        return item
+
+    @app.put("/api/resources/skills/{key}")
+    def skill_save(key: str, payload: ResourceChange) -> dict[str, Any]:
+        try:
+            original = store.skill(key, include_body=True) or {}
+            data = {
+                k: v
+                for k, v in {**original, **payload.data, "skill_id": key}.items()
+                if k not in {"version", "origin"}
+            }
+            validate_skill(data)
+            version = store.save("skill", key, data, payload.expected_version)
+            return {"version": version, "skill_id": key}
+        except (ValueError, SpiritScoutError) as exc:
+            raise fail(exc) from exc
+
+    @app.get("/api/assets")
+    def assets(
+        q: str = Query("", max_length=200),
+        host: str = Query("", max_length=300),
+        project: str = Query("", max_length=64),
+        unclassified: int = Query(0, ge=0, le=1),
+        kind: str = Query("", max_length=16),
+        offset: int = Query(0, ge=0),
+        limit: int = Query(40, ge=1, le=100),
+    ) -> dict[str, Any]:
+        if project and unclassified:
+            raise HTTPException(422, "project 与 unclassified 互斥")
+        if kind not in {"", "asset", "finding"}:
+            raise HTTPException(422, "kind 只能是空、asset 或 finding")
+        return store.assets(q, offset, limit, host=host, project=project,
+                            unclassified=bool(unclassified), kind=kind)
+
+    @app.get("/api/assets/{key}/history")
+    def asset_history(key: str, offset: int = Query(0, ge=0)) -> dict[str, Any]:
+        return store.history(key, offset)
+
+    @app.post("/api/assets/sync")
+    async def asset_sync() -> dict[str, Any]:
+        """只导入历史会话的黑板资产；不触发命名/归类（归属由用户决定）。"""
+        def scan() -> tuple[int, int]:
+            count, errors = 0, 0
+            for path in (Path(cfg.workspace.root) / "sessions").glob("sess-*"):
+                try:
+                    count += store.import_session(path, full=True)
+                except (OSError, ValueError, sqlite3.Error):
+                    errors += 1
+            return count, errors
+
+        count, errors = await run_in_threadpool(scan)
+        return {"scanned_records": count, "failed_sessions": errors}
+
+    @app.get("/api/resources/{kind}/chat")
+    def chat_view(kind: Literal["mcp", "skill"]) -> dict[str, Any]:
+        return assistant.view(kind)
+
+    @app.post("/api/resources/{kind}/chat")
+    async def chat_message(
+        kind: Literal["mcp", "skill"], payload: ResourceMessage
+    ) -> dict[str, Any]:
+        try:
+            return await assistant.message(kind, payload.message)
+        except (ValueError, TypeError, SpiritScoutError, OSError) as exc:
+            raise fail(exc) from exc
+
+    @app.post("/api/resources/proposals/{key}/apply")
+    async def apply_proposal(key: str, payload: ConfirmChange) -> dict[str, Any]:
+        if not payload.confirm:
+            raise HTTPException(422, "需要确认具体变更")
+        try:
+            assistant.apply(key)
+        except ValueError as exc:
+            raise fail(exc) from exc
+        return {"state": "applying"}

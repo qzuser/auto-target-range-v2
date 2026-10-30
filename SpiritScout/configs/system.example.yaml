@@ -1,0 +1,124 @@
+# 灵枢（SpiritScout）系统配置示例
+# 复制为 configs/system.yaml 后修改；亦可用 SPIRITSCOUT_<段>__<键> 环境变量覆盖。
+
+mode: src                      # src / ctf / competition（三模式， 完整启用）
+
+workspace:
+  root: .spiritscout           # 工作区（SQLite/审计/报告）
+
+bus:                           # 环形数据总线（适配器决策 A1）
+  backend: inprocess           # inprocess（默认）/ redis / nats
+  redis_url: redis://127.0.0.1:6379/0
+  redis_url_env: SPIRITSCOUT_REDIS_URL # 优先读环境变量，密码不要写入配置
+  namespace: spiritscout          # 不同部署须配置不同命名空间；会话自动隔离
+  connect_timeout_seconds: 5
+  shared_request_rps: 10           # Redis 模式同一部署所有内置探测请求的合计速率
+  nats_url: nats://127.0.0.1:4222
+  queue_maxsize: 10000
+  rate_limit_per_second: 1000  # 总线流量控制
+
+blackboard:
+  sqlite_path: .spiritscout/blackboard.db
+
+gateway:                       # 多模型网关（模型在 models.yaml 注册）
+  budget_tokens: 2000000       # Token 用量参考值，仅计量不熔断
+  budget_usd: 20.0
+  cascade_confidence_threshold: 0.8
+  vote_min_models: 2
+  request_timeout_seconds: 300  # 重推理模型单次调用可达数分钟，过短会中途掐死解题环
+  max_retries: 2
+  mode_budget_tokens:          # 按模式记录的 Token 参考值，不作为执行上限
+    src: 2000000
+    ctf: 1000000
+    competition: 1500000
+  degrade_at_ratio: 0.8        # 兼容旧配置；当前不按消耗自动降级
+
+executor:                      # 工具执行器（CLI/Docker/MCP 三态）
+  backend: local               # local / docker
+  docker_image: kalilinux/kali-rolling:latest
+  default_timeout_seconds: 300
+  max_output_chars: 20000      # 输出窗口截断（防上下文污染）
+  ctf_network_isolation: true  # CTF 模式网络隔离（硬约束）
+  docker_memory_mb: 512        # Docker 沙箱加固：资源硬限额
+  docker_cpus: 1.0
+  docker_pids_limit: 256
+  docker_read_only: true       # 只读根文件系统 + 受限 tmpfs
+  docker_tmpfs: "/tmp:rw,noexec,nosuid,size=64m"
+  docker_user: ""              # 空 = 镜像默认用户；可配 "65534:65534" 降权
+
+search:                        # 公开技术资料检索（Exa）；由模型决定何时检索
+  enabled: false               # 设置 EXA_API_KEY 后启用；不影响已有 MCP 搜索
+  api_url: https://api.exa.ai/search
+  api_key_env: EXA_API_KEY      # 只填环境变量名，不把密钥写入配置/提示词
+  timeout_seconds: 25
+  cache_ttl_seconds: 21600      # 默认 6 小时；模型可用 refresh 主动更新
+  cache_max_entries: 2000       # 跨会话共享；重启后仍可命中
+
+knowledge:                     # 五库 + 两经验库
+  sqlite_path: .spiritscout/knowledge.db
+  chroma_path: .spiritscout/chroma
+  embedding_provider: hash     # hash（零依赖默认）/ openai_compatible
+  embedding_base_url: ""
+  embedding_api_key: ""        # 启用远端 embedding 时可设为 ${EMBEDDING_API_KEY}
+  embedding_model: ""
+
+experience:                    # 共享经验库：会话结束后提炼，开工时检索
+  root: ""                     # 空=跟随工作区；Web 控制台自动指向共享目录
+  distill_timeout_seconds: 45  # 经验提炼调用的超时时间（秒）
+  recall_limit: 6              # 会话开工注入的经验条数上限
+
+report:
+  template: src_standard       # 报告模板
+  output_format: markdown
+  output_dir: .spiritscout/reports
+
+web:
+  host: 127.0.0.1
+  port: 8000
+  max_concurrent_sessions: 4
+  remote_auth_required: true     # 非回环绑定无管理员凭据时拒绝启动
+  # 启动时把环境变量凭据导入工作区 admin.db（密码只存 scrypt 哈希）
+  admin_username_env: SPIRITSCOUT_ADMIN_USERNAME
+  admin_password_env: SPIRITSCOUT_ADMIN_PASSWORD
+  password_env: SPIRITSCOUT_SERVER_PASSWORD   # 旧版变量，仍兼容
+
+models_config_path: configs/models.yaml
+audit_log_path: .spiritscout/audit.jsonl
+
+# 可选浏览器 MCP：显式启用后，普通交互默认可用；实际危险行为仍逐次审批。
+mcp_servers:
+  - name: playwright
+    enabled: false
+    command: npx
+    args: ["@playwright/mcp@0.0.83", "--headless", "--snapshot-boxes"]  # 钉版本：@latest 每次联网解析，网络抖动可挂满握手超时连累开工
+    default_risk: readonly
+    risk_by_action: true
+    scope_enforcement: required
+  - name: chrome                 # SRC 连接可选浏览器容器或外部 CDP；CTF/智能体使用独立无头浏览器
+    enabled: false               # 启用后按任务模式选择连接方式，与独立 playwright 配置择一
+    command: python
+    args: ["-m", "spiritscout.tools.chrome_mcp"]
+    default_risk: readonly
+    risk_by_action: true
+    allowed_agents: [business_context, ctf_web]
+  - name: local-llm              # 本地模型：把本机推理端点（LM Studio / Ollama）接成工具
+    enabled: false               # 默认关；起好后端再到「设置 → MCP 接入 → local-llm」打开
+    transport: stdio
+    command: python
+    args: ["-m", "spiritscout.tools.local_llm_mcp"]
+    timeout: 180                 # 本地小模型出长文时留足余量
+    default_risk: readonly       # 只问本机模型，不碰目标系统
+    scope_enforcement: none      # 不触网：请求只发往 SPIRITSCOUT_LOCAL_LLM_URL
+
+max_routes_per_agent: 8        # 分支数硬上限（防分支爆炸）
+default_routes_per_agent: 3    # 默认 3 条差异化路线（硬约束 C2）
+
+# 秘书由灵枢按需要咨询；模型可在编队页单独指派，无工具权限。
+secretary:
+  enabled: true
+
+# 共享资源目录：留空时使用主工作区 resources/，会话隔离前固定路径。
+resources:
+  root: ""
+  freshness_hours: 24
+  npm_registry: https://registry.npmjs.org

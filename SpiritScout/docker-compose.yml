@@ -1,0 +1,90 @@
+# 灵枢（SpiritScout）Docker 部署：控制台 http://127.0.0.1:10010
+#
+#   cp .env.example .env      # 先填管理密码
+#   docker compose up -d --build
+#   docker compose --profile src-browser up -d --build --wait  # SRC 可操作浏览器
+#   docker compose logs -f
+#   docker compose down
+#
+# 默认使用镜像源码、Linux 数据卷；旧版 bind 数据请先 python deploy.py migrate。
+# 源码开发：docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+services:
+  browser:
+    profiles: [src-browser]
+    build: ./deploy/browser
+    image: spiritscout-browser:local
+    restart: unless-stopped
+    stop_grace_period: 30s
+    shm_size: "1gb"
+    environment:
+      SPIRITSCOUT_ADMIN_USERNAME: "${SPIRITSCOUT_ADMIN_USERNAME:-spiritscout}"
+      SPIRITSCOUT_ADMIN_PASSWORD: "${SPIRITSCOUT_ADMIN_PASSWORD:-}"
+      SPIRITSCOUT_SERVER_PASSWORD: "${SPIRITSCOUT_SERVER_PASSWORD:-}"
+    ports:
+      - "127.0.0.1:${SPIRITSCOUT_BROWSER_PORT:-10011}:6080"
+    volumes:
+      - browser-profile:/profile
+    # Chromium 以普通用户运行，允许创建其内部沙箱所需的命名空间。
+    security_opt:
+      - seccomp=unconfined
+      - apparmor=unconfined
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:9223/json/version"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 20s
+  spiritscout:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # 国内网络可换成 https://pypi.tuna.tsinghua.edu.cn/simple
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.org/simple}
+        # 1 = 安装 CTF 工具箱（pwntools/z3/scapy/binwalk/sqlmap 等），体积更大
+        INSTALL_TOOLKIT: ${INSTALL_TOOLKIT:-0}
+    image: spiritscout:local
+    restart: unless-stopped
+    stop_grace_period: 60s
+    shm_size: "1gb"
+    ports:
+      # 只发布到宿主机回环，不对外暴露
+      - "127.0.0.1:${SPIRITSCOUT_PORT:-10010}:10010"
+    environment:
+      # 非回环地址需要配置管理员凭据，保留旧版密码变量兼容。
+      SPIRITSCOUT_ADMIN_USERNAME: "${SPIRITSCOUT_ADMIN_USERNAME:-spiritscout}"
+      SPIRITSCOUT_ADMIN_PASSWORD: "${SPIRITSCOUT_ADMIN_PASSWORD:-}"
+      SPIRITSCOUT_SERVER_PASSWORD: "${SPIRITSCOUT_SERVER_PASSWORD:-}"
+      EXA_API_KEY: "${EXA_API_KEY:-}"
+      SPIRITSCOUT_WEB__PORT: "10010"
+      SPIRITSCOUT_WEB__HOST: "0.0.0.0"
+      # 仅 SRC 使用；智能体/CTF 使用独立无头浏览器。
+      SPIRITSCOUT_CHROME_CDP_URL: "${SPIRITSCOUT_CHROME_CDP_URL:-http://browser:9223}"
+    extra_hosts:
+      # Docker Desktop 内置此别名；Linux Engine 也能通过它访问宿主 CDP。
+      - "host.docker.internal:host-gateway"
+    volumes:
+      # Linux 文件系统上的 SQLite/锁，避免 Windows/macOS 共享目录的锁与性能差异。
+      - spiritscout-data:/app/.spiritscout
+      - spiritscout-config:/app/configs
+    working_dir: /app
+    # bwrap 需要在容器内创建用户/挂载命名空间
+    security_opt:
+      - seccomp=unconfined
+      - apparmor=unconfined
+    cap_add:
+      - SYS_ADMIN
+    command:
+      - python
+      - -m
+      - spiritscout
+      - --config
+      - configs/system.yaml
+      - --host
+      - 0.0.0.0
+      - --port
+      - "10010"
+volumes:
+  browser-profile:
+  spiritscout-data:
+  spiritscout-config:

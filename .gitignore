@@ -1,0 +1,49 @@
+# ── 工作区级排除规则（本仓库 = 全自动打靶整仓源码） ──────────────────
+# SpiritScout/.gitignore 仍然生效，这里只补充工作区层面的条目。
+
+# 依赖：918M 的虚拟环境，用 pyproject.toml 重建
+SpiritScout/.venv/
+.venv/
+
+# 运行期状态与密钥：状态根目录（blackboard/vault/admin/auth.key/sessions）
+.spiritscout/
+SpiritScout/.spiritscout/
+
+# 私有配置：真实供应商端点与模型分配，只提交 .example / .mock 版本
+SpiritScout/configs/models.yaml
+SpiritScout/configs/agent_models.yaml
+.env
+.env.*
+!.env.example
+
+# 任何加密/凭据材料
+*.key
+*.db
+*.db-wal
+*.db-shm
+cookies*.txt
+execution.key
+
+# 缓存
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+build/
+dist/
+.tools/
+
+# 构建产物：不进仓库，通过 GitHub Release 资产分发
+packages/
+_stage/
+_work/_probe_serve.log
+_work/probe_*.py
+
+# 本机执行残留
+artifacts/
+sandbox/
+
+# 内部评估文档：含本地靶场真实 flag 值与私有模型网关地址
+评估报告.md

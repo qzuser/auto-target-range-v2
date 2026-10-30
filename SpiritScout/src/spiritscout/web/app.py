@@ -1,0 +1,246 @@
+"""FastAPI 控制台：会话、配置、状态快照、SSE 和静态页面。
+
+启动请求由 launch.prepare_launch 校验，运行期测试边界由模型结合用户上下文维护。"""
+
+from __future__ import annotations
+
+import json
+import sqlite3
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager, suppress
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import (
+    HTMLResponse,
+)
+from fastapi.staticfiles import StaticFiles
+
+from spiritscout import __version__
+from spiritscout.config.settings import ModelEntry, SystemConfig
+from spiritscout.core.audit import AuditLogger
+from spiritscout.core.exceptions import (
+    ConfigurationError,
+    SpiritScoutError,
+)
+from spiritscout.web import auth as web_auth
+from spiritscout.web import vault
+from spiritscout.web.routes.auth import mount_auth
+from spiritscout.web.routes.models import mount_models
+from spiritscout.web.routes.preferences import mount_preferences
+from spiritscout.web.routes.session_detail import mount_session_detail
+from spiritscout.web.routes.sessions import make_require, mount_sessions
+from spiritscout.web.sessions import (
+    SessionManager,
+)
+
+_STATIC = Path(__file__).parent / "static" / "index.html"
+_STATIC_DIR = Path(__file__).parent / "static"
+_LOGIN = _STATIC_DIR / "login.html"
+
+
+def _iso_ts(value: Any) -> str:
+    """经验库里存的是 Unix 秒，前端按 ISO 字符串截前 19 位显示，统一转过去。"""
+    try:
+        return datetime.fromtimestamp(float(value), tz=UTC).isoformat()
+    except (TypeError, ValueError, OSError, OverflowError):
+        return ""
+
+
+
+
+
+
+
+
+
+def create_app(cfg: SystemConfig, models: list[ModelEntry], *,
+               max_concurrent: int = 4) -> FastAPI:
+    loopback = cfg.web.host in ("127.0.0.1", "localhost", "::1")
+    # 先把环境变量凭据导入管理员库，再判断是否启用登录——首次带 .env
+    # 启动的非回环部署才不会误报“没有管理员”。
+    admin_store = web_auth.AdminStore(cfg.workspace.root)
+    admin_store.sync_from_env(cfg.web.password_env,
+                              cfg.web.admin_username_env,
+                              cfg.web.admin_password_env)
+    auth_enabled = admin_store.has_admins()
+    if cfg.web.remote_auth_required and not loopback and not auth_enabled:
+        raise ConfigurationError(
+            f"Web 控制台绑定 {cfg.web.host} 时必须配置管理员凭据：在 .env 中"
+            f"设置 {cfg.web.admin_username_env} 与 "
+            f"{cfg.web.admin_password_env}（旧版 {cfg.web.password_env} 也兼容）"
+            "后重启")
+    limiter = web_auth.LoginRateLimiter()
+    vault.configure(cfg.workspace.root)   # 密钥库落在工作区（vault.db/vault.key）
+    from spiritscout.resources.assistant import ResourceAssistant
+    from spiritscout.resources.store import ResourceStore, resource_root
+    from spiritscout.web.projects import mount_projects
+    from spiritscout.web.resources import mount_resources
+
+    # 先建 store 再建 manager：两者共用同一迁移实例，避免并发跑一次性迁移
+    resource_store = ResourceStore(resource_root(cfg), cfg.resources.freshness_hours)
+    manager = SessionManager(cfg, models, max_concurrent=max_concurrent,
+                             resources=resource_store)
+    resource_assistant = ResourceAssistant(cfg, resource_store)
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        # 监督协程在 lifespan 内启动（不隶属任何请求任务组），
+        # 关停时停掉所有未终态会话，避免孤儿任务
+        manager.start()
+        resource_assistant.start()
+        # 读取已存在的资产，不启动旧会话或发起网络探测。
+        for path in (Path(cfg.workspace.root)/"sessions").glob("sess-*"):
+            with suppress(OSError, ValueError, sqlite3.Error):
+                resource_store.import_session(path)
+        yield
+        await resource_assistant.close()
+        await manager.aclose()
+
+    app = FastAPI(title="灵枢 SpiritScout 控制台", version=__version__,
+                  lifespan=lifespan)
+    app.state.manager = manager
+    app.state.auth = admin_store
+    app.state.auth_enabled = auth_enabled
+    mount_resources(app, cfg, resource_store, resource_assistant)
+    mount_projects(app, resource_store, manager)
+    app.state.resources = resource_store
+    mount_auth(app, admin_store=admin_store, auth_enabled=auth_enabled,
+               limiter=limiter, loopback=loopback)
+
+    # ------------------------------------------------------------ 前端
+
+    @app.get("/", response_class=HTMLResponse)
+    async def index() -> HTMLResponse:
+        return HTMLResponse(_STATIC.read_text(encoding="utf-8"))
+
+    app.mount("/static", StaticFiles(directory=_STATIC_DIR), name="static")
+
+    # 会话创建 / Agent 编队 / 会话列表在 web/routes/sessions.py
+    _require = make_require(manager)
+    mount_sessions(app, manager=manager, cfg=cfg, require=_require)
+    mount_models(app, cfg=cfg)
+    mount_preferences(app, cfg=cfg)
+    mount_session_detail(app, manager=manager, cfg=cfg, require=_require)
+
+
+    from spiritscout.web.dashboard import DashboardReader
+
+    dashboard_reader = DashboardReader()
+
+    @app.get("/api/dashboard")
+    def dashboard_data(period: str = Query("today", pattern="^(hour|today|7d|30d|all)$")) -> dict[str, Any]:
+        """北京时间的执行、成果、费用与缓存总览；只读，不干预调度。"""
+        from spiritscout.knowledge.experience import experience_db_path, read_recent
+
+        data = dashboard_reader.build(manager.list(), period=period)
+        data["experience"] = read_recent(
+            experience_db_path(cfg.experience.root, cfg.workspace.root), limit=8)
+        return data
+
+    @app.get("/api/experience")
+    def experience_page(q: str = "", tag: str = "",
+                        limit: int = Query(50, ge=1, le=200),
+                        offset: int = Query(0, ge=0)) -> dict[str, Any]:
+        """经验提炼页：自我进化的全部产出（可检索/按标签过滤）+ 提炼过程记录。
+
+        history 从各会话审计尾段提取 experience.distill 事件——含失败与
+        跳过，让「学没学到、为什么没学到」对用户完全可见。
+        """
+        from spiritscout.knowledge.experience import experience_db_path, read_page
+
+        data = read_page(
+            experience_db_path(cfg.experience.root, cfg.workspace.root),
+            q=q, tag=tag, limit=limit, offset=offset)
+        titles = {s.session_id: s.brief(include_summary=False)["title"]
+                  for s in manager.list()}
+        for item in data["items"]:
+            item["source_title"] = titles.get(
+                str(item.get("source_session") or ""), "")
+        data["history"] = _distill_history(cfg)
+        return data
+
+    @app.delete("/api/experience/{insight_id}")
+    def delete_experience(insight_id: str) -> dict[str, Any]:
+        """人工审核：删除一条提炼跑偏的经验（如把单题步骤当成可复用事实）。
+
+        经验库是模型产出、用户可审可清；删除在系统审计留痕（actor=user），
+        被删内容不参与后续会话召回。
+        """
+        from spiritscout.knowledge.experience import delete_insight, experience_db_path
+
+        try:
+            item = delete_insight(
+                experience_db_path(cfg.experience.root, cfg.workspace.root),
+                insight_id, audit=AuditLogger(cfg.audit_log_path))
+        except SpiritScoutError as exc:
+            raise HTTPException(500, str(exc)) from exc
+        if item is None:
+            raise HTTPException(404, f"经验不存在: {insight_id}")
+        return {"deleted": insight_id}
+
+    def _distill_history(cfg: SystemConfig, *, limit: int = 12) -> list[dict[str, Any]]:
+        """最近提炼记录（成功/空/失败/跳过）。
+
+        只管审计日志是不够的：提炼产出的经验落在全局 experience.db，而会话一旦
+        被删，``sessions/<id>/audit.jsonl`` 会跟着消失——经验库里还留着那次提炼
+        产出的条目，页面上却显示「暂无提炼记录」。所以两个来源合并：
+
+        1. 经验库按 ``source_session`` 聚合，给每个产出过经验的会话补一条「成功」；
+        2. 现存会话的审计尾段仍然首选——失败、跳过、无新增这些没产出经验的结论
+           只写在日志里，从经验库反推不出来。
+
+        同一会话以审计日志为准（字段更全），日志里没出现过的才用库里的补。
+        """
+        audited: dict[str, list[dict[str, Any]]] = {}
+        sessions_dir = Path(cfg.workspace.root) / "sessions"
+        if sessions_dir.is_dir():
+            for audit_path in sorted(sessions_dir.glob("*/audit.jsonl")):
+                sid = audit_path.parent.name
+                try:
+                    with audit_path.open("rb") as fh:
+                        fh.seek(0, 2)
+                        size = fh.tell()
+                        fh.seek(max(0, size - 131072))     # 提炼在收尾：只看尾段 128KB
+                        tail = fh.read().decode("utf-8", "ignore")
+                except OSError:
+                    continue
+                for line in tail.splitlines():
+                    if '"experience.distill"' not in line:
+                        continue
+                    try:
+                        rec = json.loads(line)
+                    except ValueError:
+                        continue
+                    if rec.get("type") != "experience.distill":
+                        continue
+                    audited.setdefault(sid, []).append(
+                        {"session_id": sid, "ts": rec.get("ts", ""),
+                         **(rec.get("detail") or {})})
+
+        events: list[dict[str, Any]] = [e for rows in audited.values() for e in rows]
+
+        try:
+            from spiritscout.knowledge.experience import experience_db_path
+            conn = sqlite3.connect(
+                str(experience_db_path(cfg.experience.root, cfg.workspace.root)))
+            try:
+                rows = conn.execute(
+                    "SELECT source_session, COUNT(*), MAX(ts) FROM insights "
+                    "WHERE source_session != '' GROUP BY source_session").fetchall()
+            finally:
+                conn.close()
+        except (sqlite3.Error, OSError, ImportError):
+            rows = []
+        for sid, count, last_ts in rows:
+            if sid in audited:
+                continue        # 日志里记了这次提炼，以它为准
+            events.append({"session_id": sid, "ts": _iso_ts(last_ts), "result": "ok",
+                           "insights": int(count), "outcome": "从本会话提炼出经验"})
+
+        events.sort(key=lambda e: str(e.get("ts", "")), reverse=True)
+        return events[:limit]
+
+    return app

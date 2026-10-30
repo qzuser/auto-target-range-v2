@@ -1,0 +1,57 @@
+# Python 构建与缓存
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# 项目自带工具（本机封装的大体积二进制，不入库）
+.tools/
+
+# 工具缓存
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+
+# 运行时数据：会话工作区 / 审计日志 / 报告（本地私有，不入库）
+.spiritscout/
+.playwright-mcp/
+execution.key
+.execution-locks/
+
+# 本地生成的按 Agent 模型指派表（Web 编队页写回，属本机状态）
+configs/agent_models.yaml
+
+# 本机配置的供应商与模型清单（含接入地址，属私有部署状态；仓库只留 models.example.yaml 模板）
+configs/models.yaml
+
+# 日志
+*.log
+.idea/
+
+# 本地部署凭据（绝不入库）：控制台管理密码 / API Token
+.env
+.env.*
+!.env.example
+
+# 本地修复分析与实施记录，以及一次性审计的复现脚本与证据（过程材料，不提交）
+/audits/
+/COMPETITION_STRATEGY_OPTIMIZATION_2026-10-22.md
+/BROWSER_CLICK_FIX_2026-10-16.md
+/BUG_AUDIT_2026-10-15.md
+/BUG_RECHECK_2026-10-15.md
+/BUG_REVIEW_2026-10-15.md
+/IMPLEMENTATION_PLAN_2026-10-15.md
+/MCP_NAVIGATION_FIX_2026-10-16.md
+/OPTIMIZATION_PROGRESS_2026-10-15.md
+/SESSION_ARCHIVE_2026-10-16.md
+/SESSION_VISIBILITY_2026-10-16.md
+/TOOL_FAILURE_FIX_2026-10-16.md
+/TOOL_PARAMETERS_2026-10-16.md
+
+# 本地抓取的目标页面和登录快照
+/home.html
+/login_sms.yml
+/login_snapshot.yml

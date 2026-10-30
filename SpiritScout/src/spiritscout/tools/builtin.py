@@ -1,0 +1,517 @@
+"""内置工具：HTTP 探测（http_probe）、DNS 解析（dns_resolve）、本地文件分析（file_analyze）。
+
+内置工具直接由 Python 实现，网络测试边界由模型结合完整用户上下文维护，
+速率受全局限制（9.2 流量管控）。这是 MVP 阶段侦察/Web 子 Agent 的
+基础执行能力；外部工具（nmap/nuclei 等）经 CLI 封装接入。
+file_analyze 仅访问本地文件（CTF 附件分析），不触网，路径需位于允许目录内。
+"""
+
+from __future__ import annotations
+
+import asyncio
+import contextlib
+import ipaddress
+import json
+import re
+import socket
+import time
+import zlib
+from collections.abc import Awaitable, Callable
+from pathlib import Path
+from typing import Any
+from urllib.parse import urljoin, urlparse
+
+import httpx
+
+from spiritscout.policy.scope import ScopeGuard
+from spiritscout.tools.fingerprint import web_fingerprint
+from spiritscout.tools.http_transport import ScopedHTTPTransport
+from spiritscout.tools.spec import RiskLevel, ToolKind, ToolResult, ToolSpec
+
+_UA = "Mozilla/5.0 (X11; Linux x86_64) SpiritScout/0.1 (authorized-security-test)"
+
+# TUN 代理 fake-ip 保留段（RFC 2544 基准测试网段，Clash/mihomo 等借用）：
+# 该段地址是代理虚拟栈的应答器——TCP 全端口可达、无服务横幅，测绘结果
+# 指向代理而非目标。DNS 解析与端口扫描必须识别并标注，不能把虚拟地址
+# 当成真实资产入册。
+_FAKEIP_NETS = [ipaddress.ip_network("198.18.0.0/15")]
+
+_FAKEIP_NOTE = ("解析落在 TUN 代理 fake-ip 保留段（198.18.0.0/15）：这是代理"
+                "虚拟地址而非目标服务器，IP 级测绘与端口扫描结果不可信；"
+                "请按域名（Host/SNI）维度记录身份，不要基于这些地址入册资产。")
+
+
+def _is_proxy_virtual_ip(ip: str) -> bool:
+    try:
+        addr = ipaddress.ip_address(str(ip).strip())
+    except ValueError:
+        return False
+    return any(addr in net for net in _FAKEIP_NETS)
+
+
+def _all_proxy_virtual(ips) -> bool:
+    cleaned = [str(i).strip() for i in ips if str(i).strip()]
+    return bool(cleaned) and all(_is_proxy_virtual_ip(i) for i in cleaned)
+
+
+async def _response_window(response: httpx.Response, limit: int) -> tuple[bytes, bool]:
+    """读取有界响应窗：在解压器内限制输出，不能先自动解压再截断。"""
+    if response.is_stream_consumed:
+        # 兼容已经物化的小响应（如内存适配器）；网络调用始终 stream=True。
+        return response.content[:limit], len(response.content) > limit
+    encoding = response.headers.get("content-encoding", "identity").strip().lower()
+    if encoding not in {"", "identity", "gzip", "x-gzip", "deflate"}:
+        raise httpx.DecodingError(f"未支持的响应压缩编码: {encoding}")
+    decoder = (zlib.decompressobj(16 + zlib.MAX_WBITS)
+               if encoding in {"gzip", "x-gzip"} else None)
+    window = bytearray()
+    first = True
+    async for raw in response.aiter_raw(chunk_size=16384):
+        if encoding == "deflate" and first:
+            # RFC 格式带 zlib 头，兼容常见的 raw-deflate 服务；仅保留
+            # 第一个头字节以决定模式，不为回退积攒整个压缩体。
+            if len(raw) < 2:
+                # aiter_raw 已分块；极短完整响应仍由解压器检查完整性。
+                wrapped = False
+            else:
+                wrapped = (raw[0] & 15 == 8 and (raw[0] << 8 | raw[1]) % 31 == 0)
+            decoder = zlib.decompressobj(zlib.MAX_WBITS if wrapped else -zlib.MAX_WBITS)
+        first = False
+        while raw:
+            remaining = limit - len(window)
+            try:
+                chunk = decoder.decompress(raw, remaining + 1) if decoder else raw
+            except zlib.error as exc:
+                raise httpx.DecodingError("响应压缩数据无效") from exc
+            window.extend(chunk[:remaining])
+            if len(chunk) > remaining:
+                return bytes(window), True
+            if decoder is None:
+                break
+            if decoder.eof and decoder.unused_data:
+                if encoding not in {"gzip", "x-gzip"}:
+                    raise httpx.DecodingError("压缩响应包含多余数据")
+                # gzip 允许拼接多个成员，每个成员仍共用一个总输出窗口。
+                raw = decoder.unused_data
+                decoder = zlib.decompressobj(16 + zlib.MAX_WBITS)
+            else:
+                raw = decoder.unconsumed_tail
+    if decoder is not None and not decoder.eof:
+        raise httpx.DecodingError("响应压缩数据不完整")
+    return bytes(window), False
+
+
+class RateLimiter:
+    """全局请求速率限制（9.2：统一管控探测频率与流量特征）。"""
+
+    def __init__(self, rps: float = 10.0, *,
+                 shared_acquire: Callable[[], Awaitable[None]] | None = None):
+        self._interval = 1.0 / max(rps, 0.1)
+        self._last = 0.0
+        self._lock = asyncio.Lock()
+        self._shared_acquire = shared_acquire
+
+    async def acquire(self) -> None:
+        async with self._lock:
+            now = time.monotonic()
+            wait = self._interval - (now - self._last)
+            if wait > 0:
+                await asyncio.sleep(wait)
+            self._last = time.monotonic()
+        if self._shared_acquire is not None:
+            await self._shared_acquire()
+
+
+def _body_content_type(data: Any) -> str:
+    """请求体兜底 Content-Type：JSON 原文按 JSON 发，其余按表单发。
+
+    httpx 对 content=<原文> 不会自动补 Content-Type——服务端按表单解析时
+    读不到字段（实测 Flask request.form 为空 → 400），模型拿着「和字段
+    规则无关的 400」无从纠错，只能反复试值。这里替调用方兜底；headers
+    显式给了 Content-Type 就以调用方为准。
+    """
+    if isinstance(data, (bytes, bytearray)):
+        try:
+            text = bytes(data).decode("utf-8")
+        except UnicodeDecodeError:
+            return ""
+    elif isinstance(data, str):
+        text = data
+    else:
+        return ""
+    if text.lstrip()[:1] in ("{", "["):
+        try:
+            json.loads(text)
+            return "application/json"
+        except ValueError:
+            pass
+    return "application/x-www-form-urlencoded"
+
+
+async def http_probe(
+    url: str,
+    *,
+    method: str = "GET",
+    params: dict[str, Any] | None = None,
+    data: Any = None,
+    headers: dict[str, str] | None = None,
+    guard: ScopeGuard,
+    limiter: RateLimiter | None = None,
+    timeout: float = 15.0,
+    max_redirects: int = 5,
+    max_output_chars: int = 20000,
+    **_: Any,  # 兼容 builtin_ctx 中面向其他内置工具的键（如 allowed_dirs）
+) -> ToolResult:
+    """HTTP 探测工具：限速 → 请求（重定向逐跳跟随）→ 结构化解析。
+
+    授权白名单不拦截：范围外目标照常请求，最终响应带 scope_note 标注，
+    由模型结合用户规则决定是否向用户确认扩围，后端不匹配排除目标。
+    """
+    started = time.perf_counter()
+
+    req_headers = {"User-Agent": _UA, "Accept-Encoding": "gzip, deflate, identity",
+                   **(headers or {})}
+    if data is not None and not any(
+            str(k).lower() == "content-type" for k in req_headers):
+        ctype = _body_content_type(data)
+        if ctype:
+            req_headers["Content-Type"] = ctype
+    try:
+        current_url = url
+        current_method = method.upper()
+        current_data = data
+        current_params = params
+        redirect_chain: list[str] = []
+        async with httpx.AsyncClient(
+            follow_redirects=False, timeout=timeout, trust_env=False,
+            transport=ScopedHTTPTransport(guard),
+        ) as client:
+            for hop in range(max(0, max_redirects) + 1):
+                if limiter:
+                    await limiter.acquire()
+                # 流式发送：响应体不全额进内存——中转跳不读体（省带宽），
+                # 最终响应只取展示窗口需要的字节，超出部分早断不下载
+                req = client.build_request(
+                    current_method, current_url, params=current_params,
+                    content=current_data, headers=req_headers)
+                resp = await client.send(req, stream=True)
+                location = resp.headers.get("location")
+                if resp.status_code not in {301, 302, 303, 307, 308} or not location:
+                    break
+                await resp.aclose()              # 中转体不读：跳转链不占内存
+                if hop >= max_redirects:
+                    return ToolResult(
+                        tool="http_probe", ok=False, returncode=-2,
+                        error=f"重定向次数超过上限: {max_redirects}",
+                        duration_ms=(time.perf_counter() - started) * 1000)
+                next_url = urljoin(str(resp.url), location)
+                redirect_chain.append(next_url)
+                old = urlparse(current_url)
+                new = urlparse(next_url)
+                if (old.scheme, old.hostname, old.port) != (new.scheme, new.hostname, new.port):
+                    # 跨 origin 时不转发调用方显式提供的认证信息。
+                    req_headers = {k: v for k, v in req_headers.items()
+                                   if k.lower() not in {"authorization", "proxy-authorization", "cookie"}}
+                if resp.status_code == 303 or (
+                        resp.status_code in {301, 302} and current_method == "POST"):
+                    current_method, current_data = "GET", None
+                current_params = None
+                current_url = next_url
+            else:  # pragma: no cover - 循环由 break/上限分支结束
+                raise RuntimeError("redirect loop")
+            # 仍在连接池内读取最终响应体（流式响应随连接关闭失效）：
+            # 只取展示窗口需要的字节（字符窗口 ×4 给多字节编码留余量），
+            # 超大响应下载到窗口容量即断，不全额进内存
+            cap_bytes = max(1000, max_output_chars) * 4
+            content, body_truncated = await _response_window(resp, cap_bytes)
+            got = len(content)
+            await resp.aclose()
+            final_status = resp.status_code
+            final_headers = dict(resp.headers)
+            final_url = str(resp.url)
+            cl = final_headers.get("content-length", "")
+            content_length = int(cl) if cl.isdigit() else got
+            body = content.decode(resp.encoding or "utf-8", errors="replace")
+    except httpx.HTTPError as exc:
+        return ToolResult(tool="http_probe", ok=False, error=f"HTTP 错误: {exc}",
+                          returncode=-2, duration_ms=(time.perf_counter() - started) * 1000)
+
+    if len(body) > max_output_chars:
+        body = body[: max_output_chars * 3 // 4] + "\n...[截断]...\n" + body[-max_output_chars // 4 :]
+
+    title = ""
+    m = re.search(r"<title[^>]*>(.*?)</title>", body, re.IGNORECASE | re.DOTALL)
+    if m:
+        title = re.sub(r"\s+", " ", m.group(1)).strip()[:200]
+
+    fingerprint = web_fingerprint(final_headers, body)
+
+    parsed = {
+        "status_code": final_status,
+        "title": title,
+        "content_length": content_length,
+        "body_truncated": body_truncated,
+        "headers": final_headers,
+        "fingerprint": fingerprint,
+        "final_url": final_url,
+        "redirect_chain": redirect_chain,
+    }
+    # 列表只记录初始地址与用户扩围，无法穷尽任务规则授权的动态目标。
+    # 仅报告未匹配事实；是否真正扩围由模型结合上下文判断。
+    if not guard.is_allowed(final_url):
+        parsed["scope_note"] = (
+            "最终响应地址未匹配初始范围列表或用户扩围记录（未拦截）。"
+            "这不代表该目标未经授权：请结合用户原话、项目规则和后续答复判断；"
+            "若已授权测试平台下发的题目靶机，其返回地址属于该任务范围，无需重复确认。"
+            "仅在目标确实超出已有授权或边界不清时用 ask_user 确认。"
+            "危险操作仍须按独立审批通道处理。")
+    return ToolResult(
+        tool="http_probe", ok=True, returncode=0,
+        stdout=body, parsed=parsed,
+        duration_ms=(time.perf_counter() - started) * 1000,
+    )
+
+
+async def dns_resolve(
+    host: str, *, guard: ScopeGuard, limiter: RateLimiter | None = None,
+    timeout: float = 5.0, **_: Any,
+) -> ToolResult:
+    """DNS 解析（被动信息收集）。测试边界由模型上下文判断；白名单仅标注。"""
+    started = time.perf_counter()
+    if limiter:
+        await limiter.acquire()
+    loop = asyncio.get_running_loop()
+    try:
+        infos = await asyncio.wait_for(
+            loop.getaddrinfo(host, None, family=socket.AF_INET), timeout=timeout
+        )
+        ips = sorted({info[4][0] for info in infos})
+    except (TimeoutError, socket.gaierror) as exc:
+        return ToolResult(tool="dns_resolve", ok=False, error=f"解析失败: {exc}",
+                          returncode=-2, duration_ms=(time.perf_counter() - started) * 1000)
+    # fake-ip 识别：解析全部落在代理虚拟段时如实标注，上层据此不入册 IP 资产
+    proxy_virtual = _all_proxy_virtual(ips)
+    return ToolResult(
+        tool="dns_resolve", ok=True, stdout="\n".join(ips),
+        parsed={
+            "host": host, "ips": ips, "proxy_virtual": proxy_virtual,
+            **({"scope_note": _FAKEIP_NOTE} if proxy_virtual else {}),
+        },
+        duration_ms=(time.perf_counter() - started) * 1000,
+    )
+
+
+# 常用 TCP 服务端口（测绘 MVP 集；自定义清单由路线步骤传入）
+COMMON_TCP_PORTS = (21, 22, 23, 25, 53, 80, 110, 111, 135, 139, 443, 445, 873,
+                    1080, 1433, 1521, 2049, 2181, 2375, 2376, 3000, 3306, 3389,
+                    3690, 5000, 5432, 5601, 5900, 6379, 7001, 7077, 8000, 8080,
+                    8081, 8443, 8888, 9000, 9090, 9200, 9300, 11211, 27017, 6443)
+
+
+async def tcp_scan(
+    host: str,
+    *,
+    ports: list[int] | None = None,
+    guard: ScopeGuard,
+    limiter: RateLimiter | None = None,
+    timeout: float = 1.2,
+    max_ports: int = 256,
+    **_: Any,
+) -> ToolResult:
+    """TCP 连接级端口扫描：授权主机上的存活端口与服务横幅（听风）。
+
+    模型依据用户上下文判断测试边界；连接为只读探测，并发受信号量约束、
+    频率受全局 RPS 约束。开放端口抓取首包横幅（非 HTTP 服务给协议指纹），
+    白名单外主机照常可达、结果带范围标注（扩围由用户决定）。
+    """
+    started = time.perf_counter()
+    host = str(host or "").strip()
+    if not host:
+        return ToolResult(tool="tcp_scan", ok=False, returncode=-1, error="host 必填")
+    loop = asyncio.get_running_loop()
+    try:
+        infos = await asyncio.wait_for(
+            loop.getaddrinfo(host, None, family=socket.AF_INET), timeout=5.0)
+        addrs = {info[4][0] for info in infos}
+    except (TimeoutError, socket.gaierror, OSError) as exc:
+        return ToolResult(tool="tcp_scan", ok=False, returncode=-2,
+                          error=f"主机解析失败: {exc}",
+                          duration_ms=(time.perf_counter() - started) * 1000)
+    ip = min(addrs)
+    # fake-ip 前置门：解析落在代理虚拟段时端口扫描只会探测到代理栈（全端口
+    # 可达、零横幅），扫了也是误导——如实标注并跳过，不入任何「开放服务」
+    if _all_proxy_virtual(addrs):
+        return ToolResult(
+            tool="tcp_scan", ok=True, returncode=0,
+            stdout=f"跳过端口扫描：{host} 解析到代理虚拟地址（{ip}）",
+            parsed={"host": host, "ip": ip, "scanned": 0, "open": [],
+                    "proxy_virtual": True, "scope_note": _FAKEIP_NOTE},
+            duration_ms=(time.perf_counter() - started) * 1000,
+        )
+    raw = list(ports) if ports else list(COMMON_TCP_PORTS)
+    port_list: list[int] = []
+    for p in raw[:max_ports]:
+        try:
+            port_list.append(int(p))
+        except (TypeError, ValueError):
+            continue
+    port_list = sorted({p for p in port_list if 1 <= p <= 65535})[:max_ports]
+    sem = asyncio.Semaphore(64)
+
+    async def probe(port: int) -> tuple[int, str] | None:
+        async with sem:
+            if limiter:
+                await limiter.acquire()
+            try:
+                reader, writer = await asyncio.wait_for(
+                    asyncio.open_connection(ip, port), timeout=timeout)
+            except (OSError, TimeoutError):
+                return None
+            banner = ""
+            try:
+                banner = (await asyncio.wait_for(reader.read(160), 0.6)) \
+                    .decode("utf-8", errors="replace").strip()[:160]
+            except (OSError, TimeoutError):
+                pass
+            finally:
+                writer.close()
+                with contextlib.suppress(OSError):
+                    await writer.wait_closed()
+            return port, banner
+
+    results = await asyncio.gather(*(probe(p) for p in port_list))
+    open_ports = [{"port": p, "banner": b} for r in results if r for (p, b) in [r]]
+    # 伪开口启发：扫多少开多少且横幅全零是透明代理全连接栈的特征（真实
+    # 主机不会每个端口都应答且说不出一句话）——结果不作为开放服务证据
+    all_open_zero_banner = (len(port_list) >= 10
+                            and len(open_ports) == len(port_list)
+                            and not any(p["banner"] for p in open_ports))
+    if all_open_zero_banner:
+        open_ports = []
+    note = _FAKEIP_NOTE if all_open_zero_banner else ""
+    if not note and not guard.is_allowed(host):
+        note = ("主机在当前授权白名单之外（未拦截）。继续测试前先用 "
+                "ask_user 向用户确认，用户同意后系统会将其加入本会话范围。")
+    parsed = {
+        "host": host, "ip": ip, "scanned": len(port_list),
+        "open": open_ports,
+        **({"proxy_virtual": True} if all_open_zero_banner else {}),
+        "scope_note": note,
+    }
+    return ToolResult(
+        tool="tcp_scan", ok=True, returncode=0,
+        stdout=(f"疑似代理伪开口（{len(port_list)}/{len(port_list)} 端口全通且无横幅），结果不采信"
+                if all_open_zero_banner
+                else f"开放 {len(open_ports)}/{len(port_list)} 端口"),
+        parsed=parsed,
+        duration_ms=(time.perf_counter() - started) * 1000,
+    )
+
+
+# 文件魔数签名（Misc 隐写/格式识别 4.4.5）
+_MAGIC_SIGNATURES: list[tuple[bytes, str]] = [
+    (b"\x89PNG\r\n\x1a\n", "png"),
+    (b"\xff\xd8\xff", "jpeg"),
+    (b"%PDF", "pdf"),
+    (b"PK\x03\x04", "zip"),
+    (b"\x7fELF", "elf"),
+    (b"\x1f\x8b", "gzip"),
+    (b"\xd4\xc3\xb2\xa1", "pcap"),
+    (b"Rar!\x1a\x07", "rar"),
+    (b"SQLite format 3", "sqlite"),
+]
+_PRINTABLE_RUN = re.compile(rb"[\x20-\x7e]{4,}")
+
+
+async def file_analyze(
+    path: str,
+    *,
+    allowed_dirs: list[str] | None = None,
+    max_strings: int = 80,
+    max_read_bytes: int = 4 * 1024 * 1024,
+    **_: Any,
+) -> ToolResult:
+    """本地文件分析（CTF 附件：魔数识别 + 可打印字符串提取，4.4.5）。
+
+    安全边界：仅允许读取 allowed_dirs 内的文件（默认工作区 attachments），
+    不触网、不执行文件内容。
+    """
+    started = time.perf_counter()
+    p = Path(path).resolve()
+    if allowed_dirs:
+        roots = [Path(d).resolve() for d in allowed_dirs]
+        if not any(p.is_relative_to(root) for root in roots):
+            return ToolResult(tool="file_analyze", ok=False, returncode=-1,
+                              error=f"路径超出允许目录: {p}（仅允许 {allowed_dirs}）")
+    if not p.is_file():
+        return ToolResult(tool="file_analyze", ok=False, returncode=-2,
+                          error=f"文件不存在: {p}")
+    with p.open("rb") as fh:                # 只读前段：不给超大文件全额内存
+        data = fh.read(max_read_bytes)
+    magic = next((name for sig, name in _MAGIC_SIGNATURES
+                  if data.startswith(sig)), "unknown")
+    strings = [m.group(0).decode("ascii", errors="replace")
+               for m in _PRINTABLE_RUN.finditer(data)][:max_strings]
+    return ToolResult(
+        tool="file_analyze", ok=True, returncode=0,
+        stdout="\n".join(strings),
+        parsed={
+            "path": str(p), "size": p.stat().st_size, "magic": magic,
+            "strings": strings,
+            "is_elf": magic == "elf",
+            "elf_class": {1: "32bit", 2: "64bit"}.get(data[4]) if magic == "elf" and len(data) > 5 else None,
+        },
+        duration_ms=(time.perf_counter() - started) * 1000,
+    )
+
+
+# ---------------------------------------------------------------- 注册表
+
+# 内置工具的规范描述（策略门风险定级的依据，4.1 统一抽象 BUILTIN 态）
+BUILTIN_SPECS: dict[str, ToolSpec] = {
+    "http_probe": ToolSpec(
+        name="http_probe", kind=ToolKind.BUILTIN, risk=RiskLevel.READONLY,
+        description="HTTP 探测（任意 HTTP 方法，范围标注 + 限速 + 结构化解析）",
+        target_params=("url",), scope_required=True),
+    "dns_resolve": ToolSpec(
+        name="dns_resolve", kind=ToolKind.BUILTIN, risk=RiskLevel.READONLY,
+        description="DNS 解析（A/AAAA/PTR，范围标注 + 限速）",
+        target_params=("host",), scope_required=True),
+    # 端口扫描：SRC/渗透赛测绘面（CTF 模式 C7 不装配该角色，模式层排除）
+    "tcp_scan": ToolSpec(
+        name="tcp_scan", kind=ToolKind.BUILTIN, risk=RiskLevel.READONLY,
+        description="TCP 端口扫描（连接级探测 + 服务横幅，范围标注 + 限速 + 并发上限）",
+        target_params=("host",), scope_required=True),
+    "file_analyze": ToolSpec(
+        name="file_analyze", kind=ToolKind.BUILTIN, risk=RiskLevel.READONLY,
+        description="本地文件分析（魔数/字符串/熵，仅限 allowed_dirs）",
+        target_params=()),
+    # 沙箱执行：风险定级按「对目标的行为」判——它本身不侵入目标，脚本内容
+    # 做什么由执行边界（Linux bwrap 整机只读/主目录遮蔽；host 后端工作目录
+    # 锁定 + 环境白名单 + 超时杀进程树）与审计约束；
+    # 工具只暴露给 CTF 方向 Agent 的目录，常规渗透模式不下发。
+    "sandbox_exec": ToolSpec(
+        name="sandbox_exec", kind=ToolKind.BUILTIN, risk=RiskLevel.READONLY,
+        action_required=True,
+        description="执行 shell/python（工作目录锁定在会话 sandbox，超时与输出受限）",
+        target_params=()),
+}
+
+
+async def asset_memory_lookup(host: str, query: str = "", offset: int = 0, *, guard: ScopeGuard,
+                              resources=None, **kwargs) -> ToolResult:
+    """只读共享观测；历史记录不代表授权，也不代表当前目标已复核。"""
+    host = host.strip().lower()
+    if not host or resources is None:
+        return ToolResult(tool="asset_memory_lookup", ok=False, error="需要主机名和已装配的共享资产库")
+    import json
+
+    result = resources.assets(query=query, host=host, offset=max(0,int(offset)), limit=20)
+    return ToolResult(tool="asset_memory_lookup", ok=True,
+                      stdout=json.dumps({**result, "notice": "历史参考，不能沿用旧授权或声称本次已验证"}, ensure_ascii=False),
+                      parsed={"count": len(result["items"])})
+
+
+BUILTIN_SPECS["asset_memory_lookup"] = ToolSpec(
+    name="asset_memory_lookup", kind=ToolKind.BUILTIN, description="只读跨会话资产历史，按需复核时效",
+    allowed_params={"host", "query", "offset"}, target_params=("host",), risk=RiskLevel.READONLY)
