@@ -9,7 +9,7 @@
 
 **简体中文 · [English](README_EN.md)**
 
-[![Version](https://img.shields.io/badge/version-v0.23.1-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
+[![Version](https://img.shields.io/badge/version-v0.24.2-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
 
 [快速开始](#快速开始) · [三种模式](#三种模式) · [界面](#界面) · [工作原理](#工作原理) · [配置参考](#配置参考) · [常见问题](#常见问题) · [部署指南](docs/部署与配置.md)
 
@@ -265,6 +265,39 @@ shell / Python 沙箱需要 Linux + bubblewrap；Windows 与 macOS 原生控制�
 
 备份时把 `.spiritscout/` 整个目录和 `.env` 一起带走；只备份数据库不备份 `vault.key`，恢复后 Key 解不开。
 
+### 做题经验包含什么
+
+灵枢的「经验」分两层，都是可读可改的本地文件，不埋在模型权重里。
+
+**一、知识库：参考事实（静态，随代码分发）**
+
+| 文件 | 内容 |
+| --- | --- |
+| `src/spiritscout/knowledge/data/security_skills.json` | 各方向手法索引（约 645 KB）：Web / Pwn / Reverse / Crypto / Misc / 取证等，按「怎么做」组织 |
+| `src/spiritscout/knowledge/seed.py` | 结构化种子知识：平台特性、载荷形态、常见坑位 |
+
+按项目约定，这里**只存参考事实，不存步骤序列**——解题步骤由模型结合现场决定，不写死在代码里。
+
+**二、经验库：实战判断（动态，越用越厚）**
+
+`experience.db` 的 `insights` 表，每条是一句洞察加它的适用条件：
+
+| 字段 | 含义 |
+| --- | --- |
+| `insight` | 一句话洞察，通常是判读规则而非操作步骤 |
+| `context` | 适用场景（写清边界，避免乱套） |
+| `tags` | 标签，检索与召回用 |
+| `source_session` / `source_model` | 来源会话与提炼它的模型 |
+| `ts` | 时间戳 |
+
+预置的那批都是「怎么判读」类：云靶场实例回收后坐标不再指向同一环境；连接超时在按需实例上该先当成实例生命周期信号，而不是目标防护；零轮次战报不能当作难度或防护强度的证据；赛事入口令牌过期与靶场下线难以区分；赛事接入层与题目实例层的可达性互不蕴含，探测失败不能外推。
+
+**它怎么长**
+
+任务收尾时模型提炼本次实战的洞察写回；下个任务开工时按 `experience.recall_limit`（默认 6）召回注入上下文。所以同一个环境打得越多，判读越贴合。
+
+想归零删 `experience.db`（下次启动重建空库）；想带走连 `.spiritscout/` 一起拷。知识库那两个文件删了会丢内置参考，别动。
+
 ### 命令行
 
 ```bash
@@ -311,7 +344,7 @@ Docker 用 `python deploy.py migrate`；手工迁移时停服 → 拷 `.spiritsc
 
 ## 文档与贡献
 
-当前代码版本 **v0.23.1**。版本唯一来源、递增规则与历史说明见 [版本管理](CONTRIBUTING.md#版本管理)。
+当前代码版本 **v0.24.2**。版本唯一来源、递增规则与历史说明见 [版本管理](CONTRIBUTING.md#版本管理)。
 
 | 我想了解 | 阅读入口 |
 | --- | --- |

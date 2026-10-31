@@ -323,11 +323,42 @@ audit.jsonl（每次模型调用与工具调用都可回溯）。
   configs\\      system.yaml（系统配置）、models.yaml（模型注册表）、agent_models.yaml
   data\\         运行数据：会话、审计、报告、密钥库。备份搬机就拷这个目录
 
+四、包里自带的做题经验
+----------------------
+两个层次，都在包里，装上就能用，不需要额外下载：
+
+1) 知识库（静态参考事实，随 app 一起分发）
+   app\\src\\spiritscout\\knowledge\\data\\security_skills.json（约 645 KB）
+     —— 各方向的手法索引：Web / Pwn / Reverse / Crypto / Misc / 取证等，
+        按「怎么做」组织，由模型按实际情况取用。
+   app\\src\\spiritscout\\knowledge\\seed.py
+     —— 结构化的种子知识：平台特性、载荷形态、常见坑位。
+
+2) 经验库（跨会话积累的实战判断，预置 + 自增长）
+   data\\workspace\\experience.db
+     —— 出厂已预置一批实战洞察（表 insights），记的是「怎么判读」而不是
+        「打什么」。例如：云靶场实例回收后坐标不再指向同一环境、连接超时
+        在按需实例上该先当成实例生命周期信号而不是目标防护、零轮次战报
+        不能当作难度或防护强度的证据、赛事入口令牌过期与靶场下线难以
+        区分、赛事接入层与题目实例层的可达性互不蕴含。
+     —— 每条带：insight（一句话洞察）、context（适用场景）、tags（标签）、
+        source_session（来源会话）、source_model、ts。
+
+经验怎么接着长
+--------------
+每次任务收尾，模型从这次实战里提炼洞察写进 experience.db；下个任务开工
+时自动召回最多 6 条（configs\\system.yaml 的 experience.recall_limit）注入
+上下文。用得越久，判读越贴合你实际打过的环境。
+
+想归零：删掉 data\\workspace\\experience.db，下次启动重建空库。
+        （知识库那两个文件在 app\\ 里，删了会丢内置参考，别动。）
+想带走：连 data\\ 一起拷，经验跟着走。
+
 停止服务
 --------
 关掉那个黑窗口，或双击「2-停止服务.bat」（按端口收口，含残留进程）。
 
-四、常见问题
+五、常见问题
 ------------
 - shell 工具报「没有可用 shell」：Windows 上建议装 Git for Windows（自带
   bash，系统自动找得到）；没装会退到 cmd.exe，多数命令仍能跑。
@@ -347,7 +378,7 @@ audit.jsonl（每次模型调用与工具调用都可回溯）。
   联网二进制，全部依赖都是纯本地代码。
 - 只支持 Windows 10/11 64 位。
 
-五、安全边界（务必知道）
+六、安全边界（务必知道）
 ------------------------
 - 执行后端是 host：进程锁在会话目录内、环境变量白名单、超时杀进程树，但
   **没有文件系统读隔离**（宿主其它可读路径仍可读）。别拿它跑不明来源的脚本，
@@ -367,8 +398,27 @@ def build_scripts():
     write_crlf(STAGE / "2-停止服务.bat", STOP)
     # 说明文件带 BOM：老版本记事本也认得出 UTF-8
     write_crlf(STAGE / "使用说明.txt", README, encoding="utf-8-sig")
-    (STAGE / "data").mkdir(exist_ok=True)
-    write_crlf(STAGE / "data" / "说明.txt", """这个目录放运行数据，删掉等于把灵枢恢复成刚装好的状态。
+    data_root = STAGE / "data"
+    data_root.mkdir(exist_ok=True)
+    workspace = data_root / "workspace"
+    workspace.mkdir(exist_ok=True)
+
+    # 预置做题经验：仓库里积累的 insights 随包发出去，收包的人开箱就带着
+    # 这些判读经验，不用从零攒。experience.root 留空即跟随工作区，所以
+    # 直接放到 workspace 下就会被认到。
+    seed_exp = PROJ / ".spiritscout" / "experience.db"
+    if seed_exp.exists():
+        shutil.copy2(seed_exp, workspace / "experience.db")
+        try:
+            import sqlite3
+            con = sqlite3.connect(workspace / "experience.db")
+            count = con.execute("SELECT COUNT(*) FROM insights").fetchone()[0]
+            con.close()
+            print(f"  预置做题经验 {count} 条（experience.db）")
+        except Exception:
+            print("  预置做题经验 experience.db")
+
+    write_crlf(data_root / "说明.txt", """这个目录放运行数据，删掉等于把灵枢恢复成刚装好的状态。
 
   workspace\\              工作区根（配置里 workspace.root）
     sessions\\             会话：每次任务的材料、flags.json、报告、审计
@@ -376,8 +426,19 @@ def build_scripts():
     audit.jsonl            逐条审计（模型调用与工具调用）
     blackboard.db          共享黑板
     knowledge.db/chroma/   知识库
+    experience.db          做题经验库（预置了一批实战判读经验，见下）
     vault.db + vault.key   本机密钥库（模型 API Key 加密存这里）
     resources\\            共享资源目录
+
+关于 experience.db
+------------------
+跨会话自我进化用的经验库，表 insights 每条是一句实战洞察 + 适用场景 +
+标签 + 来源会话。两个来源：
+  1. 出厂预置——已随包附带，直接可用；
+  2. 自己攒的——每次任务收尾时由模型提炼，下个任务开工时自动召回最多
+     6 条（experience.recall_limit）。
+
+想归零就删掉这个文件，下次启动会重建空库。想带着换机器就连目录一起拷。
 
 备份或整体搬到别的电脑：连这个目录一起拷，历史会话和已填的 key 都跟着走。
 """, encoding="utf-8-sig")
