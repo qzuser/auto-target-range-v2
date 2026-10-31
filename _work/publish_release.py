@@ -137,8 +137,48 @@ def ensure_release(token_value: str) -> dict:
     sys.exit(f"  创建失败：HTTP {status} {json.dumps(data, ensure_ascii=False)[:500]}")
 
 
-def existing_assets(token_value: str, release_id: int) -> set[str]:
-    status, data = call("GET", f"{API}/repos/{REPO}/releases/{release_id}/assets", token_value)
+def update_body(token_value: str, release: dict) -> dict:
+    """复用已有 Release 时，把正文覆盖成本地 notes（重发版必须换掉说明）。"""
+    if not NOTES.exists():
+        print("→ 跳过正文更新：本地没有 release notes")
+        return release
+    release_id = release.get("id")
+    if not release_id:
+        return release
+    notes = NOTES.read_text(encoding="utf-8")
+    if (release.get("body") or "").strip() == notes.strip():
+        print("→ Release 正文已是最新")
+        return release
+    print(f"→ 覆盖 Release 正文（{len(notes)} 字）")
+    status, data = call("PATCH", f"{API}/repos/{REPO}/releases/{release_id}", token_value,
+                        {"body": notes, "name": TITLE})
+    if status == 200:
+        print("  正文已更新")
+        return data
+    print(f"  ⚠ 正文更新失败：HTTP {status} {json.dumps(data, ensure_ascii=False)[:300]}")
+    return release
+
+
+def move_tag(token_value: str) -> bool:
+    """把发版 tag 挪到当前 HEAD：产物和代码必须指同一处，否则 tag 上是旧代码。"""
+    print(f"→ 移动 tag {TAG} 到当前 HEAD")
+    env = {**os.environ, "GIT_SSL_NO_VERIFY": "1", "GIT_TERMINAL_PROMPT": "0"}
+    retag = subprocess.run(["git", "tag", "-f", TAG], cwd=ROOT,
+                           capture_output=True, text=True, env=env, check=False)
+    if retag.returncode != 0:
+        print("  ⚠ 本地打 tag 失败：" + (retag.stderr or retag.stdout).strip()[:300])
+        return False
+    url = f"https://x-access-token:{token_value}@github.com/{REPO}.git"
+    pushed = subprocess.run(
+        ["git", "-c", "credential.helper=", "push", "--force", url, f"refs/tags/{TAG}"],
+        cwd=ROOT, capture_output=True, text=True, env=env, timeout=300, check=False,
+    )
+    output = (pushed.stdout + pushed.stderr).strip()
+    print("  " + output.replace(token_value, "***").replace("\n", "\n  ")[:600])
+    return pushed.returncode == 0
+
+
+def existing_assets(token_value: str, release_id: int) -> set[str]:    status, data = call("GET", f"{API}/repos/{REPO}/releases/{release_id}/assets", token_value)
     if status != 200:
         return set()
     items = data if isinstance(data, list) else data.get("assets", [])
@@ -191,7 +231,9 @@ def main() -> None:
     if not push(value):
         sys.exit("推送失败，后面的步骤不再执行")
     release = ensure_release(value)
+    release = update_body(value, release)
     upload(value, release)
+    move_tag(value)
     print("\n全部完成:", release.get("html_url", ""))
 
 

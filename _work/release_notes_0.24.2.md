@@ -1,6 +1,7 @@
 ## 本次发版：0.24.0 → 0.24.2
 
-三件事：CTF 不再拦输入、修好了提交后附件复活的 bug、补了一份打包说明。
+四件事：CTF 不再拦输入、修好了提交后附件复活的 bug、补了一份打包说明、
+运行期经验快照改成随每次提交自动带上。
 
 ### 主要变化
 
@@ -15,7 +16,11 @@
 - **新增《打包与产物说明》**（`docs/打包与产物说明.md`）：包体用途、逐层结构、
   runtime 为何占 655 MB、构建时剥 tests 与 editable 残留各防什么、启动脚本每个
   环境变量的用途、三步构建为何 zip 排最后、拿到包后的自检顺序。
-- **便携包预置做题经验**：`experience.db` 里 8 条实战判读经验随包发出。
+- **便携包预置做题经验**：`experience.db` 里 50 条实战判读经验随包发出。
+- **运行期经验快照随每次提交自动带上**：仓库新增 `experience-export/` 下的导出器
+  与 pre-commit 钩子，提交时自动把 `.spiritscout/experience.db` 里的洞察合并进
+  `experience-insights.json` 一并提交（本次 113 → 163 条）。仓库维护向改动，不影响
+  已发布的包体行为。
 
 ### 变更明细
 
@@ -31,6 +36,19 @@
   `LITELLM_LOCAL_MODEL_COST_MAP`）；三步构建为什么 zip 必须排最后；以及拿到包
   后的自检顺序和四种起不来现象的归因。文档里的体积与文件数都是实测值
   （28564 个文件 / 3870 个目录 / zip 28562 条目），不是估算。
+- **提交前自动同步运行期经验快照**：新增 `experience-export/export_experience.py`
+  与 `git-hooks/pre-commit`，每次 `git commit` 从 `.spiritscout/experience.db` 读
+  会话收尾提炼的洞察，与已提交的 `experience-export/experience-insights.json`
+  合并后一并提交。合并只增不减——库里有的按库里字段覆盖，库里没有的历史世代原样
+  保留，不因本机重建工作区而丢失沉淀；内容没变化时不改写文件（`generated_at`
+  也不动），因此不会每次提交都刷一条空 diff。导出沿用既有脱敏口径（链接 / IPv4 /
+  flag 字面量 / `sk-`、`ghp_`、`xox` 形态密钥 / 回环地址归一），写盘前再对产物做
+  一次反向校验，命中即失败。本次快照 113 → 163 条（113 条历史世代 + 50 条当前
+  运行库）。钩子属于本机状态、不进版本库：克隆后执行
+  `python experience-export/install_hook.py` 装一次（`--check` 查、`--uninstall`
+  卸），`git commit --no-verify` 可临时跳过；运行库缺失或被控制台占用时钩子只
+  提示并放行提交。钩子与脚本在 `.gitattributes` 里固定为 LF，避免
+  `core.autocrlf=true` 的机器把 `#!/bin/sh` 转成 CRLF 后 bad interpreter。
 
 ## [0.24.1] - 2026-10-31
 
@@ -79,10 +97,13 @@ pip install "spiritscout[toolkit] @ file:///绝对路径/spiritscout-0.24.2-py3-
 ### 校验和
 
 ```
-SHA256 (SpiritScout-0.24.2-portable.zip) = cc9f9642c54b61ef5dad66fa91bd4ded72d60430c104a24f32384831cf89980e
-SHA256 (spiritscout-0.24.2-py3-none-any.whl) = 49cfdb71ef5b691d5e4f1eac8b574d13b9cfbe5974fb4b2aaf7556c9659af3cc
-SHA256 (spiritscout-0.24.2.tar.gz) = befcfec362ad75f2aaf58c8ad4345c57ea2422f12e9e3202d5098bb3edf8b6bc
+SHA256 (SpiritScout-0.24.2-portable.zip) = 55a03fe142b197e123d327e12e94157d40a4ddc85635e252d741f3ca7825be9c
+SHA256 (spiritscout-0.24.2-py3-none-any.whl) = 489712e8c4c6c3b4bf5e2ccec22112f70666611da080a64c982a64a38a5e9f28
+SHA256 (spiritscout-0.24.2.tar.gz) = 67ec04bdc12d09f041f97d5cc7de87aeb343793b9f889372e3bd54011cfe9f5b
 ```
+
+三个产物于 2026-11-01 00:34–00:54 重打：便携包 240,379,798 字节（229.2 MB，解压
+619 MB / 28712 文件 / 3892 目录），wheel 1,061,263 字节，sdist 1,237,985 字节。
 
 注意：自己重新打的包哈希一定不同（zip 记录文件时间戳），哈希只用于确认「你拿到的和发布的是同一个文件」，不用于确认内容正确。
 
@@ -91,3 +112,10 @@ SHA256 (spiritscout-0.24.2.tar.gz) = befcfec362ad75f2aaf58c8ad4345c57ea2422f12e9
 - 后端 unittest 989 个，ruff 全绿
 - 前端 `node --check` 20/20、`tests/*.js` 24/24
 - 便携包实测：4 秒启动、HTTP 200、经验库在位、console.js 含附件修复
+- 重打（2026-11-01）：`build_release.py` 组装 → `validate_release.py` 冒烟「全部通过」
+  → `--zip-only` 打出 229.2 MB zip；包内 `experience.db` 实测 50 条、
+  `data/workspace` 落点独立、包根无误建 `.spiritscout`
+- 经验快照管线：`--self-test` 通过（脱敏幂等 + 聚合口径逐字一致）；在一次性临时
+  仓库里端到端实跑——空提交触发钩子自动把快照带进该次提交，塞入带
+  URL/flag/密钥/回环地址的脏经验后产物零残留，运行库移走时钩子放行提交；
+  本仓库首次提交实测输出「[无变化] 快照已是最新（163 条，运行库 50 条）」

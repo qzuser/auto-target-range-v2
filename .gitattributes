@@ -1,0 +1,5 @@
+# 行尾规则：钩子脚本和它依赖的 python 必须保持 LF。
+# core.autocrlf=true 的机器上如果被转成 CRLF，`#!/bin/sh` 会变成 `#!/bin/sh\r`，
+# 钩子直接跑不起来（bad interpreter）。
+experience-export/git-hooks/* text eol=lf
+experience-export/*.py text eol=lf

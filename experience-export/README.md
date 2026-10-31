@@ -4,7 +4,8 @@
 
 ## 文件
 
-`experience-insights.json` —— 113 条可复用的解题洞察，每条含 `insight` 结论、`context` 适用场景、`tags` 标签、`source_model`、`captured_at`。
+`experience-insights.json` —— 可复用的解题洞察，每条含 `insight` 结论、`context` 适用场景、`tags` 标签、`source_model`、`captured_at`。
+条数以文件里的 `total` 为准（每次提交都会刷新，别在这里写死数字）。
 
 `legacy-state-0.12.9.json` —— 0.12.9 世代（2026-10-27~28）那份运行期状态根的**脱敏清点记录**：
 只记条数、层级分布、时间范围、有多少条记录里出现过 flag 字面量，不落任何原文。
@@ -12,13 +13,48 @@
 工作目录跑出来的游离数据——配置认的当前状态根是 `SpiritScout/.spiritscout`（启动器
 `cwd = SpiritScout`），两边从来不是同一个落点。它已移出工作区，本文件是它留下的唯一痕迹。
 
+## 每次提交自动带上
+
+`git-hooks/pre-commit` 是本仓库的提交前钩子，做三件事：读运行库 → 与已提交的快照
+合并 → 有变化就改写快照并 `git add` 进本次提交。也就是说「提交」和「带上最新经验」
+是同一个动作，不需要记得手动导出。
+
+```bash
+python experience-export/install_hook.py            # 每个 clone 装一次（装/更新）
+python experience-export/install_hook.py --check    # 只查：是否已装且与源文件一致
+python experience-export/install_hook.py --uninstall
+```
+
+手动用同一个导出器：
+
+```bash
+python experience-export/export_experience.py             # 立刻同步一次
+python experience-export/export_experience.py --check     # 只检查是否落后（落后退出码 1）
+python experience-export/export_experience.py --self-test # 自检：脱敏幂等 + 聚合口径不变
+```
+
+行为约定：
+
+- **只增不减**。库里有、快照也有的 id 按库里字段覆盖；库里没有的（0.12.9 / 0.23.x
+  那批历史世代）原样保留——它们是早就提交过的沉淀，不能因为本机重建工作区就被抹掉；
+  库里新增的按 `(captured_at, rowid)` 追加到末尾。
+- **内容没变就不写文件**（`generated_at` 也不动），所以不会每次提交都刷一条空 diff；
+  真长出新经验时才出现 diff，而那个 diff 就是本次提交的一部分。
+- **运行库读不到就放行**：没跑过灵枢、或 db 正被控制台占用读不了时，钩子只往 stderr
+  提示一句、保留上次快照，不会卡住提交。
+- 要临时跳过：`git commit --no-verify`。
+- 钩子与导出脚本在 [`.gitattributes`](../.gitattributes) 里固定为 LF——`core.autocrlf=true`
+  的机器若把 `#!/bin/sh` 转成 CRLF，钩子会直接 bad interpreter 跑不起来。
+
 ## 来源
 
 `SpiritScout/.spiritscout/experience.db` 的 `insights` 表。该表由
 `SpiritScout/src/spiritscout/knowledge/experience.py` 在会话收尾时写入
 （洞察上限 600 字、场景上限 300 字）。
 
-这个目录属于本机运行期状态，在 `.gitignore` 里，本文件是唯一被提交的版本。
+这个目录属于本机运行期状态，在 `.gitignore` 里，所以运行库本身从不入库；被提交的只有
+快照 `experience-insights.json` 和三个工具（`export_experience.py`、`install_hook.py`、
+`git-hooks/pre-commit`）。
 
 ## 不含什么
 
