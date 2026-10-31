@@ -178,7 +178,8 @@ def move_tag(token_value: str) -> bool:
     return pushed.returncode == 0
 
 
-def existing_assets(token_value: str, release_id: int) -> set[str]:    status, data = call("GET", f"{API}/repos/{REPO}/releases/{release_id}/assets", token_value)
+def existing_assets(token_value: str, release_id: int) -> set[str]:
+    status, data = call("GET", f"{API}/repos/{REPO}/releases/{release_id}/assets", token_value)
     if status != 200:
         return set()
     items = data if isinstance(data, list) else data.get("assets", [])
