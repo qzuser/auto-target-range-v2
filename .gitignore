@@ -47,3 +47,4 @@ sandbox/
 
 # 内部评估文档：含本地靶场真实 flag 值与私有模型网关地址
 评估报告.md
+.git-credentials
