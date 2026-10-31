@@ -576,6 +576,16 @@ function renderFileChips(sel, files, onChange) {
       onChange?.();
     });
 }
+/* 清空附件 chip。**必须就地清空，不能写 files = []**：bindAttach 在模块加载时
+   就捕获了这个数组的引用，换新数组会让闭包和状态脱钩——下次选文件 push 进孤儿
+   数组，renderFileChips 把上一轮提交过的附件又画回来，而登记状态永远是空的
+   （发送键恒灰、提交时附件静默丢失）。返回原数组，便于调用方继续持有同一引用。 */
+function clearFileChips(sel, files, onChange) {
+  files.length = 0;
+  renderFileChips(sel, files, onChange);
+  onChange?.();
+  return files;
+}
 /* 发送键可用 = 有文字 或 有附件。两处 composer 共用一套判定，免得一边允许
    只传附件、另一边按钮却还是灰的。 */
 function syncCompSend() {
@@ -670,8 +680,8 @@ async function compSend() {
     }
     compInput.value = "";
     compGrow();
-    S.compFiles = [];
-    renderFileChips("#comp-files", S.compFiles, () => syncCompSend());
+    // 就地清空：见 clearFileChips 的注释，重新赋值会让 bindAttach 攥着孤儿数组
+    clearFileChips("#comp-files", S.compFiles, () => syncCompSend());
   } catch (e) { toast(e.message, true); }
   $("#comp-send").disabled = false;
 }
@@ -777,7 +787,8 @@ async function launchMission(payload, files = []) {
     const s = await api("/api/sessions", { method: "POST", body: JSON.stringify(payload) });
     toast(files.length ? "任务已下达，附件已交给灵枢" : "任务已下达，灵枢开始规划");
     $("#c-mission").value = "";
-    if (files.length) { S.homeFiles = []; renderFileChips("#home-files", S.homeFiles, () => homeSync()); }
+    // 就地清空：见 clearFileChips 的注释，重新赋值会让 bindAttach 攥着孤儿数组
+    if (files.length) clearFileChips("#home-files", S.homeFiles, () => homeSync());
     // 先进会话页：列表刷新是附带动作，不该挡在进场前面（服务器侧若正被
     // 长任务占住，await 列表会把进页一起压住）
     openSession(s.session_id);

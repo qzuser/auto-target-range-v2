@@ -2,6 +2,13 @@
 
 授权范围 / 授权对象 / 赛题清单 / 赛制规则的解析与校验只在此处维护，
 避免多处事实源漂移（同源原则）。
+
+两类校验的性质不同，不要混为一谈：
+- **硬校验**（SRC 需要目标 URL、赛制规则冲突）：缺的东西模型问也变不出来，
+  在创建时拦下比让它带着空目标跑一轮更有意义；
+- **不做完备性校验**（CTF 的赛题清单/URL/附件/平台档案）：用户点了执行就
+  交给灵枢，任务原文本身就是材料。缺的信息它会在运行期自己开口问，这比让
+  用户在表单上反复猜「到底缺哪一项」好。
 """
 
 from __future__ import annotations
@@ -216,11 +223,10 @@ def prepare_launch(req: LaunchRequest) -> LaunchPlan:
         hint = ("；任务描述中未识别到目标 URL——请写明 http(s):// 地址"
                 if mission else "——或在任务描述中写明目标")
         raise SpiritScoutError(f"SRC 模式需要目标 URL{hint}")
-    if (req.mode == RunMode.CTF and not req.challenges_yaml and not m_urls
-            and not req.has_uploads and not req.platform_yaml and not mode_auto):
-        raise SpiritScoutError(
-            "CTF 模式需要赛题清单——粘贴赛题 YAML，写明赛题 URL，上传题目附件，"
-            "或提供平台档案（托管题由平台列题）")
+    # CTF 不做输入完备性校验：用户点了执行就交给灵枢。缺赛题清单、URL、
+    # 附件、平台档案都不在创建时拦——任务原文本身就是材料，模型能从中
+    # 判断要做什么；确实缺信息它会自己开口问，这比让用户在表单上反复
+    # 猜「到底缺哪一项」好。
 
     challenges = (parse_challenges_yaml(req.challenges_yaml)
                   if req.challenges_yaml else [])
@@ -236,6 +242,13 @@ def prepare_launch(req: LaunchRequest) -> LaunchPlan:
         # 只有附件的赛题（离线题常态）：题目壳由装配合成，附件文件由
         # 会话创建流程注入 attachments 字段——此处不知道落地路径
         challenges = [{"id": "mission-1", "title": "任务附件赛题",
+                       "description": mission[:500]}]
+    elif req.mode == RunMode.CTF and not challenges:
+        # 什么都没有：仍然开工。拿任务原文当题面，行首一句作标题；
+        # 全空时给个中性壳，交给灵枢在运行期决定做什么。
+        first_line = (mission.strip().splitlines() or [""])[0].strip()
+        challenges = [{"id": "mission-1",
+                       "title": (first_line[:80] or "CTF 任务"),
                        "description": mission[:500]}]
 
     rules = None
