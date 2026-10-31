@@ -1,0 +1,64 @@
+#!/bin/sh
+# 提交前把运行期跑出来的经验刷新进本次提交。
+#
+# 装上之后，每次 git commit 都会：
+#   1. 从 SpiritScout/.spiritscout/experience.db 读当前经验，与已提交的快照合并；
+#   2. 有新经验就改写 experience-export/experience-insights.json；
+#   3. 把它加进本次提交。
+# 内容没变时文件不动，所以不会每次提交都刷一条无意义的 diff。
+#
+# 安装：python experience-export/install_hook.py
+# 临时绕过：git commit --no-verify
+set -u
+
+root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+cd "$root" || exit 0
+
+gitdir=$(git rev-parse --git-dir 2>/dev/null) || exit 0
+
+# 合并/变基/拣选过程中不介入，免得把冲突处理搅乱
+if [ -f "$gitdir/MERGE_HEAD" ] || [ -d "$gitdir/rebase-merge" ] || \
+   [ -d "$gitdir/rebase-apply" ] || [ -f "$gitdir/CHERRY_PICK_HEAD" ]; then
+  exit 0
+fi
+
+exporter="experience-export/export_experience.py"
+[ -f "$exporter" ] || exit 0
+
+# 找一个能跑的解释器：优先仓库自带 venv，其次 PATH 里的 python，最后 py 启动器
+PY=""
+for cand in "SpiritScout/.venv/Scripts/python.exe" "SpiritScout/.venv/bin/python" \
+            "python" "python3"; do
+  if [ -x "$cand" ] || command -v "$cand" >/dev/null 2>&1; then
+    PY="$cand"
+    break
+  fi
+done
+if [ -z "$PY" ] && command -v py >/dev/null 2>&1; then
+  PY="py -3"
+fi
+if [ -z "$PY" ]; then
+  echo "[pre-commit] 找不到 python，本次提交不刷新经验快照" >&2
+  exit 0
+fi
+
+$PY -X utf8 "$exporter"
+rc=$?
+if [ "$rc" -eq 3 ]; then
+  echo "[pre-commit] 运行库缺失或被占用，本次提交保留上次的经验快照" >&2
+  exit 0
+fi
+if [ "$rc" -ne 0 ]; then
+  echo "[pre-commit] 经验快照导出失败（rc=$rc），已中断提交；" >&2
+  echo "             修好后再提交，或用 git commit --no-verify 跳过" >&2
+  exit 1
+fi
+
+# 只有真长出新经验时文件才会变；变了就一定要进本次提交
+if ! git diff --quiet -- experience-export/experience-insights.json ||
+   ! git diff --cached --quiet -- experience-export/experience-insights.json ||
+   [ -n "$(git ls-files --others --exclude-standard -- experience-export/experience-insights.json)" ]; then
+  git add experience-export/experience-insights.json || exit 1
+fi
+
+exit 0

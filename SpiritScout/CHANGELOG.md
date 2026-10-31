@@ -22,6 +22,19 @@ Git 历史与日期日志回溯整理，用于标识功能演进，**并非当�
   `LITELLM_LOCAL_MODEL_COST_MAP`）；三步构建为什么 zip 必须排最后；以及拿到包
   后的自检顺序和四种起不来现象的归因。文档里的体积与文件数都是实测值
   （28564 个文件 / 3870 个目录 / zip 28562 条目），不是估算。
+- **提交前自动同步运行期经验快照**：新增 `experience-export/export_experience.py`
+  与 `git-hooks/pre-commit`，每次 `git commit` 从 `.spiritscout/experience.db` 读
+  会话收尾提炼的洞察，与已提交的 `experience-export/experience-insights.json`
+  合并后一并提交。合并只增不减——库里有的按库里字段覆盖，库里没有的历史世代原样
+  保留，不因本机重建工作区而丢失沉淀；内容没变化时不改写文件（`generated_at`
+  也不动），因此不会每次提交都刷一条空 diff。导出沿用既有脱敏口径（链接 / IPv4 /
+  flag 字面量 / `sk-`、`ghp_`、`xox` 形态密钥 / 回环地址归一），写盘前再对产物做
+  一次反向校验，命中即失败。本次快照 113 → 163 条（113 条历史世代 + 50 条当前
+  运行库）。钩子属于本机状态、不进版本库：克隆后执行
+  `python experience-export/install_hook.py` 装一次（`--check` 查、`--uninstall`
+  卸），`git commit --no-verify` 可临时跳过；运行库缺失或被控制台占用时钩子只
+  提示并放行提交。钩子与脚本在 `.gitattributes` 里固定为 LF，避免
+  `core.autocrlf=true` 的机器把 `#!/bin/sh` 转成 CRLF 后 bad interpreter。
 
 ## [0.24.1] - 2026-10-31
 
