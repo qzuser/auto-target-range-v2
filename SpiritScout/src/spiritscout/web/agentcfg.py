@@ -63,16 +63,10 @@ def write_assignments(path: str | Path, assignments: dict[str, str]) -> None:
 
 
 def read_naming_chain(path: str | Path) -> list[str]:
-    """会话命名候选链（用户在「模型」页排的降级顺序）；缺文件/缺键 → []。"""
-    raw = _read_doc(path).get("naming") or []
-    if not isinstance(raw, list):
-        raise SpiritScoutError(f"命名候选链格式错误: {path}")
-    chain: list[str] = []
-    for item in raw:
-        mid = str(item).strip()
-        if mid and mid not in chain:
-            chain.append(mid)
-    return chain
+    """模型优先级（＝会话命名候选链）：解析与运行链共用 config.agent_models。"""
+    from spiritscout.config.agent_models import read_naming_chain as _read
+
+    return _read(path)
 
 
 def set_naming_chain(path: str | Path, models: list[str],

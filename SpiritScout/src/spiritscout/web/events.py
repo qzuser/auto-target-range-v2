@@ -210,3 +210,61 @@ async def stream_audit(path: Path, last_event_id: int = 0, *,
     finally:
         if fh is not None:
             fh.close()
+
+
+# 主链路（master/gateway/runtime）不是「子 Agent 实例」，面板里不单列
+_NON_WORKER = ("master", "gateway", "runtime", "system", "user")
+
+
+def _is_worker(actor: str) -> bool:
+    return bool(actor) and not any(
+        actor == name or actor.startswith(f"{name}-") for name in _NON_WORKER)
+
+
+def agent_models(path: Path, *, limit: int = 8000) -> dict[str, Any]:
+    """按实例汇总最近一次真实模型调用（面板兜底：翻历史也能看到用了什么）。
+
+    SSE 只在事件到达那一刻有意义；打开面板晚了、或用旧记录，实时流里
+    就没有这条 model.started。这里直接读审计尾部，把每个子 Agent 最近一次
+    调用的模型与渠道（供应商/base_url）算出来。
+    """
+    rows: dict[str, dict[str, Any]] = {}
+    try:
+        with path.open("rb") as fh:
+            size = fh.seek(0, 2)
+            start = max(0, size - 4 * 1024 * 1024)
+            fh.seek(start)
+            data = fh.read()
+    except OSError:
+        return {"agents": []}
+    lines = data.splitlines()
+    if start:
+        lines = lines[1:]          # 首行可能被切入点截断
+    for raw in lines[-limit:]:
+        if b"model.started" not in raw and b"model.failed" not in raw:
+            continue
+        try:
+            record = json.loads(raw.decode("utf-8", errors="replace"))
+        except ValueError:
+            continue
+        kind = str(record.get("type") or "")
+        if kind not in {"model.started", "model.failed", "model.call_finished"}:
+            continue
+        actor = str(record.get("actor") or "")
+        if not _is_worker(actor):
+            continue
+        detail = record.get("detail") or {}
+        model = str(detail.get("model") or "")
+        if not model:
+            continue
+        row = rows.setdefault(actor, {"actor": actor, "model": model,
+                                      "provider_ref": "", "base_url": "",
+                                      "calls": 0, "last_ts": ""})
+        row["model"] = model
+        row["calls"] += 1
+        row["last_ts"] = str(record.get("ts") or row["last_ts"])
+        for field in ("provider_ref", "base_url"):
+            value = str(detail.get(field) or "")
+            if value:
+                row[field] = value
+    return {"agents": sorted(rows.values(), key=lambda r: r["actor"])}

@@ -87,11 +87,38 @@ const AgentWorkbench = (() => {
     }
     while (agent.tools.size > 50) agent.tools.delete(agent.tools.keys().next().value);
   }
-  let store=create(), timer=null;
+  let store=create(), timer=null, seeded="";
+  /* 面板打开得晚、或看的是旧会话时，实时流里没有 model.started；
+     这时按审计尾部算出的「每个实例最近用的模型」补一次，标签就不会空着。 */
+  function seed(sessionId) {
+    if (!sessionId || seeded === sessionId) return;
+    seeded = sessionId;
+    fetch(`/api/sessions/${encodeURIComponent(sessionId)}/agents/models`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data || !Array.isArray(data.agents) || seeded !== sessionId) return;
+        let touched=false;
+        for (const row of data.agents) {
+          let agent=store.agents.get(row.actor);
+          if (!agent) {
+            agent={actor:row.actor,status:"已调用模型",turn:0,blocks:[],tools:new Map(),calls:new Set(),tasks:new Map(),callTasks:new Map(),taskId:"",updated:row.last_ts};
+            store.agents.set(row.actor,agent);
+            if (!store.selected) store.selected=row.actor;
+            touched=true;
+          }
+          if (row.model && !agent.model) { agent.model=row.model; touched=true; }
+          if (row.provider_ref && !agent.channel) { agent.channel=row.provider_ref; touched=true; }
+          if (row.base_url && !agent.baseUrl) { agent.baseUrl=row.base_url; touched=true; }
+        }
+        if (touched) render();
+      })
+      .catch(() => {});
+  }
   function render() {
     timer=null;
     if (S.view !== "session" || S.tab !== "chat") return;
     const root=$("#agent-workbench"); if (!root) return;
+    seed(S.cur);
     const agents=[...store.agents.values()], selected=store.agents.get(store.selected);
     const nav=root.querySelector(".aw-agents"), pane=root.querySelector(".aw-pane");
     const session=S.state?.session || S.sessions?.find(s=>s.session_id===S.cur);
@@ -154,7 +181,7 @@ const AgentWorkbench = (() => {
     pane.scrollTop=same && (!store.follow || !stick) ? oldScroll : pane.scrollHeight;
   }
   function push(event) { reduce(store,event); if (timer===null) timer=setTimeout(render,120); }
-  function reset() { if(timer!==null) clearTimeout(timer); timer=null;store=create();const root=$("#agent-workbench");if(root){for(const el of root.querySelectorAll("[data-signature]"))delete el.dataset.signature;}render(); }
+  function reset() { if(timer!==null) clearTimeout(timer); timer=null;store=create();seeded="";const root=$("#agent-workbench");if(root){for(const el of root.querySelectorAll("[data-signature]"))delete el.dataset.signature;}render(); }
   function init() {
     const root=$("#agent-workbench"); if(!root)return;
     const toggle=root.querySelector(".aw-toggle"), content=root.querySelector(".aw-content");

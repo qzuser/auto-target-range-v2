@@ -65,10 +65,13 @@ def _bound_model(cfg: SystemConfig, models: list[ModelEntry],
 
 
 def _conversation_gateway(cfg: SystemConfig, models: list[ModelEntry], audit: AuditLogger) -> Any:
-    """路由与空闲对话也进入同一会话用量台账，运行期继续回灌该快照。"""
-    from spiritscout.gateway import ModelGateway, ModelRegistry
+    """路由与空闲对话也进入同一会话用量台账，运行期继续回灌该快照。
 
-    gateway = ModelGateway(ModelRegistry(models), config=cfg.gateway, audit=audit)
+    注册表带上用户排的模型优先级（编队表 naming 链）——改完不用重启。
+    """
+    from spiritscout.gateway import ModelGateway, registry_for
+
+    gateway = ModelGateway(registry_for(models, cfg), config=cfg.gateway, audit=audit)
     from spiritscout.gateway.usage import bind_usage
 
     bind_usage(gateway, Path(cfg.workspace.root) / "usage.json")
@@ -1102,7 +1105,42 @@ class SessionManager:
 
     @property
     def models(self) -> list[ModelEntry]:
-        """模型清单（只读）：网页层的写手类功能要拿它建一次性 gateway。"""
+        """模型清单（只读）：网页层的写手类功能要拿它建一次性 gateway。
+
+        读的时候顺手看一眼 `models.yaml` 改没改——停用/启用/调优先级是不
+        该逼用户重启服务的。
+        """
+        return self.reload_models()
+
+    def _model_stamp(self) -> tuple[float, float]:
+        """两份文件各自取时间戳：缺一份（比如没建编队表）不影响另一份比较。"""
+        def stamp(path: str) -> float:
+            try:
+                return Path(path).stat().st_mtime
+            except OSError:
+                return 0.0
+
+        return (stamp(self._cfg.models_config_path),
+                stamp(self._cfg.agent_models_path))
+
+    def reload_models(self) -> list[ModelEntry]:
+        """配置变了就重载（密钥一并重新注入）；坏文件保留上一份可用清单。"""
+        stamp = self._model_stamp()
+        if stamp == self._models_stamp:
+            return self._models
+        from spiritscout.config import load_model_config
+
+        try:
+            fresh = vault.apply_keys(load_model_config(self._cfg.models_config_path))
+        except (SpiritScoutError, OSError, ValueError) as exc:
+            self._models_stamp = stamp
+            AuditLogger(self._cfg.audit_log_path).log(
+                "model.reload", "sessions", {"ok": False, "error": str(exc)[:200]})
+            return self._models
+        self._models_stamp = stamp
+        if not fresh:          # 全停用等于没配：留着旧清单，避免整条链路哑掉
+            return self._models
+        self._models = fresh
         return self._models
 
     def __init__(self, cfg: SystemConfig, models: list[ModelEntry],
@@ -1110,6 +1148,8 @@ class SessionManager:
                  resources: ResourceStore | None = None):
         self._cfg = cfg
         self._models = models
+        self._models_stamp: tuple[float, float] = (0.0, 0.0)
+        self._models_stamp = self._model_stamp()
         self._sem = asyncio.Semaphore(max_concurrent)
         self._sessions: dict[str, Session] = {}
         self._queue: asyncio.Queue[
@@ -1508,7 +1548,9 @@ class SessionManager:
                     session.launch_request["side_context"] = copy.deepcopy(context)
                 self._persist(session)
             self.start()        # 直接使用（非 Web lifespan）时懒启动监督协程
-            await self._queue.put((session, cfg, plan, no_llm, models, False))
+            # 入队时重读模型清单：改完优先级/开关，下一次开工就换过去
+            await self._queue.put((session, cfg, plan, no_llm,
+                                   self.reload_models(), False))
         except Exception as exc:
             # 登记后中途失败（配置构建/附件搬运/入队）：落终态再原样抛出——
             # 「created」既非终态也无法续传，留下就成了删不掉也开不了的僵尸
@@ -1852,7 +1894,8 @@ class SessionManager:
         session.error = ""
         self._persist(session)
         self.start()
-        await self._queue.put((session, cfg, session.plan, no_llm, models, True))
+        await self._queue.put((session, cfg, session.plan, no_llm,
+                               self.reload_models(), True))
         return session
 
     async def _run_side_agent(self, session: Session, cfg: SystemConfig,

@@ -15,10 +15,11 @@ from spiritscout.gateway.gateway import (
     ModelGateway,
     chat_decision,
 )
-from spiritscout.gateway.registry import ModelRegistry
+from spiritscout.gateway.registry import ModelRegistry, registry_for
 
 __all__ = [
     "AgentBoundGateway", "CascadeResult", "ChatResponse", "CollabGateway",
     "DebateResult", "JudgeResult", "ModelGateway", "ModelRegistry",
     "VoteResult", "chat_decision", "extract_json", "parse_judgment",
+    "registry_for",
 ]
