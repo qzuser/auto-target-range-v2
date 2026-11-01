@@ -9,7 +9,7 @@
 
 **简体中文 · [English](README_EN.md)**
 
-[![Version](https://img.shields.io/badge/version-v0.28.1-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
+[![Version](https://img.shields.io/badge/version-v0.29.1-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
 
 [快速开始](#快速开始) · [三种模式](#三种模式) · [界面](#界面) · [工作原理](#工作原理) · [配置参考](#配置参考) · [常见问题](#常见问题) · [部署指南](docs/部署与配置.md)
 
@@ -80,7 +80,7 @@
 | 能力 | 可以做什么 |
 | --- | --- |
 | 编队协作 | 主 Agent 拆分任务，子 Agent 派生路线、共享线索，按角色分配模型 |
-| 执行工作台 | 展开任务、路线与推进步骤，查看工具结果及带审计出处的过程拓扑；每个子 Agent 标出当前用的模型与渠道 |
+| 执行工作台 | 展开任务、路线与推进步骤，查看工具结果及带审计出处的过程拓扑；每个子 Agent 标出当前用的模型与渠道（打开旧会话也照样显示） |
 | 项目与产物 | 保存资产和会话；候选漏洞独立复测；生成报告或解题思路 |
 | 解题思路（WP） | 按赛方模板成文：生成前确认团队信息与题目分章（可留空、下次带出），按方向分章、逐题写清怎么解、怎么拿到 Flag，并列出实际用过的工具与关键命令；可下载 Markdown |
 | 浏览器与工具 | 接入 MCP、Skill 与 shell/Python 沙箱；SRC 可复用登录态并人工处理验证码 |
@@ -302,9 +302,9 @@ shell / Python 沙箱需要 Linux + bubblewrap；Windows 与 macOS 原生控制�
 
 **它怎么长**
 
-任务收尾时模型提炼本次实战的洞察写回；下个任务开工时按 `experience.recall_limit`（默认 6）召回注入上下文。所以同一个环境打得越多，判读越贴合。
+任务收尾时模型提炼本次实战的洞察写回；**每解出一道题（Flag 落地的那一刻）也会立刻提炼一次**——材料只围绕刚解出的那道题（题面、这道题的路线与关键判断、Flag 形态），后台排队跑，不打断后续解题。同一道题的多枚 Flag 只提炼一次，避免重复条目。下个任务开工时按 `experience.recall_limit`（默认 6）召回注入上下文。所以同一个环境打得越多，判读越贴合。
 
-每个会话页的「**经验**」页签是它的落地窗口：左边是这次产出的条目（标签、适用场景、来源模型与时间），右边是这次会话的提炼记录（自动还是手动、成功还是失败、失败原因）。自动提炼因为模型不可用或会话被中断而跳过时，页面上的「手动提炼」可以补一次——战报按落盘状态重建，停掉的会话也能补；会话还在跑、或者确实没有活动时按钮会给原因，不白烧一次模型调用。
+每个会话页的「**经验**」页签是它的落地窗口：左边是这次产出的条目（标签、适用场景、来源模型与时间），右边是这次会话的提炼记录（解出即提炼、收尾提炼、手动补提炼，成功还是失败、失败原因）。解出即提炼与收尾提炼都走后台队列，失败会重试、进程中断会在下次启动补跑。自动提炼因为模型不可用或会话被中断而跳过时，页面上的「手动提炼」可以补一次——战报按落盘状态重建，停掉的会话也能补；会话还在跑、或者确实没有活动时按钮会给原因，不白烧一次模型调用。
 
 想归零删 `experience.db`（下次启动重建空库）；想带走连 `.spiritscout/` 一起拷。知识库那两个文件删了会丢内置参考，别动。
 
@@ -332,6 +332,9 @@ Docker 部署改 `.env` 里的端口映射；本地运行用 `--port`。换端�
 **想换成别的模型？**
 「模型」页新增供应商与模型 ID，然后去「编队」页把角色重新指派。不需要改配置文件或重启。
 
+**想让某个模型排前面？**
+「模型」页的优先级链就是路由顺序：链上第一条是首选，取不到才往下走，没列进链的排在最后。改完下一次开工就换过去，不用重启；想给某个角色钉死一个模型，就在「编队」页指派，指派永远优先于优先级链。
+
 **解题思路里团队信息是空的？**
 信息页可以完全留空——留空处写「（待填写）」，不影响生成。填过一次后会自动带出；
 清空再生成等于忘掉。题目分章不落盘：换了题目 id 就重新按题面自动判定。
@@ -354,7 +357,7 @@ Docker 用 `python deploy.py migrate`；手工迁移时停服 → 拷 `.spiritsc
 
 ## 文档与贡献
 
-当前代码版本 **v0.28.1**。版本唯一来源、递增规则与历史说明见 [版本管理](CONTRIBUTING.md#版本管理)。
+当前代码版本 **v0.29.1**。版本唯一来源、递增规则与历史说明见 [版本管理](CONTRIBUTING.md#版本管理)。
 
 | 我想了解 | 阅读入口 |
 | --- | --- |

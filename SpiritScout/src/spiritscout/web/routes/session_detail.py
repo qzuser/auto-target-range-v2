@@ -46,6 +46,7 @@ from spiritscout.core.exceptions import SpiritScoutError
 from spiritscout.core.models import BlackboardLayer
 from spiritscout.web import wp_profile
 from spiritscout.web.events import (
+    agent_models,
     read_activity_page,
     read_audit_page,
     stream_audit,
@@ -465,6 +466,11 @@ def mount_session_detail(app: FastAPI, *, manager: SessionManager,
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
+
+    @app.get("/api/sessions/{session_id}/agents/models")
+    def session_agent_models(session_id: str) -> dict[str, Any]:
+        """每个子 Agent 实例当前用的模型与渠道（翻审计尾部，实时流之外的兜底）。"""
+        return agent_models(require(session_id).audit_path)
 
     @app.post("/api/sessions/{session_id}/stop")
     async def stop_session(session_id: str) -> dict[str, Any]:

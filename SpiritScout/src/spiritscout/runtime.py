@@ -48,7 +48,7 @@ from spiritscout.ctf.writeup import build_digest, run_facts, writeup_body
 from spiritscout.gateway import (
     AgentBoundGateway,
     ModelGateway,
-    ModelRegistry,
+    registry_for,
 )
 from spiritscout.knowledge import KnowledgeStore
 from spiritscout.knowledge.experience import (
@@ -164,6 +164,8 @@ class _Infra:
     run_lock: ExecutionRunLock | None = None
     outcome: str = "failed"
     experience_deferred: bool = False   # 退场提炼托管后台中：close 跳过经验库
+    flag_distilled: set[str] = field(default_factory=set)   # 已按题提炼过的挑战 ID
+    flag_distill_closed: bool = False   # 收尾阶段：不再为一枚 flag 排提炼
 
     async def close(self) -> None:
         if self.questions is not None:
@@ -635,7 +637,7 @@ async def _build_infra(
         bus, limiter, blackboard = await _open_blackboard(
             cfg, authorization, resources, audit, question_broker)
         convergence = ConvergenceEngine(blackboard)
-        gateway = ModelGateway(ModelRegistry(models), config=cfg.gateway, audit=audit)
+        gateway = ModelGateway(registry_for(models, cfg), config=cfg.gateway, audit=audit)
         gateway.set_mode(authorization.mode.value)   # 模式预算计量与熔断
         # 执行器三态：本地 CLI 默认；docker 后端为子 Agent 沙箱隔离（加固）
         executor: ToolExecutor
@@ -1033,6 +1035,102 @@ def _distill_digest(infra: _Infra, assembly: Any,
     return digest
 
 
+def _flag_digest(infra: _Infra, cand: Any,
+                 challenge: dict[str, Any] | None) -> dict[str, Any]:
+    """单题提炼的战报：解出某一枚 Flag 时的题面与该题过程（不含 Flag 原文）。"""
+    info = challenge or {}
+    value = str(getattr(cand, "value", "") or "")
+    digest: dict[str, Any] = {
+        "event": "flag_solved",
+        "mode": infra.authorization.mode.value,
+        "outcome": "flag_solved",
+        "challenge": {
+            "id": str(info.get("id") or getattr(cand, "challenge_id", "") or ""),
+            "title": str(info.get("title") or info.get("name") or "")[:120],
+            "direction": str(info.get("direction") or info.get("category") or "")[:40],
+            "url": str(info.get("url") or "")[:200],
+            "description": str(info.get("description") or "")[:600],
+        },
+        # Flag 只给形态不给原文：经验库要能复用，不能把答案抄走
+        "flag": {"format_ok": bool(getattr(cand, "format_ok", False)),
+                 "found_by": str(getattr(cand, "found_by", ""))[:40],
+                 "length": len(value),
+                 "preview": (value[:6] + "…") if value else ""},
+    }
+    try:
+        bb = infra.blackboard
+        title = digest["challenge"]["title"]
+        cid = digest["challenge"]["id"]
+        routes: list[dict[str, str]] = []
+        for rec in bb.query(BlackboardLayer.TASK_STATE, limit=100):
+            data = rec["data"]
+            task = data.get("task", {}) or {}
+            payload = task.get("payload", {}) or {}
+            node_id = str(payload.get("node_id") or "")
+            node_title = str(payload.get("node_title") or "")
+            if not ((cid and node_id == cid) or (title and node_title == title)):
+                continue
+            for route in (data.get("routes") or [])[:4]:
+                notes = route.get("notes") or [""]
+                routes.append({"agent": str(task.get("agent_type", ""))[:30],
+                               "route": str(route.get("name", ""))[:60],
+                               "status": str(route.get("status", "")),
+                               "note": str(notes[-1])[:180]})
+        if routes:
+            digest["routes"] = routes[:6]
+    except Exception:  # noqa: BLE001 —— 黑板异常时只交题面与 Flag 形态
+        pass
+    return digest
+
+
+def _schedule_flag_distill(infra: _Infra, experience: Any, enabled: bool,
+                           cand: Any,
+                           challenge: dict[str, Any] | None = None,
+                           ) -> asyncio.Task[Any] | None:
+    """解出 Flag 就提炼一次（每题一次）：后台串行，不挡继续解题。
+
+    与收尾提炼共用后台队列与快照格式；差别有三处：材料只围绕这一道题、
+    不关闭经验库（会话还在跑）、审计 trigger 记 ``flag``。
+    """
+    if not enabled or experience is None:
+        return None
+    if getattr(infra, "flag_distill_closed", False):
+        return None          # 收尾批量提交阶段：交给整场提炼，不再逐题排
+    challenge_id = str((challenge or {}).get("id")
+                       or getattr(cand, "challenge_id", "") or "")
+    key = challenge_id or str(getattr(cand, "value", "") or "")
+    done = getattr(infra, "flag_distilled", None)
+    if done is None:
+        done = set()
+        infra.flag_distilled = done
+    if not key or key in done:
+        return None          # 同一题多枚 Flag 只提炼一次，材料本就是同一道题
+    done.add(key)
+    digest = _flag_digest(infra, cand, challenge)
+    snapshot = _persist_distill_snapshot(
+        infra, digest, outcome="flag_solved", trigger="flag", challenge=key)
+    task = asyncio.create_task(_background_distill(
+        infra, experience, digest, outcome="flag_solved", snapshot=snapshot,
+        trigger="flag", close_store=False))
+    _BACKGROUND_DISTILLS.add(task)
+    task.add_done_callback(_BACKGROUND_DISTILLS.discard)
+    return task
+
+
+def _flag_solved_hook(infra: _Infra, enabled: bool,
+                      challenges: Any) -> Any:
+    """FlagManager 的解出回调：按挑战 ID 找到题面，排一次单题提炼。"""
+    index = {str(item.get("id")): item for item in (challenges or [])
+             if isinstance(item, dict) and item.get("id")}
+
+    async def _hook(cand: Any) -> None:
+        _schedule_flag_distill(
+            infra, infra.experience, enabled, cand,
+            index.get(str(getattr(cand, "challenge_id", "") or "")))
+
+    return _hook
+
+
 def _worth_distilling(digest: dict[str, Any]) -> bool:
     """正常收尾总提炼（提示词自行决定是否空数组）；中止/失败需确实跑过东西。"""
     if digest.get("outcome") == "completed":
@@ -1124,8 +1222,12 @@ def _prepare_distill(infra: _Infra, assembly: Any, enabled: bool, experience: An
 
 
 async def _distill_run(infra: _Infra, experience: Any, digest: dict[str, Any], *,
-                       outcome: str) -> dict[str, Any]:
-    """一次提炼执行 + 审计留痕（完成态原地等待与退场后台任务共用）。"""
+                       outcome: str, trigger: str = "end") -> dict[str, Any]:
+    """一次提炼执行 + 审计留痕（完成态原地等待与退场后台任务共用）。
+
+    ``trigger`` 记这次是为谁提炼的：``flag``（解出某题）／``end``（会话收尾）／
+    ``resume``（进程重启后补跑快照）。
+    """
     started = time.monotonic()
     # 来源记真实会话 ID（Web 会话工作区名即 sess-xxx，经验页据此回链）
     workspace_root = getattr(
@@ -1141,7 +1243,7 @@ async def _distill_run(infra: _Infra, experience: Any, digest: dict[str, Any], *
         result = {"result": "error", "insights": 0,
                   "error": f"{type(exc).__name__}: {exc}"[:200]}
     infra.audit.log("experience.distill", "master", {
-        **result, "outcome": outcome,
+        **result, "outcome": outcome, "trigger": trigger,
         "duration_ms": round((time.monotonic() - started) * 1000, 1)})
     return result
 
@@ -1187,7 +1289,9 @@ def _update_distill_snapshot(path: Path | None, **updates: Any) -> None:
 
 
 def _persist_distill_snapshot(
-        infra: _Infra, digest: dict[str, Any], *, outcome: str) -> Path | None:
+        infra: _Infra, digest: dict[str, Any], *, outcome: str,
+        trigger: str = "end", challenge: str = "") -> Path | None:
+    """把待提炼任务落盘；进程中途结束也能在下次启动补跑（``trigger`` 一并存下）。"""
     workspace = getattr(infra, "workspace", None)
     if not isinstance(workspace, Path):
         return None
@@ -1196,7 +1300,8 @@ def _persist_distill_snapshot(
         path = _distill_queue_dir(workspace) / f"{stamp}-{new_id('distill')}.json"
         _write_distill_snapshot(path, {
             "schema": 1, "status": "pending", "attempts": 0,
-            "outcome": outcome, "digest": digest,
+            "outcome": outcome, "trigger": trigger, "challenge": challenge,
+            "digest": digest,
             "session": workspace.name,
             "created_at": datetime.now(UTC).isoformat(),
         })
@@ -1204,6 +1309,7 @@ def _persist_distill_snapshot(
     except OSError as exc:
         infra.audit.log("experience.distill", "master", {
             "result": "queue_persist_failed", "outcome": outcome,
+            "trigger": trigger,
             "error": f"{type(exc).__name__}: {exc}"[:200]})
         return None
 
@@ -1254,9 +1360,13 @@ def _schedule_background_distill(infra: _Infra, assembly: Any, experience: Any,
 
 async def _background_distill(infra: _Infra, experience: Any,
                               digest: dict[str, Any], *, outcome: str,
-                              snapshot: Path | None = None) -> None:
-    """后台提炼收尾：执行提炼并关闭托付的经验库（连接不泄漏）。
+                              snapshot: Path | None = None,
+                              trigger: str = "end",
+                              close_store: bool = True) -> None:
+    """后台提炼收尾：执行提炼并按需关闭托付的经验库（连接不泄漏）。
 
+    ``close_store=False`` 用于解出 Flag 时的中途提炼——会话还在跑，经验库
+    要继续被主 Agent 召回，不能在这里关掉。
     任何失败只吞掉不冒泡——后台任务无人接管异常，会话终态早已落定。
     """
     try:
@@ -1272,14 +1382,15 @@ async def _background_distill(infra: _Infra, experience: Any,
                     snapshot, status="running", attempts=prior + 1,
                     started_at=datetime.now(UTC).isoformat())
             result = await _distill_run(
-                infra, experience, digest, outcome=outcome)
+                infra, experience, digest, outcome=outcome, trigger=trigger)
             failed = result.get("result") == "error"
             _update_distill_snapshot(
                 snapshot, status="failed" if failed else "done",
                 completed_at=datetime.now(UTC).isoformat(), result=result)
     finally:
-        with contextlib.suppress(Exception):
-            experience.close()
+        if close_store:
+            with contextlib.suppress(Exception):
+                experience.close()
 
 
 async def resume_pending_distills(
@@ -1294,7 +1405,7 @@ async def resume_pending_distills(
     if not snapshots or not models:
         return 0
     audit = AuditLogger(cfg.audit_log_path)
-    gateway = ModelGateway(ModelRegistry(models), config=cfg.gateway, audit=audit)
+    gateway = ModelGateway(registry_for(models, cfg), config=cfg.gateway, audit=audit)
     store = ExperienceStore(
         experience_db_path(cfg.experience.root, str(workspace)), audit=audit)
     completed = 0
@@ -1326,6 +1437,10 @@ async def resume_pending_distills(
                 _update_distill_snapshot(
                     snapshot, status="failed" if failed else "done",
                     completed_at=datetime.now(UTC).isoformat(), result=result)
+                audit.log("experience.distill", "master", {
+                    **result, "outcome": str(payload.get("outcome") or "resume"),
+                    "trigger": str(payload.get("trigger") or "resume"),
+                    "recovered": True})
                 if not failed:
                     completed += 1
     finally:
@@ -1486,6 +1601,8 @@ async def run_ctf_engagement(
             submit_fn=flag_submit_fn or (adapter.submit if adapter is not None else None),
             audit=infra.audit, bus=infra.bus,
             store_path=infra.workspace / "flags.json",
+            # 解出即提炼：平台判对（或无提交接口时模型判定）就排一次单题提炼
+            on_solved=_flag_solved_hook(infra, enable_llm_planning, challenges),
         )
         assembly = _make_assembler(infra, enable_llm_planning).assemble(
             RunMode.CTF, challenges=challenges, flag_manager=flag_manager,
@@ -1505,6 +1622,7 @@ async def run_ctf_engagement(
 
         # 提交与完整报告仍在前台交付；经验提炼复用持久后台队列，
         # 不再与报告争抢前台模型槽位，也不阻塞会话完成。
+        infra.flag_distill_closed = True   # 收尾批量提交不再逐题排提炼
         submit_stats = await flag_manager.submit_all()
         run_summary["flag_submit"] = submit_stats
         flag_stats = flag_manager.stats()
@@ -1651,6 +1769,7 @@ async def run_competition_engagement(
             audit=infra.audit, bus=infra.bus,
             rate_limit_per_minute=rules.submit.rate_limit_per_minute,
             store_path=infra.workspace / "flags.json",
+            on_solved=_flag_solved_hook(infra, enable_llm_planning, challenges),
         )
 
         # 保留赛方列表与分值事实，排题策略由模型按实际规则裁决。
@@ -1685,6 +1804,7 @@ async def run_competition_engagement(
             "mode": "background",
         }
         try:
+            infra.flag_distill_closed = True   # 收尾批量提交不再逐题排提炼
             submit_stats = await flag_manager.submit_all()
             run_summary["flag_submit"] = submit_stats
             # 已判定正确的 Flag → 标记赛题完成，驱动调度器资源转移

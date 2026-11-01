@@ -34,6 +34,8 @@ class SubmitResult:
 
 # 提交函数签名：async fn(flag_value, challenge_id) -> SubmitResult
 SubmitFn = Callable[[str, str], Awaitable[SubmitResult]]
+# 解出回调：async fn(candidate) —— 平台判定正确、或模型判定且无提交接口时触发
+SolvedFn = Callable[[FlagCandidate], Awaitable[None]]
 
 
 def extract_flags(text: str, patterns: list[str] | None = None) -> list[str]:
@@ -60,9 +62,11 @@ class FlagManager:
         backoff_base_seconds: float = 1.0,
         max_attempts: int = 3,
         store_path: str | Path | None = None,
+        on_solved: SolvedFn | None = None,
     ):
         self.patterns = flag_patterns or list(DEFAULT_FLAG_PATTERNS)
         self.submit_fn = submit_fn
+        self.on_solved = on_solved      # 「这题解出了」回调（经验提炼接线）
         self.audit = audit or NullAuditLogger()
         self.bus = bus
         self.min_interval = 60.0 / max(rate_limit_per_minute, 1)
@@ -72,6 +76,7 @@ class FlagManager:
         self._flags: dict[str, FlagCandidate] = {}   # value → candidate（去重核心）
         self._last_submit = 0.0
         self._lock = asyncio.Lock()
+        self._solved_fired: set[str] = set()   # flag_id → 已通知过，避免重复提炼
         if self.store_path and self.store_path.exists():
             self._load()
 
@@ -116,6 +121,10 @@ class FlagManager:
             "found_by": found_by, "format_ok": cand.format_ok,
             "value_preview": value[:12] + "..."})
         self._persist()
+        if self.submit_fn is None:
+            # 没有提交接口时「模型判定 + 登记」就是解出信号，立刻提炼一次；
+            # 有接口的等平台判定，避免把错误提交也当成解出。
+            self._notify_solved(cand)
         return cand
 
     # ------------------------------------------------------------ 提交
@@ -151,6 +160,9 @@ class FlagManager:
                 await asyncio.sleep(wait)
         await self._publish_feedback(cand)
         self._persist()
+        if cand.accepted is True:
+            # 平台/接口判定正确 = 这题真的解出了：立刻提炼一次（不挡后续提交）
+            self._notify_solved(cand)
         return cand
 
     async def submit_all(self, *, only_unjudged: bool = True) -> dict[str, int]:
@@ -186,6 +198,27 @@ class FlagManager:
         }
 
     # ------------------------------------------------------------ 内部
+
+    def _notify_solved(self, cand: FlagCandidate) -> None:
+        """把「解出了」转交回调：排到当前事件循环，不阻塞解题与提交。"""
+        if self.on_solved is None or cand.flag_id in self._solved_fired:
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:      # 没有事件循环（同步调用）时静默跳过
+            return
+        self._solved_fired.add(cand.flag_id)
+        loop.create_task(self._fire_solved(cand))
+
+    async def _fire_solved(self, cand: FlagCandidate) -> None:
+        if self.on_solved is None:
+            return
+        try:
+            await self.on_solved(cand)
+        except Exception as exc:  # noqa: BLE001 —— 提炼出问题不能影响解题主线
+            self.audit.log("flag.solved_hook_failed", "flag_manager", {
+                "flag_id": cand.flag_id, "challenge_id": cand.challenge_id,
+                "error": f"{type(exc).__name__}: {exc}"[:200]})
 
     async def _throttle(self) -> None:
         wait = self.min_interval - (time.monotonic() - self._last_submit)
