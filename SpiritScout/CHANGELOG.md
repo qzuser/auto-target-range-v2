@@ -1,6 +1,6 @@
 # 更新日志
 
-项目采用 `主版本.次版本.修订号`。当前版本为 **0.28.0**，版本唯一来源是
+项目采用 `主版本.次版本.修订号`。当前版本为 **0.28.1**，版本唯一来源是
 `src/spiritscout/__init__.py`；包构建、命令行、控制台及 MCP 握手共用该值。
 
 **历史版本说明**：0.1.0 是仓库早期已有的代码版本；0.2.0—0.11.1 根据现有
@@ -9,6 +9,22 @@ Git 历史与日期日志回溯整理，用于标识功能演进，**并非当�
 行为，部分规则后来已有调整，请以当前代码和最新条目为准。
 
 版本递增和发布记录规则见 [贡献指南](CONTRIBUTING.md#版本管理)。
+
+## [0.28.1] - 2026-11-01
+
+启动控制台改回 cmd：`launch.cmd` 取代 `launch.ps1`，文档与提示里不再要求装 PowerShell。
+
+### 变更
+
+- **Windows 启动器换成 `launch.cmd`**：`launch.ps1` 已删除。批处理做同样两件事——
+  `--set-admin-password --if-missing` 先设管理员密码，再带参数起 `-m spiritscout`；
+  路径按脚本自身位置解析，任意目录下双击/调用都行，退出码原样透传。
+- 文档同步：README（中/英）、CONTRIBUTING、`docs/部署与配置.md`、
+  `docs/打包与产物说明.md`、`docs/08`、`docs/09` 的启动与校验命令改写成 cmd
+  （`certutil -hashfile`、`dir /s /b /a-d`、`for %f in (...)` 等），
+  「本机启动器」段落不再提 `start-local.ps1`。
+- 缺运行依赖时的提示改为「改用 `.venv\Scripts\python.exe -m spiritscout` 或
+  `launch.cmd` 启动」。
 
 ## [0.28.0] - 2026-11-01
 
@@ -62,7 +78,7 @@ WP 现在交的是**解题思路**：题目怎么读、看到什么、怎么判�
   运行依赖（如用系统 Python 启动、没有 `langgraph`）时会在请求里抛
   `ModuleNotFoundError`，前端只看到 `Internal Server Error`。现在导入失败会被翻译
   成一句能照做的话：缺哪个包、当前解释器是哪个、改用
-  `.venv\Scripts\python.exe -m spiritscout` 或 `.\launch.ps1` 启动，并照样记进提炼
+  `.venv\Scripts\python.exe -m spiritscout` 或 `launch.cmd` 启动，并照样记进提炼
   记录。
 - **提炼失败点名没配 Key 的渠道**：全链失败时把「以下渠道没有 API Key：…」补进
   报错与提炼记录——这是最常见的失败原因，不该让人自己翻配置。

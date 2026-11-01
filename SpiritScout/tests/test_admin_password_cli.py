@@ -118,6 +118,16 @@ class SetAdminPasswordCliTests(unittest.TestCase):
         self.assertEqual(self._run("--if-missing"), 0)
         self.assertFalse(self.db.exists())
 
+    def test_tty_without_readable_input_skips_instead_of_crashing(self) -> None:
+        """终端看着是交互的、实际被脚本包住（读输入抛 EOF）：跳过，不崩也不卡。"""
+        with patch("sys.stdin", _Stdin("", tty=True)), \
+                patch("builtins.input", side_effect=EOFError):
+            self.assertEqual(self._run("--if-missing"), 0)
+        self.assertFalse(self.db.exists())
+        with patch("sys.stdin", _Stdin("", tty=True)), \
+                patch("builtins.input", side_effect=EOFError):
+            self.assertEqual(self._run(), EXIT_PASSWORD_REJECTED)
+
     def test_setup_writes_hash_but_no_session_key(self) -> None:
         # 设密只写 admin.db；登录 Cookie 的签名密钥（auth.key）是懒加载的，
         # 第一次签发会话才落地——它同样绝不进包，但不该被设密顺手带出来。

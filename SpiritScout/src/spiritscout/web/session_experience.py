@@ -263,7 +263,7 @@ def _missing_dependency(exc: ModuleNotFoundError) -> str:
     return (f"服务端缺少运行依赖 {name}：当前解释器（{sys.executable}）只能起控制台壳子，"
             f"跑任务与提炼都会失败。请用项目虚拟环境启动："
             f".venv\\Scripts\\python.exe -m spiritscout --config configs\\system.yaml，"
-            f"或直接 .\\launch.ps1")
+            f"或直接 launch.cmd")
 
 
 def _error_result(cfg: Any, session: Any, message: str) -> dict[str, Any]:

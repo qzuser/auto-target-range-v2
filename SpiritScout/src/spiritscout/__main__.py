@@ -108,24 +108,34 @@ def set_admin_password(cfg, args: argparse.Namespace) -> int:
         return 0
 
     interactive = sys.stdin.isatty() and not args.password_stdin
-    username = (args.admin_username or "").strip()
-    if interactive and not username:
-        username = input(f"管理员用户名 [{DEFAULT_ADMIN_USERNAME}]: ").strip()
-    username = username or DEFAULT_ADMIN_USERNAME
+    # 终端看着是交互的、实际读不到输入（被启动脚本或管道包住）时 input/getpass
+    # 抛 EOFError：按「非交互」处理，别让启动器在这里炸掉或卡住。
+    try:
+        username = (args.admin_username or "").strip()
+        if interactive and not username:
+            username = input(f"管理员用户名 [{DEFAULT_ADMIN_USERNAME}]: ").strip()
+        username = username or DEFAULT_ADMIN_USERNAME
 
-    if args.password_stdin:
-        password = confirm = sys.stdin.readline().rstrip("\r\n")
-    elif interactive:
-        print("设置控制台管理员密码：只保存 scrypt 哈希，明文不写入任何文件。")
-        password = getpass.getpass("密码（输入不回显）: ")
-        confirm = getpass.getpass("再输一次: ")
-    elif args.if_missing:
-        print("[跳过] 当前不是交互终端，未设置管理员密码；"
-              "需要时运行 python -m spiritscout --set-admin-password")
-        return 0
-    else:
-        print("[错误] 当前不是交互终端，请改用 --password-stdin 传入密码",
-              file=sys.stderr)
+        if args.password_stdin:
+            password = confirm = sys.stdin.readline().rstrip("\r\n")
+        elif interactive:
+            print("设置控制台管理员密码：只保存 scrypt 哈希，明文不写入任何文件。")
+            password = getpass.getpass("密码（输入不回显）: ")
+            confirm = getpass.getpass("再输一次: ")
+        elif args.if_missing:
+            print("[跳过] 当前不是交互终端，未设置管理员密码；"
+                  "需要时运行 python -m spiritscout --set-admin-password")
+            return 0
+        else:
+            print("[错误] 当前不是交互终端，请改用 --password-stdin 传入密码",
+                  file=sys.stderr)
+            return EXIT_PASSWORD_REJECTED
+    except (EOFError, KeyboardInterrupt):
+        if args.if_missing:
+            print("[跳过] 没读到输入，未设置管理员密码；"
+                  "需要时在终端里运行 python -m spiritscout --set-admin-password")
+            return 0
+        print("[错误] 没读到密码输入，已取消", file=sys.stderr)
         return EXIT_PASSWORD_REJECTED
 
     if password != confirm:

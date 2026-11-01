@@ -9,7 +9,7 @@ and progress, evidence, and artifacts stay in the same session.
 
 **English · [简体中文](README.md)**
 
-[![Version](https://img.shields.io/badge/version-v0.28.0-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
+[![Version](https://img.shields.io/badge/version-v0.28.1-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
 
 [Quick start](#quick-start) · [Three modes](#three-modes) · [Interface](#interface) · [How it works](#how-it-works) · [Configuration](#configuration) · [FAQ](#faq) · [Deployment guide (中文)](docs/部署与配置.md)
 
@@ -157,15 +157,15 @@ sudo apt install bubblewrap   # Debian / Ubuntu; Fedora: sudo dnf install bubble
 ./launch.sh
 ```
 
-**Windows PowerShell**
+**Windows (cmd)**
 
-```powershell
+```bat
 py -3 -m venv .venv
 .venv\Scripts\python.exe -m pip install -e .
-.\launch.ps1
+launch.cmd
 ```
 
-Open <http://127.0.0.1:8000>, stop with `Ctrl+C`. Change the port with `./launch.sh --port 10010`, or pass the argument to `launch.ps1`.
+Open <http://127.0.0.1:8000>, stop with `Ctrl+C`. Change the port with `./launch.sh --port 10010` or `launch.cmd --port 10010`.
 
 The console prints the bind address first, then **waits until the port actually accepts
 connections before saying `[就绪] 浏览器可以打开了`** — first boot creates databases and warms
@@ -312,7 +312,7 @@ Use `python deploy.py migrate` for Docker. Manually: stop the service, copy `.sp
 
 ## Docs and contributing
 
-Current code version: **v0.28.0**. The single source of the version, the bump rules, and the history: see [version management (中文)](CONTRIBUTING.md#版本管理).
+Current code version: **v0.28.1**. The single source of the version, the bump rules, and the history: see [version management (中文)](CONTRIBUTING.md#版本管理).
 
 | I want to | Read |
 | --- | --- |
