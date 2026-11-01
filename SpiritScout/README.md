@@ -9,7 +9,7 @@
 
 **简体中文 · [English](README_EN.md)**
 
-[![Version](https://img.shields.io/badge/version-v0.35.0-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
+[![Version](https://img.shields.io/badge/version-v0.35.1-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
 
 [快速开始](#快速开始) · [三种模式](#三种模式) · [界面](#界面) · [工作原理](#工作原理) · [配置参考](#配置参考) · [常见问题](#常见问题) · [部署指南](docs/部署与配置.md)
 
@@ -46,7 +46,7 @@
 
 ## 界面
 
-控制台是一个单页应用。左侧只放五项主功能，其余收进「设置」：
+控制台是一个单页应用。左侧只放六项主功能（任务、仪表盘、用量、编队、项目、经验），其余收进「设置」：
 
 | 视图 | 用来做什么 |
 | --- | --- |
@@ -73,8 +73,8 @@
 
 跑在后台的任务最怕「解出来了没人告诉你」。**解出一道题（平台判定正确），或者灵枢卡在需要你回答的问题上，控制台会弹一条系统通知**——切到别的窗口也收得到，点一下直接跳回那个会话。浏览器没给通知权限时退化成页面内提示加标签页标题计数，不会静默跳过；正看着那个会话、屏幕上已经有提问卡时不再重复弹；一轮积压太多只弹前三条，其余折成一条「另有 N 条提醒」，剩下的去「设置 → 通知」的「最近提醒」里看。拉取的节奏跟着控制台原有的轮询（可见 15 秒、隐藏 30 秒），不另开定时器，也不在服务端记「已读」——多开几个标签页，各看各的屏。
 
-会话内的页签：**题目** · **实况** · **事件** · **Flag** · **拓扑** · **漏洞** · **交付物** · **报告** · **解题思路**。
-「解题思路」只在 CTF 模式出现——生成前先确认团队信息与题目分章，可以留空，填过的会记住。
+会话内的页签：**会话** · **拓扑** · **题目列表** · **漏洞** · **Flag** · **经验** · **事件** · **记录与文件** · **WP** · **报告**。
+「题目列表」只在智能体竞赛模式出现，「WP」（解题思路）只在 CTF 模式出现——生成前先确认团队信息与题目分章，可以留空，填过的会记住。
 
 ## 能力
 
@@ -205,8 +205,8 @@ shell / Python 沙箱需要 Linux + bubblewrap；Windows 与 macOS 原生控制�
    用不上的模型点「停用」即可退出选用，配置留着，想用再点回来。
 2. **分角色**：进「编队」页，给灵枢和各子 Agent 指派模型（可以都指同一个）。
 3. **下任务**：回首页选模式，填目标 / 题目、规则与附件，点「开始执行」。
-4. **看现场**：进会话页，实况流看每一步，拓扑看推进结构，需要时在对话里补充信息。
-5. **收产物**：交付物页取报告或解题思路，Markdown 可直接下载。
+4. **看现场**：进会话页，「会话」页签看每一步，「拓扑」页签看推进结构，需要时在对话里补充信息。
+5. **收产物**：「记录与文件」页签取交付物，「报告」与「WP」页签取成文，Markdown 可直接下载。
 
 ## 工作原理
 
@@ -372,7 +372,7 @@ Docker 部署改 `.env` 里的端口映射；本地运行用 `--port`。换端�
 
 **会话跑到一半卡住了？**
 先看仪表盘告警——模型调用等待过久、有空闲名额却没派活都会单独报出来。
-再进会话的实况流看最后一条工具结果；需要时直接在对话里给方向。
+再进会话的「会话」页签看最后一条工具结果；需要时直接在对话里给方向。
 
 **数据怎么迁移？**
 Docker 用 `python deploy.py migrate`；手工迁移时停服 → 拷 `.spiritscout/`（或数据卷）→ 在新环境启动。
@@ -388,7 +388,7 @@ Docker 用 `python deploy.py migrate`；手工迁移时停服 → 拷 `.spiritsc
 
 ## 文档与贡献
 
-当前代码版本 **v0.35.0**。版本唯一来源、递增规则与历史说明见 [版本管理](CONTRIBUTING.md#版本管理)。
+当前代码版本 **v0.35.1**。版本唯一来源、递增规则与历史说明见 [版本管理](CONTRIBUTING.md#版本管理)。
 
 | 我想了解 | 阅读入口 |
 | --- | --- |

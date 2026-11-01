@@ -9,7 +9,7 @@ and progress, evidence, and artifacts stay in the same session.
 
 **English · [简体中文](README.md)**
 
-[![Version](https://img.shields.io/badge/version-v0.35.0-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
+[![Version](https://img.shields.io/badge/version-v0.35.1-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
 
 [Quick start](#quick-start) · [Three modes](#three-modes) · [Interface](#interface) · [How it works](#how-it-works) · [Configuration](#configuration) · [FAQ](#faq) · [Deployment guide (中文)](docs/部署与配置.md)
 
@@ -48,12 +48,13 @@ SRC refers to security response centre / bug bounty workflows.
 
 ## Interface
 
-A single-page console. The sidebar keeps five primary sections; everything else lives under **Settings**:
+A single-page console. The sidebar keeps six primary sections (Tasks, Dashboard, Usage, Team, Projects, Experience); everything else lives under **Settings**:
 
 | View | Purpose |
 | --- | --- |
 | **Tasks** | Pick a mode, fill in target, rules, attachments, launch the task; current session card |
 | **Dashboard** | Cross-session calls, tokens, cost estimates, and alerts (model waits, idle slots with pending work, …) |
+| **Usage** | Token spend by model: call count, input/output, cache reads, share and cost (last hour / today / 7 days / 30 days / all) |
 | **Team** | Assign models and prompts to the lead agent and each sub-agent |
 | **Projects** | Group assets and sessions; vulnerability candidates are independently reproduced by the verifier agent, Jianzhen |
 | **Experience** | Reusable judgements and pitfalls learned from earlier runs; writes are de-duplicated (≥95% similar is treated as a repeat and dropped), and stored near-identical entries can be merged (originals are kept and restorable) |
@@ -74,8 +75,8 @@ The **Settings** button at the bottom of the sidebar opens a full settings surfa
 
 The worst failure mode of a background task is a solved challenge nobody tells you about. **When a challenge is solved (the platform accepted the flag), or when the master agent is blocked on a question only you can answer, the console raises a system notification** — it reaches you even with the window in the background, and clicking it jumps straight back to that session. Without browser notification permission it degrades to an in-page toast plus a tab-title counter instead of going silent, and it stays quiet when you already have that session on screen. Polling rides the console's existing scheduler (15 s visible, 30 s hidden) rather than adding a timer, and "read" lives in the browser — so several tabs each keep their own screen.
 
-Session tabs: **challenges** · **live** · **events** · **flags** · **graph** · **vulnerabilities** · **deliverables** · **report** · **write-up**.
-The write-up tab only appears in CTF mode: confirm team info and per-challenge chapters before generating. Everything can be left empty, and what you fill in is remembered.
+Session tabs: **chat** · **graph** · **challenges** · **vulnerabilities** · **flags** · **experience** · **events** · **deliverables** · **write-up** · **report**.
+The challenges tab exists in competition mode only; the write-up tab only appears in CTF mode: confirm team info and per-challenge chapters before generating. Everything can be left empty, and what you fill in is remembered.
 
 ## Capabilities
 
@@ -198,8 +199,8 @@ The shell/Python sandbox needs Linux with bubblewrap. Native Windows and macOS c
    Disable a model you are not using and it drops out of routing while keeping its config; re-enable it any time.
 2. **Assign roles**: open **Team** and pick a model for the lead agent and each sub-agent (they may all be the same).
 3. **Launch**: on **Home**, choose a mode, fill in target / challenges, rules, and attachments, then start the run.
-4. **Watch**: open the session. The live stream shows every step, the graph shows structure; answer or steer in the chat when needed.
-5. **Collect**: deliverables give you the report or write-up as downloadable Markdown.
+4. **Watch**: open the session. The chat tab shows every step, the graph tab shows structure; answer or steer in the chat when needed.
+5. **Collect**: the deliverables tab gives you the artifacts, the report and write-up tabs give you the documents, all downloadable as Markdown.
 
 ## How it works
 
@@ -301,7 +302,7 @@ Add the provider and model ID in **Models**, then reassign roles in **Team**. No
 The info form can be left completely empty — blank fields render as "to be filled in" and never block generation. Once filled, it is remembered; clearing it forgets it. Per-challenge chapters are not persisted: if challenge IDs change, directions are re-derived from the challenge text.
 
 **A session looks stuck.**
-Check the dashboard alerts first — long model waits and idle capacity with pending work are reported separately. Then look at the last tool result in the live stream and steer from the chat if needed.
+Check the dashboard alerts first — long model waits and idle capacity with pending work are reported separately. Then look at the last tool result in the chat tab and steer from the chat if needed.
 
 **How do I migrate data?**
 Use `python deploy.py migrate` for Docker. Manually: stop the service, copy `.spiritscout/` (or the data volume), start on the new host. Keep `vault.key` and `admin.db`, otherwise credentials and logins are lost.
@@ -316,7 +317,7 @@ Use `python deploy.py migrate` for Docker. Manually: stop the service, copy `.sp
 
 ## Docs and contributing
 
-Current code version: **v0.35.0**. The single source of the version, the bump rules, and the history: see [version management (中文)](CONTRIBUTING.md#版本管理).
+Current code version: **v0.35.1**. The single source of the version, the bump rules, and the history: see [version management (中文)](CONTRIBUTING.md#版本管理).
 
 | I want to | Read |
 | --- | --- |
