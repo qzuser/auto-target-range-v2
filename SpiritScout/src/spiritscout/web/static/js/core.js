@@ -118,7 +118,7 @@ const VIEWS = { home: "#view-home", session: "#view-session", dash: "#view-dash"
                 agents: "#view-agents", projects: "#view-projects", exp: "#view-exp",
                 settings: "#view-settings" };
 const SET_TABS = { models: "#view-models", mcp: "#view-mcp", skill: "#view-skill",
-                   about: "#view-about" };
+                   notify: "#view-notify", about: "#view-about" };
 const SET_FIRST = "models";
 
 function show(view) {
@@ -135,6 +135,7 @@ function show(view) {
     b.classList.toggle("on", inSet && b.dataset.set === view));
   if (view === "agents") loadAgents();
   if (view === "models") loadModels();
+  if (view === "notify" && typeof ConsoleNotify !== "undefined") ConsoleNotify.open();
   if (view === "about") renderAbout();
   if (view === "dash") renderDash();
   if (typeof ProjectsPage !== "undefined") {

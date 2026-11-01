@@ -1347,6 +1347,12 @@ dialog.panel { width: min(880px, 94vw); padding: 0; overflow: hidden; max-height
 .set-facts dt { font-size: 12px; color: var(--ink-3); }
 .set-facts dd { margin: 0; font: 12px/1.7 var(--mono); color: var(--ink-2); overflow-wrap: anywhere; }
 .set-about-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+/* 通知设置里那一行开关：勾选框跟文字对齐，别让浏览器默认的基线把整行顶歪 */
+.set-check {
+  display: flex; align-items: center; gap: 8px; margin: 0 0 18px;
+  font-size: 13px; line-height: 1.6; color: var(--ink-2); cursor: pointer;
+}
+.set-check input { width: 15px; height: 15px; margin: 0; cursor: pointer; accent-color: var(--accent); }
 .set-note {
   margin: 0; font-size: 12px; line-height: 1.8; color: var(--ink-3);
   border-top: 1px solid var(--line); padding-top: 16px;

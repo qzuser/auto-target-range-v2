@@ -48,3 +48,7 @@ sandbox/
 # 内部评估文档：含本地靶场真实 flag 值与私有模型网关地址
 评估报告.md
 .git-credentials
+
+# 构建与验包的临时环境/日志：一次 --no-isolation 构建会在 tmpbuild 里解出 setuptools
+_work/tmpbuild/
+_work/*.log

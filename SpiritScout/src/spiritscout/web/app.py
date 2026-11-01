@@ -29,6 +29,7 @@ from spiritscout.web import auth as web_auth
 from spiritscout.web import vault
 from spiritscout.web.routes.auth import mount_auth
 from spiritscout.web.routes.models import mount_models
+from spiritscout.web.routes.notify import mount_notify
 from spiritscout.web.routes.preferences import mount_preferences
 from spiritscout.web.routes.session_detail import mount_session_detail
 from spiritscout.web.routes.sessions import make_require, mount_sessions
@@ -122,6 +123,7 @@ def create_app(cfg: SystemConfig, models: list[ModelEntry], *,
     _require = make_require(manager)
     mount_sessions(app, manager=manager, cfg=cfg, require=_require)
     mount_models(app, cfg=cfg)
+    mount_notify(app, manager=manager)
     mount_preferences(app, cfg=cfg)
     mount_session_detail(app, manager=manager, cfg=cfg, require=_require)
 

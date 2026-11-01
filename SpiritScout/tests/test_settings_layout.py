@@ -27,8 +27,8 @@ INDEX = STATIC / "index.html"
 CORE = STATIC / "js" / "core.js"
 
 MAIN_NAV = ["home", "dash", "agents", "projects", "exp"]
-SET_TABS = ["models", "mcp", "skill", "about"]
-SET_PANEL_IDS = ["view-models", "view-mcp", "view-skill", "view-about"]
+SET_TABS = ["models", "mcp", "skill", "notify", "about"]
+SET_PANEL_IDS = ["view-models", "view-mcp", "view-skill", "view-notify", "view-about"]
 VOID = {
     "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta",
     "param", "source", "track", "wbr", "path", "circle", "rect", "line", "polygon",

@@ -47,7 +47,8 @@ class LiveBudgetTests(unittest.IsolatedAsyncioTestCase):
             out=Path(tmp)/'must-not-exist'
             result=subprocess.run([sys.executable,'-m','scripts.live_cache_benchmark',
                 '--output',str(out),'--budget-cny','1','--previous-cost-cny','.2421573'],
-                capture_output=True,text=True,env={**os.environ,'LITELLM_LOCAL_MODEL_COST_MAP':'True'})
+                capture_output=True,text=True,encoding='utf-8',errors='replace',
+                env={**os.environ,'LITELLM_LOCAL_MODEL_COST_MAP':'True'})
             self.assertEqual(result.returncode,2)
             self.assertIn('--run-live',result.stderr)
             self.assertFalse(out.exists())
