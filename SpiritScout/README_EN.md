@@ -9,7 +9,7 @@ and progress, evidence, and artifacts stay in the same session.
 
 **English · [简体中文](README.md)**
 
-[![Version](https://img.shields.io/badge/version-v0.24.2-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
+[![Version](https://img.shields.io/badge/version-v0.24.3-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
 
 [Quick start](#quick-start) · [Three modes](#three-modes) · [Interface](#interface) · [How it works](#how-it-works) · [Configuration](#configuration) · [FAQ](#faq) · [Deployment guide (中文)](docs/部署与配置.md)
 
@@ -177,7 +177,11 @@ line every 60 seconds, so you do not need a task manager to know it is alive.
 
 [状态] 已运行 01:00 · 会话 2（运行中 0） · 内存 244 MB
 ```
-Configure admin credentials and HTTPS before listening on any external address.
+On first start the launcher asks you to set the admin password (typed twice, no echo) and
+stores only its scrypt hash in `.spiritscout/admin.db`; press Enter twice to skip and stay
+loopback-only. Change it later with `python -m spiritscout --set-admin-password`, or delete
+`admin.db` to start over. Configure admin credentials and HTTPS before listening on any
+external address.
 
 The shell/Python sandbox needs Linux with bubblewrap. Native Windows and macOS consoles fall back to the host backend and lose that isolation; use Docker when you need the full toolchain. Never share virtual environments across Windows, WSL, and Linux.
 
@@ -230,7 +234,7 @@ Model configuration edited in the console overrides the startup snapshot; no res
 
 | Variable | Purpose |
 | --- | --- |
-| `SPIRITSCOUT_ADMIN_USERNAME` / `SPIRITSCOUT_ADMIN_PASSWORD` | Admin credentials imported into the admin store at startup (highest priority) |
+| `SPIRITSCOUT_ADMIN_USERNAME` / `SPIRITSCOUT_ADMIN_PASSWORD` | Admin credentials imported into the admin store at startup (highest priority; overrides the locally set password and logs a warning) |
 | `SPIRITSCOUT_SERVER_PASSWORD` | Legacy admin password, still supported; default username `spiritscout` |
 | `SPIRITSCOUT_VAULT_KEY` | Master key for the credential vault; if unset, `vault.key` is generated on first start (mode 0600) |
 | `SPIRITSCOUT_REMOTE_LLM_KEY` | Fallback source for the remote model key |
@@ -305,7 +309,7 @@ Use `python deploy.py migrate` for Docker. Manually: stop the service, copy `.sp
 
 ## Docs and contributing
 
-Current code version: **v0.24.2**. The single source of the version, the bump rules, and the history: see [version management (中文)](CONTRIBUTING.md#版本管理).
+Current code version: **v0.24.3**. The single source of the version, the bump rules, and the history: see [version management (中文)](CONTRIBUTING.md#版本管理).
 
 | I want to | Read |
 | --- | --- |

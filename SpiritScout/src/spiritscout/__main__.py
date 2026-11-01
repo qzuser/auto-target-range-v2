@@ -3,14 +3,18 @@
 用法::
 
     python -m spiritscout [--config configs/system.yaml] [--host 127.0.0.1] [--port 8000]
+    python -m spiritscout --set-admin-password [--admin-username 名字] [--if-missing]
 
 会话创建、拓扑观测、编队与模型管理、报告与审计导出均在浏览器内完成。
+``--set-admin-password`` 不启动服务，只把管理员密码以 scrypt 哈希写进工作区的
+``admin.db``——首次启动时由启动脚本调用，命令行里从不出现明文。
 """
 
 from __future__ import annotations
 
 import argparse
 import contextlib
+import getpass
 import os
 import socket
 import sys
@@ -70,7 +74,75 @@ def build_parser() -> argparse.ArgumentParser:
                         help="绑定地址（默认取配置 web.host=127.0.0.1）")
     parser.add_argument("--port", type=int, default=None,
                         help="端口（默认取配置 web.port=8000）")
+    parser.add_argument("--set-admin-password", action="store_true",
+                        help="设置/重置控制台管理员密码后退出（只保存 scrypt 哈希）")
+    parser.add_argument("--admin-username", default=None,
+                        help=f"配合 --set-admin-password，默认 {DEFAULT_ADMIN_USERNAME}")
+    parser.add_argument("--if-missing", action="store_true",
+                        help="已有管理员账号时直接跳过（启动脚本用）")
+    parser.add_argument("--password-stdin", action="store_true",
+                        help="从标准输入读一行作为密码（自动化用，不做二次确认）")
     return parser
+
+
+#: 默认管理员用户名，与 ``AdminStore.sync_from_env`` 的兜底一致。
+DEFAULT_ADMIN_USERNAME = "spiritscout"
+#: 首次设密的最短长度；更低的值等于把控制台敞开给局域网。
+MIN_ADMIN_PASSWORD_LENGTH = 8
+#: ``--set-admin-password`` 的「密码不合规/输入不一致」退出码。
+EXIT_PASSWORD_REJECTED = 3
+
+
+def set_admin_password(cfg, args: argparse.Namespace) -> int:
+    """把管理员密码写进工作区 ``admin.db``（scrypt 加盐哈希，明文不落盘）。
+
+    三种取密码的方式，按上下文自动选：``--password-stdin`` 读一行标准输入
+    （自动化/测试）；交互终端走两次不回显的提示；既不是终端也没给 stdin 时
+    只跳过——启动脚本首次拉起服务时 stdin 可能是管道，不该因此卡住启动。
+    """
+    from spiritscout.web import auth as web_auth
+
+    store = web_auth.AdminStore(cfg.workspace.root)
+    if args.if_missing and store.has_admins():
+        print(f"[跳过] 已存在管理员账号（{store.db_path}），本次不改密码")
+        return 0
+
+    interactive = sys.stdin.isatty() and not args.password_stdin
+    username = (args.admin_username or "").strip()
+    if interactive and not username:
+        username = input(f"管理员用户名 [{DEFAULT_ADMIN_USERNAME}]: ").strip()
+    username = username or DEFAULT_ADMIN_USERNAME
+
+    if args.password_stdin:
+        password = confirm = sys.stdin.readline().rstrip("\r\n")
+    elif interactive:
+        print("设置控制台管理员密码：只保存 scrypt 哈希，明文不写入任何文件。")
+        password = getpass.getpass("密码（输入不回显）: ")
+        confirm = getpass.getpass("再输一次: ")
+    elif args.if_missing:
+        print("[跳过] 当前不是交互终端，未设置管理员密码；"
+              "需要时运行 python -m spiritscout --set-admin-password")
+        return 0
+    else:
+        print("[错误] 当前不是交互终端，请改用 --password-stdin 传入密码",
+              file=sys.stderr)
+        return EXIT_PASSWORD_REJECTED
+
+    if password != confirm:
+        print("[错误] 两次输入不一致，未写入", file=sys.stderr)
+        return EXIT_PASSWORD_REJECTED
+    if len(password) < MIN_ADMIN_PASSWORD_LENGTH:
+        print(f"[错误] 密码至少 {MIN_ADMIN_PASSWORD_LENGTH} 个字符", file=sys.stderr)
+        return EXIT_PASSWORD_REJECTED
+    try:
+        web_auth.validate_credentials(username, password)
+    except SpiritScoutError as exc:
+        print(f"[错误] {exc}", file=sys.stderr)
+        return EXIT_PASSWORD_REJECTED
+    store.upsert(username, password)
+    print(f"[完成] 管理员 {username} 已写入 {store.db_path}")
+    print("       文件里只有 scrypt 加盐哈希；忘记密码删掉 admin.db 再设一次即可。")
+    return 0
 
 
 #: 状态行间隔（秒）。太密会把窗口刷满、看不出趋势；太疏又等不上。
@@ -159,6 +231,8 @@ def main(argv: list[str] | None = None) -> int:
         _load_dotenv(dotenv)      # 忘记管理员凭据时改 .env 重启即可恢复
     try:
         cfg = load_system_config(args.config)
+        if args.set_admin_password:
+            return set_admin_password(cfg, args)
         models = load_model_config(cfg.models_config_path)
     except SpiritScoutError as exc:
         print(f"[错误] {exc}", file=sys.stderr)

@@ -1,6 +1,6 @@
 # 更新日志
 
-项目采用 `主版本.次版本.修订号`。当前版本为 **0.24.0**，版本唯一来源是
+项目采用 `主版本.次版本.修订号`。当前版本为 **0.24.3**，版本唯一来源是
 `src/spiritscout/__init__.py`；包构建、命令行、控制台及 MCP 握手共用该值。
 
 **历史版本说明**：0.1.0 是仓库早期已有的代码版本；0.2.0—0.11.1 根据现有
@@ -9,6 +9,45 @@ Git 历史与日期日志回溯整理，用于标识功能演进，**并非当�
 行为，部分规则后来已有调整，请以当前代码和最新条目为准。
 
 版本递增和发布记录规则见 [贡献指南](CONTRIBUTING.md#版本管理)。
+
+## [0.24.3] - 2026-11-01
+
+- **管理员密码改成首次启动由使用者自己设**：新增
+  `python -m spiritscout --set-admin-password`（`--admin-username` /
+  `--if-missing` / `--password-stdin`），启动脚本在还没有管理员时先跑它，
+  交互式输两遍、回显关闭、只把 scrypt 加盐哈希写进工作区 `admin.db`。
+  明文不进命令行、不进日志、不落盘；非交互环境（脚本/CI、管道里起服务）
+  自动跳过，绝不卡住启动；回车两次即「不设密码，只绑回环地址」。便携包的
+  `1-启动服务.bat` 与仓库的 `start-local.ps1` 都走同一条命令，不再依赖
+  文档里那句「自己 set 一个环境变量」。
+- **打包加凭据闸**：`_work/build_release.py` 组装时清掉
+  `admin.db` / `auth.key` / `vault.db` / `vault.key`，`make_zip()` 前再断言
+  一次 `data\` 里没有它们，发现就拒绝出包。用户设的密码属于他本机，不可能
+  也不该随包分发。
+- **验包不再把自己的字节码打进包**：`validate_release.py` 起控制台时带
+  `PYTHONDONTWRITEBYTECODE=1`，并在清场阶段删掉 `app\**\__pycache__`；
+  `make_zip()` 出包前再剪一遍。此前验包会在 `app\src\` 旁边写回 112 个
+  `.pyc`，然后被 `--zip-only` 一起打进发布包——自己代码的陈旧字节码。
+- **管理员库的只读检查不再建库**：`AdminStore.has_admins()` / `_hash_for()`
+  改成库不存在时直接返回、存在时用 `mode=ro` 连接。以前一个陌生请求戳一下
+  登录接口、启动脚本探一次，就会在「还没设密码」的机器上留一个空
+  `admin.db`，让首次启动的判断失真。`upsert()` 现在内置
+  `validate_credentials()`，格式校验收口到唯一写入口。
+- **`.env` 盖掉本地密码会留一行告警**：环境变量凭据优先是部署约定（Docker
+  一键脚本写 `.env` 就靠它），但它会悄悄替换使用者首次启动设的那份密码；
+  现在同步覆盖时打一条 `WARNING`，并提示 `SPIRITSCOUT_ADMIN_SYNC=0` 可关闭。
+- **文档修订**：根 `README.md` 的版本与产物清单回到实际（此前还停在 0.23.1
+  与 0.23.1 的三个资产名），补首次设密说明；便携包 `使用说明.txt` 重写
+  「三步开始」并新增「管理员密码」章（存哪、明文为什么不落盘、忘了怎么重设、
+  包里为什么不带）；`docs/部署与配置.md`、`docs/打包与产物说明.md`
+  （文件数/目录数/zip 条目数改成重打后的实测值）同步；`_work/publish_release.py`
+  的 tag、notes 文件名与资产名全部从 `__version__` 推导，发新版本不用改脚本。
+- **测试**：新增 `tests/test_admin_password_cli.py`（9 条，覆盖 stdin/交互/
+  跳过/被拒/哈希不含明文/懒加载密钥），`test_admin_auth_store.py` 补只读检查
+  不建库、空库等价无管理员、`upsert` 拒绝非法凭据、环境变量覆盖有告警；
+  `test_host_guard.test_hardening_drops_inherited_aces` 修掉一条一直红着的
+  断言——`Mandatory Label\Low Mandatory Level:(I)(NW)` 是系统完整性标签，
+  `icacls /inheritance:r` 不动它，而且它必须留着才撑得住「证据目录只读」。
 
 ## [0.24.2] - 2026-10-31
 

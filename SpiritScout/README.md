@@ -9,7 +9,7 @@
 
 **简体中文 · [English](README_EN.md)**
 
-[![Version](https://img.shields.io/badge/version-v0.24.2-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
+[![Version](https://img.shields.io/badge/version-v0.24.3-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
 
 [快速开始](#快速开始) · [三种模式](#三种模式) · [界面](#界面) · [工作原理](#工作原理) · [配置参考](#配置参考) · [常见问题](#常见问题) · [部署指南](docs/部署与配置.md)
 
@@ -164,6 +164,11 @@ py -3 -m venv .venv
 ```
 
 访问 <http://127.0.0.1:8000>，`Ctrl+C` 停止。改端口：`./launch.sh --port 10010` 或把参数传给 `launch.ps1`。
+
+启动器在还没有管理员时会先让你设密码（输两遍、不回显），只把 scrypt 哈希写进
+`.spiritscout/admin.db`；回车两次就是不设，控制台只绑回环地址。之后想改：
+`.venv/bin/python -m spiritscout --set-admin-password`（Windows 换
+`.venv\Scripts\python.exe`），删掉 `admin.db` 也能从头设一次。
 监听外部地址前必须先配置管理员凭据与 HTTPS。
 
 终端窗口会先打出绑定地址，**等端口真能连上再说一句 `[就绪] 浏览器可以打开了`**——
@@ -231,7 +236,7 @@ shell / Python 沙箱需要 Linux + bubblewrap；Windows 与 macOS 原生控制�
 
 | 变量 | 作用 |
 | --- | --- |
-| `SPIRITSCOUT_ADMIN_USERNAME` / `SPIRITSCOUT_ADMIN_PASSWORD` | 管理员凭据，启动时导入管理员库（优先级最高） |
+| `SPIRITSCOUT_ADMIN_USERNAME` / `SPIRITSCOUT_ADMIN_PASSWORD` | 管理员凭据，启动时导入管理员库（优先级最高，会覆盖本机设的密码并打一条 WARNING；不设就用首次启动设的那份） |
 | `SPIRITSCOUT_SERVER_PASSWORD` | 旧版管理密码，仍兼容；用户名默认 `spiritscout` |
 | `SPIRITSCOUT_VAULT_KEY` | 凭据库主密钥；不给则首次启动生成 `vault.key`（权限 0600） |
 | `SPIRITSCOUT_REMOTE_LLM_KEY` | 远程模型 Key 的兜底来源 |
@@ -255,7 +260,7 @@ shell / Python 沙箱需要 Linux + bubblewrap；Windows 与 macOS 原生控制�
 | --- | --- |
 | `sessions/` | 每个会话的工作区：黑板、审计、Flag、报告、解题思路、截图 |
 | `resources/` | 知识库与资源库 |
-| `admin.db` | 管理员与登录会话 |
+| `admin.db` / `auth.key` | 管理员（scrypt 哈希）与登录 Cookie 的签名密钥 |
 | `vault.db` / `vault.key` | 加密后的供应商 Key 与主密钥 |
 | `usage.db` | 调用量与 Token 计量 |
 | `experience.db` | 经验库 |
@@ -344,7 +349,7 @@ Docker 用 `python deploy.py migrate`；手工迁移时停服 → 拷 `.spiritsc
 
 ## 文档与贡献
 
-当前代码版本 **v0.24.2**。版本唯一来源、递增规则与历史说明见 [版本管理](CONTRIBUTING.md#版本管理)。
+当前代码版本 **v0.24.3**。版本唯一来源、递增规则与历史说明见 [版本管理](CONTRIBUTING.md#版本管理)。
 
 | 我想了解 | 阅读入口 |
 | --- | --- |

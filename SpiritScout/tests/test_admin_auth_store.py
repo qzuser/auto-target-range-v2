@@ -5,7 +5,7 @@ import os
 import sqlite3
 import tempfile
 import unittest
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from pathlib import Path
 from unittest.mock import patch
 
@@ -87,7 +87,7 @@ class AdminStoreTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             store = auth.AdminStore(tmp)
             store.upsert("admin", "stable")
-            with sqlite3.connect(Path(tmp) / "admin.db") as conn:
+            with closing(sqlite3.connect(Path(tmp) / "admin.db")) as conn:
                 before = conn.execute(
                     "SELECT updated_at FROM admins WHERE username='admin'"
                 ).fetchone()[0]
@@ -96,7 +96,7 @@ class AdminStoreTests(unittest.TestCase):
                 store.sync_from_env("SPIRITSCOUT_SERVER_PASSWORD",
                                     "SPIRITSCOUT_ADMIN_USERNAME",
                                     "SPIRITSCOUT_ADMIN_PASSWORD")
-            with sqlite3.connect(Path(tmp) / "admin.db") as conn:
+            with closing(sqlite3.connect(Path(tmp) / "admin.db")) as conn:
                 after = conn.execute(
                     "SELECT updated_at FROM admins WHERE username='admin'"
                 ).fetchone()[0]
@@ -120,6 +120,51 @@ class AdminStoreTests(unittest.TestCase):
                     "SPIRITSCOUT_SERVER_PASSWORD",
                     "SPIRITSCOUT_ADMIN_USERNAME",
                     "SPIRITSCOUT_ADMIN_PASSWORD")
+
+    def test_read_checks_never_create_the_database(self) -> None:
+        # 登录接口被陌生请求戳一下、启动脚本探一次，都不该在还没设密的机器上
+        # 留一个空 admin.db——那会让「首次启动」的判断彻底失真。
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            store = auth.AdminStore(tmp)
+            self.assertFalse(store.has_admins())
+            self.assertFalse(store.verify("spiritscout", "anything"))
+            self.assertEqual(store.password_fingerprint("spiritscout"), "")
+            self.assertFalse((Path(tmp) / "admin.db").exists())
+
+    def test_empty_database_counts_as_no_admin(self) -> None:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            db = Path(tmp) / "admin.db"
+            with closing(sqlite3.connect(db)) as conn:
+                conn.execute("CREATE TABLE admins (username TEXT PRIMARY KEY,"
+                             " password_hash TEXT NOT NULL, created_at REAL"
+                             " NOT NULL, updated_at REAL NOT NULL)")
+            store = auth.AdminStore(tmp)
+            self.assertFalse(store.has_admins())
+            store.upsert("admin", "later")
+            self.assertTrue(store.has_admins())
+
+    def test_upsert_rejects_invalid_credentials(self) -> None:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            store = auth.AdminStore(tmp)
+            for username in ("", "bad:name", "x" * (auth.MAX_USERNAME_LENGTH + 1)):
+                with self.assertRaises(ConfigurationError, msg=username[:20]):
+                    store.upsert(username, "secret")
+            with self.assertRaises(ConfigurationError):
+                store.upsert("admin", "p" * (auth.MAX_PASSWORD_LENGTH + 1))
+            self.assertFalse(store.has_admins())
+
+    def test_env_override_of_local_password_is_logged(self) -> None:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            store = auth.AdminStore(tmp)
+            store.upsert("admin", "first-run")
+            with env_only(SPIRITSCOUT_ADMIN_USERNAME="admin",
+                          SPIRITSCOUT_ADMIN_PASSWORD="from-dotenv"), \
+                    self.assertLogs("spiritscout.web.auth", "WARNING") as logs:
+                store.sync_from_env("SPIRITSCOUT_SERVER_PASSWORD",
+                                    "SPIRITSCOUT_ADMIN_USERNAME",
+                                    "SPIRITSCOUT_ADMIN_PASSWORD")
+            self.assertIn("覆盖", "\n".join(logs.output))
+            self.assertTrue(store.verify("admin", "from-dotenv"))
 
 
 class SessionTests(unittest.TestCase):

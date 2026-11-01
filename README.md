@@ -8,8 +8,8 @@
 
 | 路径 | 作用 |
 | --- | --- |
-`SpiritScout/` | 产品本体。灵枢 v0.23.1，Python 3.11+，FastAPI Web 控制台 + 多 Agent 编排。详见 [SpiritScout/README.md](SpiritScout/README.md)
-`start-local.ps1` | 本机启动器（不走 Docker）：环境与依赖自检（缺运行依赖自动 `pip install`，缺 venv/pip/解释器版本只给命令不动手）→ 导出执行后端与模型 key 环境变量 → 前台起 Web 控制台。`-NoInstall` 只报告不装
+`SpiritScout/` | 产品本体。灵枢 v0.24.3，Python 3.11+，FastAPI Web 控制台 + 多 Agent 编排。详见 [SpiritScout/README.md](SpiritScout/README.md)
+`start-local.ps1` | 本机启动器（不走 Docker）：环境与依赖自检（缺运行依赖自动 `pip install`，缺 venv/pip/解释器版本只给命令不动手）→ 导出执行后端与模型 key 环境变量 → 前台起 Web 控制台。首次启动会先让你设管理员密码（输两遍、不回显，只存 scrypt 哈希进 `admin.db`）。`-NoInstall` 只报告不装
 `启动服务.cmd` | 双击入口，包一层 `start-local.ps1 -Port 8010`
 `deploy-spiritscout.ps1` | Docker Desktop 一键部署（CTF 的 shell/python 工具硬依赖 bubblewrap，Windows 原生沙箱不可用时需要它）
 `_work/build_release.py` | 组装「解压即用」便携包：内嵌 CPython 3.11 + site-packages + app + configs + data，再打 zip
@@ -29,6 +29,11 @@ py -3.11 -m venv SpiritScout\.venv
 手动跑 `powershell -ExecutionPolicy Bypass -File .\start-local.ps1 -NoInstall`，只报命令。
 
 浏览器打开 <http://127.0.0.1:8010>。关闭那个窗口即停止服务。
+
+第一次启动会先问管理员密码：输两遍（不回显），库里只留 scrypt 加盐哈希，明文不进命令行、
+不写日志、不落盘。回车两次就是不设——控制台只绑 `127.0.0.1`，别的机器进不来。想改密码：
+`SpiritScout\.venv\Scripts\python.exe -m spiritscout --set-admin-password`，或删掉
+`SpiritScout/.spiritscout/admin.db` 再启动一次。
 
 `configs/system.yaml` **已随仓库提交，并且是跑通过的配置**，新克隆下来直接启动就行；
 不要再拿 `copy system.example.yaml system.yaml` 覆盖它——example 是带注释的最小模板，
@@ -68,11 +73,11 @@ py -3.11 -m venv SpiritScout\.venv
 
 Release 附三种包，按需取用：
 
-- `spiritscout-0.23.1-py3-none-any.whl` — 二进制轮包。带 CTF 工具箱要用
+- `spiritscout-0.24.3-py3-none-any.whl` — 二进制轮包。带 CTF 工具箱要用
   `pip install "spiritscout[toolkit] @ file:///…whl"` 这种 PEP 508 直接引用形式；
   写成 `xxx.whl[toolkit]` 会被 pip **静默丢弃 extras**，一个工具箱依赖都不装且不报错。
-- `spiritscout-0.23.1.tar.gz` — sdist 源码分发，含 `src/` 与 `tests/`
-- `SpiritScout-0.23.1-portable.zip`（约 227MB，解压后 613MB）— 免安装便携包：内嵌 CPython 3.11 与
+- `spiritscout-0.24.3.tar.gz` — sdist 源码分发，含 `src/` 与 `tests/`
+- `SpiritScout-0.24.3-portable.zip`（约 212MB，解压后 619MB / 25621 个文件）— 免安装便携包：内嵌 CPython 3.11 与
   全部依赖，解压后双击 `1-启动服务.bat` 即用，目标机不需要装 Python，路径带中文也没问题。
   自己重建，按这个顺序三步：`python _work/build_release.py`（只组装暂存目录）→
   `python _work/validate_release.py`（把包当别人拿到手那样冒烟跑一遍，跑完清掉它在
@@ -85,6 +90,8 @@ Release 附三种包，按需取用：
 ## 安全边界
 
 - 默认执行后端是 `host`：工作目录锁定、环境变量白名单、超时杀进程树，但**没有文件系统读隔离**。
+- 管理员密码只保存 scrypt 加盐哈希（工作区 `admin.db`），明文不进命令行、不进日志；
+  `admin.db` / `auth.key` 连同 `vault.*` 都在打包时被清掉，出厂包不含任何凭据。
 - Web 控制台默认只绑 `127.0.0.1`；非回环绑定且未启用管理员认证时拒绝启动，
   判据见 [`SpiritScout/src/spiritscout/web/app.py:61`](SpiritScout/src/spiritscout/web/app.py#L61)。
 - 只在你自己有授权的靶标上使用。完整条款见 [SpiritScout/SECURITY.md](SpiritScout/SECURITY.md)
