@@ -6,6 +6,7 @@ import json
 import sqlite3
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
@@ -61,8 +62,9 @@ class SearchTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_expired_and_explicit_refresh_fetch_again(self) -> None:
         await self.service.search(paid=True, blocker="模拟明确阻塞，现有与免费资料不足",query='q', reason='查证')
-        with sqlite3.connect(self.path) as db:
+        with closing(sqlite3.connect(self.path)) as db:
             db.execute('UPDATE search_cache SET created=0')
+            db.commit()
         expired = await self.service.search(paid=True, blocker="模拟明确阻塞，现有与免费资料不足",query='q', reason='查证')
         self.assertFalse(expired.parsed['search_cache_hit'])
         fresh = await self.service.search(paid=True, blocker="模拟明确阻塞，现有与免费资料不足",query='q', reason='公告已更新', refresh=True)

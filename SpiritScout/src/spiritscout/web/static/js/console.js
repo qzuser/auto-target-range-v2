@@ -823,7 +823,12 @@ $("#rc-confirm").onclick = async () => {
   // 项目目录先于会话列表：列表里的项目标签与会话创建下拉都依赖它
   try { await ProjectsPage.loadCatalog(); } catch {}
   await refreshSessions();
+  /* 提醒引擎先起来并立刻查一次：控制台重开时若已有待答问题，不用等下一轮
+     轮询才提醒；之后的节奏交给 S.polling（单一调度器）。 */
+  ConsoleNotify.init();
+  ConsoleNotify.check();
   S.polling = ConsolePolling.create({refreshList: refreshSessions, refreshState,
+    refreshNotify: () => ConsoleNotify.check(),
     isSession: () => S.view === "session" && !!S.cur,
     /* 当前会话在跑、或别处还有任务在跑，都算「有活」——任务坞要靠这个及时冒出来。
        原来只看 S.state，没开会话时反而一直当运行中，3 秒一轮空拉。 */

@@ -9,7 +9,7 @@ and progress, evidence, and artifacts stay in the same session.
 
 **English · [简体中文](README.md)**
 
-[![Version](https://img.shields.io/badge/version-v0.24.3-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
+[![Version](https://img.shields.io/badge/version-v0.25.0-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
 
 [Quick start](#quick-start) · [Three modes](#three-modes) · [Interface](#interface) · [How it works](#how-it-works) · [Configuration](#configuration) · [FAQ](#faq) · [Deployment guide (中文)](docs/部署与配置.md)
 
@@ -67,7 +67,10 @@ The **Settings** button at the bottom of the sidebar opens a full settings surfa
 | **Models** | Provider endpoints, API keys, model IDs, connectivity checks, enable / disable |
 | **MCP** | MCP server config, management chat, Exa search |
 | **Skill** | Skill packs and reference knowledge |
+| **Notifications** | System notifications for solved challenges and questions waiting on you; switch, permission, read history |
 | **About** | Version, theme, sign out |
+
+The worst failure mode of a background task is a solved challenge nobody tells you about. **When a challenge is solved (the platform accepted the flag), or when the master agent is blocked on a question only you can answer, the console raises a system notification** — it reaches you even with the window in the background, and clicking it jumps straight back to that session. Without browser notification permission it degrades to an in-page toast plus a tab-title counter instead of going silent, and it stays quiet when you already have that session on screen. Polling rides the console's existing scheduler (15 s visible, 30 s hidden) rather than adding a timer, and "read" lives in the browser — so several tabs each keep their own screen.
 
 Session tabs: **challenges** · **live** · **events** · **flags** · **graph** · **vulnerabilities** · **deliverables** · **report** · **write-up**.
 The write-up tab only appears in CTF mode: confirm team info and per-challenge chapters before generating. Everything can be left empty, and what you fill in is remembered.
@@ -309,7 +312,7 @@ Use `python deploy.py migrate` for Docker. Manually: stop the service, copy `.sp
 
 ## Docs and contributing
 
-Current code version: **v0.24.3**. The single source of the version, the bump rules, and the history: see [version management (中文)](CONTRIBUTING.md#版本管理).
+Current code version: **v0.25.0**. The single source of the version, the bump rules, and the history: see [version management (中文)](CONTRIBUTING.md#版本管理).
 
 | I want to | Read |
 | --- | --- |

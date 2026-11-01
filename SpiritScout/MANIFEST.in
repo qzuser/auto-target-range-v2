@@ -1,0 +1,4 @@
+# 源码分发包的补充清单。
+# setuptools 默认只收测试目录里的 *.py，前端那套 node 测试（tests/test_*.js）
+# 一直没进 sdist——从源码包构建的人因此跑不了 AGENTS 要求的 `node tests/test_*.js`。
+recursive-include tests *.js

@@ -4,7 +4,7 @@ import os
 import sqlite3
 import tempfile
 import unittest
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from pathlib import Path
 from unittest.mock import patch
 
@@ -243,7 +243,7 @@ class WebAuthTests(unittest.TestCase):
                 pass
             db = Path(tmp) / "admin.db"
             self.assertTrue(db.is_file())
-            with sqlite3.connect(db) as conn:
+            with closing(sqlite3.connect(db)) as conn:
                 rows = conn.execute(
                     "SELECT username, password_hash FROM admins").fetchall()
             self.assertEqual(len(rows), 1)

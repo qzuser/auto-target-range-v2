@@ -8,6 +8,7 @@ import sqlite3
 import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 from pathlib import Path
 from unittest.mock import patch
 
@@ -80,7 +81,7 @@ class UsageStorageTests(unittest.TestCase):
     def test_transactions_survive_reopen_and_do_not_expose_uncommitted_calls(self) -> None:
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as directory:
             ledger = UsageLedger(Path(directory) / "usage.db")
-            with sqlite3.connect(ledger.path) as writer:
+            with closing(sqlite3.connect(ledger.path)) as writer:
                 writer.execute("BEGIN IMMEDIATE")
                 writer.execute("INSERT INTO calls(call_id,data) VALUES(?,?)",
                                ("pending", json.dumps({"call_id": "pending", "ts": 1, "model": "m", "tokens": 42})))
@@ -140,8 +141,9 @@ class ResourceImportPerformanceTests(unittest.TestCase):
                         store.import_session(workspace)
                 self.assertGreater(store.import_session(workspace), 0)
                 self.assertEqual(store.import_session(workspace), 0)
-                with sqlite3.connect(workspace / "bb.db") as writer:
+                with closing(sqlite3.connect(workspace / "bb.db")) as writer:
                     writer.execute("DELETE FROM bb_record_history")
+                    writer.commit()
                 self.assertGreater(store.import_session(workspace), 0)
                 self.assertEqual(store.import_session(workspace), 0, "游标回退后不能永远重复全扫")
             finally:

@@ -66,6 +66,15 @@ def get(url: str, timeout: float = 5.0) -> tuple[int, str]:
         return -1, str(exc)
 
 
+def get_all(url: str, timeout: float = 5.0) -> tuple[int, str]:
+    """整页读回来：首页 30 KB 出头，只读前 2 KB 验不到设置面板这种靠后的结构。"""
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as r:
+            return r.status, r.read().decode("utf-8", "replace")
+    except Exception as exc:  # noqa: BLE001
+        return -1, str(exc)
+
+
 def step(title: str) -> None:
     print(f"\n=== {title} ===")
 
@@ -202,6 +211,18 @@ def main() -> int:
         alive = code in (200, 302, 307, 401, 403)
         if not alive:
             fails.append(f"控制台启动（rc={proc.poll()}）")
+        # 提醒功能三件套：接口、首页分类、静态脚本——出厂包少一件就等于没这功能
+        api_code, api_body = get(f"http://127.0.0.1:{port}/api/notifications")
+        print("GET /api/notifications ->", api_code, "|",
+              api_body[:120].replace("\n", " "))
+        if api_code != 200 or '"items"' not in api_body:
+            fails.append(f"提醒接口（{api_code}）")
+        if "view-notify" not in get_all(f"http://127.0.0.1:{port}/")[1]:
+            fails.append("首页缺通知分类")
+        js_code, js_body = get_all(f"http://127.0.0.1:{port}/static/js/notify.js")
+        print("GET /static/js/notify.js ->", js_code, "|", len(js_body), "字节")
+        if js_code != 200 or "ConsoleNotify" not in js_body or len(js_body) < 5000:
+            fails.append(f"提醒前端资源（{js_code}，{len(js_body)} 字节）")
         if proc.poll() is None:
             proc.terminate()
             try:
