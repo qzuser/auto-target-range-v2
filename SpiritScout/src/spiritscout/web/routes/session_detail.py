@@ -862,6 +862,7 @@ def mount_session_detail(app: FastAPI, *, manager: SessionManager,
         from spiritscout.ctf.writeup import (
             build_wp_digest,
             run_facts,
+            tool_inventory,
             wp_body,
             wp_fallback,
         )
@@ -884,9 +885,12 @@ def mount_session_detail(app: FastAPI, *, manager: SessionManager,
             team=team,
             facts=run_facts(audit),
             direction_overrides=directions,
+            tools=tool_inventory(audit),
         )
         body = None
-        models = _writable_models(cfg, manager)
+        # 没配 Key 的渠道派给写手只会报 Missing credentials，挑了也是白挑
+        models = [entry for entry in _writable_models(cfg, manager)
+                  if str(getattr(entry, "api_key", "") or "")]
         if models:
             try:
                 gateway = _conversation_gateway(cfg, models, audit)

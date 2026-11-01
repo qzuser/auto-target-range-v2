@@ -9,7 +9,7 @@
 
 **简体中文 · [English](README_EN.md)**
 
-[![Version](https://img.shields.io/badge/version-v0.27.0-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
+[![Version](https://img.shields.io/badge/version-v0.28.0-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
 
 [快速开始](#快速开始) · [三种模式](#三种模式) · [界面](#界面) · [工作原理](#工作原理) · [配置参考](#配置参考) · [常见问题](#常见问题) · [部署指南](docs/部署与配置.md)
 
@@ -82,7 +82,7 @@
 | 编队协作 | 主 Agent 拆分任务，子 Agent 派生路线、共享线索，按角色分配模型 |
 | 执行工作台 | 展开任务、路线与推进步骤，查看工具结果及带审计出处的过程拓扑；每个子 Agent 标出当前用的模型与渠道 |
 | 项目与产物 | 保存资产和会话；候选漏洞独立复测；生成报告或解题思路 |
-| 解题思路（WP） | 按赛方模板成文：生成前确认团队信息与题目分章（可留空、下次带出），按方向分章、逐题写过程与获取 Flag，可下载 Markdown |
+| 解题思路（WP） | 按赛方模板成文：生成前确认团队信息与题目分章（可留空、下次带出），按方向分章、逐题写清怎么解、怎么拿到 Flag，并列出实际用过的工具与关键命令；可下载 Markdown |
 | 浏览器与工具 | 接入 MCP、Skill 与 shell/Python 沙箱；SRC 可复用登录态并人工处理验证码 |
 | 本地模型 | 把本机推理端点（LM Studio / Ollama）接成 MCP 工具：看状态、列模型、单轮提问；不出网不计费，适合摘要改写这类廉价活 |
 | 模型与用量 | 配置供应商、编队与模型，查看费用估算、Token、端点返回的输入缓存用量 |
@@ -354,7 +354,7 @@ Docker 用 `python deploy.py migrate`；手工迁移时停服 → 拷 `.spiritsc
 
 ## 文档与贡献
 
-当前代码版本 **v0.27.0**。版本唯一来源、递增规则与历史说明见 [版本管理](CONTRIBUTING.md#版本管理)。
+当前代码版本 **v0.28.0**。版本唯一来源、递增规则与历史说明见 [版本管理](CONTRIBUTING.md#版本管理)。
 
 | 我想了解 | 阅读入口 |
 | --- | --- |

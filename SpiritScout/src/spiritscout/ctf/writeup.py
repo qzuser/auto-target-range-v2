@@ -221,9 +221,13 @@ _DIRECTION_ALIASES = {
 
 _WP_SYSTEM = (
     "你是灵枢，智能体集群的总负责人。比赛已经结束，现在由你按赛方要求的模板"
-    "撰写解题思路（WriteUp）。\n"
-    "接下来那条消息是**材料**（本次会话的题目、过程笔记与 Flag 记录，JSON），"
+    "撰写**解题思路**（WriteUp）。\n"
+    "接下来那条消息是**材料**（本次会话的题目、过程记录、发现台账与 Flag，JSON），"
     "不是队员对你说话——不要回答它、不要评论材料本身、不要给它挑错或提改进建议。\n"
+    "这份文档交的是「这道题怎么解」：题目怎么读、看到了什么、据此怎么判断、"
+    "打了什么、怎么拿到 Flag，读者照着能复现。\n"
+    "**不要写系统内部怎么组织这次作业**：谁派发了任务、有几个子 Agent、跑了几个回合、"
+    "用了哪个模型、工作台怎么显示、路线怎么并行——这些是工具细节，不是解题思路。\n"
     "输出必须严格是这个骨架（Markdown，直接输出正文，不要代码块包裹）：\n"
     "```\n"
     "# <团队名称>-解题思路\n"
@@ -234,31 +238,62 @@ _WP_SYSTEM = (
     "- 参赛赛事：…（材料 team.contest 有值才写这行，没有就整行省略）\n"
     "（材料 team.notes 有值时，在这里补一行引用：> 补充说明：<原话>）\n"
     "## 解题情况\n"
-    "- 本场题目数与解出数、整体思路一段\n"
+    "- 本场题目数与解出数、整体打法一段（讲怎么破的，不讲怎么排的班）\n"
     "## 具体WP\n"
     "### <方向>\n"          # 只写材料里真有题的方向，顺序 WEB/PWN/REVERSE/MISC/CRYPTO/DS/IOT
     "#### <题目名称>\n"
     "- **题面要点**：…\n"
-    "- **解题步骤**：分步写，一步一条，含实际用过的命令、载荷、脚本\n"
+    "- **信息收集与判断**：看到什么现象/回显，据此判断这是哪类问题\n"
+    "- **解题步骤**：分步写，一步一条，含实际执行过的命令、载荷、脚本原文\n"
     "- **获取 Flag**：…\n"
+    "- **工具与关键命令**：一个工具一条，写「工具名 — 用途 — 关键命令」\n"
     "- > [截图：这里该配什么图]\n"
     "```\n"
     "写作纪律（赛方对无效 WP 的判定依据，逐条遵守）：\n"
+    "- **全文中文**：命令、载荷、路径、工具名、专有名词保留原文，不翻译；\n"
+    "- **必须写工具**：`tools` 是本次真正调用过的工具清单（含调用次数），"
+    "把它与步骤里出现过的命令对上；材料里没有的工具、命令一律不许编；\n"
+    "- 每一步都要能照着复现：写清目标/输入、发了什么请求或命令、返回的关键片段；\n"
+    "- **不写内部过程**：正文里不出现「主 Agent / 子 Agent / 灵枢 / 派发 / 编排 /"
+    " 回合 / 路线 / 工作台 / 模型调用 / 提示词」这类字眼，把过程素材改写成解题动作；\n"
     "- `team` 里给了团队名称、队员、单位、赛事就照抄，没给的一律写「（待填写）」；\n"
     "- 单位与赛事是两块可省略的行：`team` 里有值就必须写出来，一个字都不许漏；\n"
     "- 每题的 `#### <题目名称>` 照抄材料里的 title，不要追加 URL、编号或自己的注解；\n"
     "- `team.notes` 是队员的补充交代（比赛约定、要强调或回避的内容），必须遵守；\n"
     "- 分章以 `chapters` 为准（队员可能手改过方向），不要按自己的判断重新归类；\n"
-    "- 关键步骤不可省略、不可含糊其辞、不可一笔带过；读者要能照着复现；\n"
+    "- 关键步骤不可省略、不可含糊其辞、不可一笔带过；\n"
     "- 凡是本次自己写的脚本，必须贴原文（太长就贴关键函数，并说明其余部分作用）；\n"
-    "- 每道题都按「看到了什么 → 怎么推的 → 试了什么 → 哪一步破了题」讲成连贯过程；\n"
     "- 只使用材料里的事实：材料没有的步骤、命令、数字一律不写，不得编造；\n"
     "- `unsolved_ids` 里的题一律写成「未完成」，不得推测它「其实解了、只是没登记」；\n"
     "- 材料里没有的方向不写那一章；一题都没有时，「具体WP」下写明本场未解出题目；\n"
     "- 截图用 `> [截图：<该截什么>]` 占位，不要编造截图文件名或图片内容；\n"
-    "- 不要产出「日志审查」「质量问题清单」「改进建议」这类章节；\n"
-    "- 中文，Markdown。"
+    "- 不要产出「日志审查」「质量问题清单」「改进建议」这类章节。"
 )
+
+
+def tool_inventory(audit: AuditLogger | None, *, limit: int = 40) -> list[dict[str, Any]]:
+    """本次真正调用过的工具（名字 + 次数）。
+
+    解题思路里「用了什么工具」要有据可查：这份清单来自审计里的工具调用事件，
+    写手据此成文，材料没出现的工具就不许往里加。
+    """
+    if audit is None:
+        return []
+    try:
+        rows = audit.read_all()
+    except Exception:  # noqa: BLE001 —— 统计失败不该拖垮 WP
+        return []
+    tally: dict[str, int] = {}
+    for row in rows:
+        if row.get("type") != "agent.tool_call":
+            continue
+        detail = row.get("detail") or {}
+        for call in detail.get("calls") or []:
+            name = str((call or {}).get("name") or "").strip()
+            if name:
+                tally[name] = tally.get(name, 0) + 1
+    ordered = sorted(tally.items(), key=lambda kv: (-kv[1], kv[0]))
+    return [{"tool": name, "calls": count} for name, count in ordered[:limit]]
 
 
 def direction_key(raw: Any) -> str:
@@ -284,12 +319,14 @@ def build_wp_digest(
     team: dict[str, Any] | None = None,
     facts: dict[str, int] | None = None,
     direction_overrides: dict[str, Any] | None = None,
+    tools: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """按赛方模板组织材料：题目按方向分章，每题挂上自己的 Flag 与过程笔记。
 
     `team` 里的 `affiliation` / `contest` / `notes` 来自用户在生成前填的信息页，
     都可能是空的；`direction_overrides` 是用户手改的分章（按题目 id），
-    优先于题目自带的方向标签。
+    优先于题目自带的方向标签。`tools` 是本次真正调用过的工具清单（见
+    :func:`tool_inventory`），写手拿它填「工具与关键命令」，不靠猜。
     """
     from spiritscout.core.models import BlackboardLayer
 
@@ -379,7 +416,8 @@ def build_wp_digest(
         "shared_notes": routes[:40],
         "findings": findings[-60:],
         "run_facts": facts or {},
-        "rounds": run_summary.get("rounds_executed", 0),
+        # 工具清单：解题思路里「用了什么工具」只能从这里取，不许凭空补
+        "tools": list(tools or []),
     }
 
 
@@ -494,5 +532,13 @@ def wp_fallback(digest: dict[str, Any], *, reason: str = "") -> str:
                 lines.append("- **获取 Flag**：（已解出，材料中未记录 flag 值）")
             else:
                 lines.append("- **获取 Flag**：未完成")
+            inventory = digest.get("tools") or []
+            if inventory:
+                lines.append("- **工具与关键命令**：")
+                for entry in inventory[:12]:
+                    lines.append(f"  - `{entry.get('tool', '')}` — "
+                                 f"本次调用 {entry.get('calls', 0)} 次")
+            else:
+                lines.append("- **工具与关键命令**：（材料中未记录工具调用）")
             lines += ["- > [截图：解题关键步骤]", "- > [截图：获取 flag]", ""]
     return "\n".join(lines).rstrip() + "\n"
