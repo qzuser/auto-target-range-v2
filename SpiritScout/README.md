@@ -9,7 +9,7 @@
 
 **简体中文 · [English](README_EN.md)**
 
-[![Version](https://img.shields.io/badge/version-v0.32.0-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
+[![Version](https://img.shields.io/badge/version-v0.33.0-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
 
 [快速开始](#快速开始) · [三种模式](#三种模式) · [界面](#界面) · [工作原理](#工作原理) · [配置参考](#配置参考) · [常见问题](#常见问题) · [部署指南](docs/部署与配置.md)
 
@@ -55,7 +55,7 @@
 | **用量** | 按模型统计 token：调用次数、输入/输出、缓存读、占比与费用（近 1 小时 / 今天 / 7 天 / 30 天 / 全部） |
 | **编队** | 给灵枢和各子 Agent 分配模型与提示词 |
 | **项目** | 把资产和会话归到一起；候选漏洞由「鉴真」独立复测 |
-| **经验** | 沉淀下来的、可复用的判断与踩坑记录 |
+| **经验** | 沉淀下来的、可复用的判断与踩坑记录；极相似的条目可二次提炼合并（原件保留可还原） |
 
 会话详情不进导航，从任务列表点进去就是。
 
@@ -303,6 +303,7 @@ shell / Python 沙箱需要 Linux + bubblewrap；Windows 与 macOS 原生控制�
 | `context` | 适用场景（写清边界，避免乱套） |
 | `tags` | 标签，检索与召回用 |
 | `source_session` / `source_model` | 来源会话与提炼它的模型 |
+| `merged_into` / `merged_from` | 二次提炼的溯源：被合并的条目指向合并结果，合并结果记着吸收了谁 |
 | `ts` | 时间戳 |
 
 预置的那批都是「怎么判读」类：云靶场实例回收后坐标不再指向同一环境；连接超时在按需实例上该先当成实例生命周期信号，而不是目标防护；零轮次战报不能当作难度或防护强度的证据；赛事入口令牌过期与靶场下线难以区分；赛事接入层与题目实例层的可达性互不蕴含，探测失败不能外推。
@@ -314,6 +315,16 @@ shell / Python 沙箱需要 Linux + bubblewrap；Windows 与 macOS 原生控制�
 每个会话页的「**经验**」页签是它的落地窗口：左边是这次产出的条目（标签、适用场景、来源模型与时间），右边是这次会话的提炼记录（解出即提炼、收尾提炼、手动补提炼，成功还是失败、失败原因）。解出即提炼与收尾提炼都走后台队列，失败会重试、进程中断会在下次启动补跑。自动提炼因为模型不可用或会话被中断而跳过时，页面上的「手动提炼」可以补一次——战报按落盘状态重建，停掉的会话也能补；会话还在跑、或者确实没有活动时按钮会给原因，不白烧一次模型调用。
 
 想归零删 `experience.db`（下次启动重建空库）；想带走连 `.spiritscout/` 一起拷。知识库那两个文件删了会丢内置参考，别动。
+
+**它不会因为删会话而变薄**
+
+经验库是共享的，删会话只清会话工作区目录，库里的条目一条不少。老版本曾把条目写进会话目录里的 `experience.db`，所以删会话前会先把那份并回共享库再删目录；来源会话不在了，条目照样按原文展示（只是不再提供跳转回链）。
+
+**二次提炼：把极相似的合并压缩**
+
+「经验」页右上角的「二次提炼」会列出**整组两两相似度都 ≥ 85%** 的条目（归一化后的编辑相似度，中文同义改写也认得出来），每组给出合并预览，点一下才合并；也可以自己勾选几条强行合——服务端会再复检一次，不够相似直接拒绝并说明最低相似度。合并是确定性的：取信息量最大的那条当底稿，其余条目里底稿没有的句子按「另：…」并入，**不调模型改写**，所以差异细节不会被润色掉。
+
+被合并的原件不删除，只标记 `merged_into`：默认列表与开工召回不再展示（压缩的意义就在这），点「显示已合并」能看到灰掉的原文，随时「还原」——原件解封，派生的合并条目移除。删一条合并结果时，它的原件也会自动解封，不会永远挂在隐身上。
 
 ### 命令行
 
@@ -364,7 +375,7 @@ Docker 用 `python deploy.py migrate`；手工迁移时停服 → 拷 `.spiritsc
 
 ## 文档与贡献
 
-当前代码版本 **v0.32.0**。版本唯一来源、递增规则与历史说明见 [版本管理](CONTRIBUTING.md#版本管理)。
+当前代码版本 **v0.33.0**。版本唯一来源、递增规则与历史说明见 [版本管理](CONTRIBUTING.md#版本管理)。
 
 | 我想了解 | 阅读入口 |
 | --- | --- |

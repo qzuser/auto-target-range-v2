@@ -1,6 +1,9 @@
-/* 经验列表、来源会话和提炼记录。 */
+/* 经验列表、来源会话和提炼记录。
+   二次提炼：把「极度相似」的条目合并压缩——原件只标记不删除，随时可还原。 */
 const ExperiencePage = (() => {
-  const state = {items: [], offset: 0, q: "", tag: "", generation: 0, more: false, total: 0};
+  const MERGE_THRESHOLD = 0.85;   // 与后端默认值一致：八成半以上相同才允许合并
+  const state = {items: [], offset: 0, q: "", tag: "", generation: 0, more: false,
+                 total: 0, merged: false, mergeOn: false, picks: new Set(), groups: []};
   const root = () => $("#view-exp");
   const time = t => t ? new Date(t * 1000).toLocaleString("zh-CN", {hour12: false}) : "未记录";
 
@@ -12,15 +15,20 @@ const ExperiencePage = (() => {
       <header class="resource-head">
         <div>
           <h2>经验提炼</h2>
-          <p>查看会话提炼的经验、适用场景和来源；不合适的条目可以删除。</p>
+          <p>查看会话提炼的经验、适用场景和来源；极其相似的可以二次提炼合并，不合适的条目可以删除。</p>
         </div>
-        <div class="resource-head-actions"><button class="btn" data-refresh>刷新</button></div>
+        <div class="resource-head-actions">
+          <button class="btn" data-merge-toggle title="合并极其相似的经验">二次提炼</button>
+          <button class="btn" data-merged-toggle hidden title="显示被合并的原件">显示已合并</button>
+          <button class="btn" data-refresh>刷新</button>
+        </div>
       </header>
       <div class="exp-tiles" data-tiles></div>
       <div class="exp-toolbar">
         <label class="resource-search">搜索经验<input type="search" data-search placeholder="内容、场景或标签…" maxlength="100"></label>
         <div class="exp-tags" data-tags role="group" aria-label="按标签过滤"></div>
       </div>
+      <section class="exp-merge" data-merge-panel hidden aria-label="二次提炼"></section>
       <div class="exp-layout">
         <section aria-label="经验列表">
           <div class="resource-list-status" data-status role="status"></div>
@@ -34,6 +42,12 @@ const ExperiencePage = (() => {
         </aside>
       </div>`;
     el.querySelector("[data-refresh]").onclick = () => load(true);
+    el.querySelector("[data-merge-toggle]").onclick = () => toggleMerge();
+    el.querySelector("[data-merged-toggle]").onclick = () => {
+      state.merged = !state.merged;
+      state.picks.clear();
+      load();
+    };
     let timer;
     el.querySelector("[data-search]").oninput = e => {
       state.q = e.target.value.trim();
@@ -53,12 +67,14 @@ const ExperiencePage = (() => {
       const params = {limit: "40", offset: append ? String(state.offset) : "0"};
       if (state.q) params.q = state.q;
       if (state.tag) params.tag = state.tag;
+      if (state.merged) params.include_merged = "true";
       const data = await api("/api/experience?" + new URLSearchParams(params));
       if (version !== state.generation) return;
       state.items = append ? [...state.items, ...(data.items || [])] : (data.items || []);
       state.offset = state.items.length;
       state.more = !!data.has_more;
       state.total = data.total || 0;
+      state.mergedTotal = data.merged_total || 0;
       state.stats = data;
       status.textContent = state.total
         ? `${state.total} 条经验`
@@ -69,11 +85,108 @@ const ExperiencePage = (() => {
     }
   }
 
+  /* ---- 二次提炼：只合并极度相似的条目，原件保留可还原 ---- */
+
+  function toggleMerge() {
+    state.mergeOn = !state.mergeOn;
+    state.picks.clear();
+    if (!state.mergeOn) state.groups = [];
+    renderMergePanel();
+    renderList();
+    if (state.mergeOn) loadGroups();
+  }
+
+  async function loadGroups() {
+    try {
+      const data = await api(`/api/experience/merge/candidates?threshold=${MERGE_THRESHOLD}`);
+      state.groups = data.groups || [];
+    } catch (e) {
+      state.groups = [];
+      state.groupsError = e.message;
+    }
+    renderMergePanel();
+  }
+
+  function renderMergePanel() {
+    const box = root().querySelector("[data-merge-panel]");
+    const toggle = root().querySelector("[data-merge-toggle]");
+    toggle?.classList?.toggle("on", state.mergeOn);
+    const mergedBtn = root().querySelector("[data-merged-toggle]");
+    if (mergedBtn) mergedBtn.hidden = !(state.merged || (state.mergedTotal || 0) > 0);
+    mergedBtn?.classList?.toggle("on", state.merged);
+    if (!box) return;
+    box.hidden = !state.mergeOn;
+    if (!state.mergeOn) { box.innerHTML = ""; return; }
+    const groups = state.groups || [];
+    const rows = groups.map(group => {
+      const ids = (group.ids || []).join(",");
+      const preview = (group.preview && group.preview.insight) || "";
+      const items = (group.items || []).map(item =>
+        `<li>${esc(item.insight || "")}</li>`).join("");
+      return `<article class="exp-merge-group">
+        <header>
+          <span class="exp-merge-score">相似度 ${Math.round((group.score || 0) * 100)}%</span>
+          <span class="muted">${(group.items || []).length} 条</span>
+        </header>
+        <ul class="exp-merge-items">${items}</ul>
+        <p class="exp-merge-preview">合并后：${esc(preview)}</p>
+        <button class="btn" data-merge-ids="${esc(ids)}" title="合并这一组（原件保留，可还原）">合并这 ${(group.items || []).length} 条</button>
+      </article>`;
+    }).join("");
+    const picks = [...state.picks];
+    box.innerHTML = `
+      <header class="exp-merge-head">
+        <h3>二次提炼</h3>
+        <p>只合并<span class="exp-merge-th">极度相似（≥ ${Math.round(MERGE_THRESHOLD * 100)}%）</span>的经验；
+           被合并的原件不会删除，可在「显示已合并」里还原。</p>
+      </header>
+      <div class="exp-merge-groups" data-groups>${rows || `<p class="muted">${state.groupsError ? `读取失败：${esc(state.groupsError)}` : "没有达到相似度阈值的条目——宁可少合，也不合并相似度不够的经验。"}</p>`}</div>
+      <footer class="exp-merge-batch">
+        <span>已选 ${picks.length} 条</span>
+        <button class="btn" data-merge-picks ${picks.length < 2 ? "disabled" : ""}>合并选中</button>
+        <button class="btn" data-clear-picks ${picks.length ? "" : "disabled"}>清空勾选</button>
+      </footer>`;
+    box.querySelectorAll("[data-merge-ids]").forEach(b => {
+      b.onclick = () => armConfirm(b, () => applyMerge(String(b.dataset.mergeIds || "").split(",")));
+    });
+    const pickBtn = box.querySelector("[data-merge-picks]");
+    if (pickBtn) pickBtn.onclick = () => armConfirm(pickBtn, () => applyMerge(picks));
+    const clearBtn = box.querySelector("[data-clear-picks]");
+    if (clearBtn) clearBtn.onclick = () => { state.picks.clear(); renderMergePanel(); renderList(); };
+  }
+
+  async function applyMerge(ids) {
+    const list = ids.filter(Boolean);
+    if (list.length < 2) return;
+    try {
+      const res = await api("/api/experience/merge", {
+        method: "POST", body: JSON.stringify({ids: list, threshold: MERGE_THRESHOLD})});
+      toast(`已合并 ${list.length} 条经验，原件仍可还原`);
+      state.picks.clear();
+      await load();
+      await loadGroups();
+      return res;
+    } catch (e) {
+      toast(e.message, true);
+    }
+  }
+
+  async function restoreMerge(mergedId) {
+    try {
+      await api("/api/experience/merge/restore", {
+        method: "POST", body: JSON.stringify({merged_id: mergedId})});
+      toast("已还原这次合并");
+      await load();
+      if (state.mergeOn) await loadGroups();
+    } catch (e) { toast(e.message, true); }
+  }
+
   function render(data) {
     const el = root();
     renderTiles(data);
     renderTags(data);
     renderList(data);
+    renderMergePanel();
     renderHistory(data.history || []);
   }
 
@@ -111,11 +224,24 @@ const ExperiencePage = (() => {
           : `<span class="exp-source muted">${esc(item.source_title || sid)}</span>`)
         : `<span class="exp-source muted">来源未记录</span>`;
       const iid = String(item.insight_id || "");
-      return `<article class="exp-card">
-        <div class="exp-card-tags">${tags || '<span class="exp-ins-tag muted">未打标签</span>'}</div>
+      const picked = state.picks.has(iid);
+      const pick = state.mergeOn && iid && !item.merged
+        ? `<label class="exp-pick"><input type="checkbox" data-pick="${esc(iid)}"${picked ? " checked" : ""}>选这条</label>`
+        : "";
+      const parent = (item.merged_from || []).length > 0;
+      const badge = item.merged
+        ? `<span class="exp-badge exp-badge-merged" title="已被二次提炼合并，原件仍在库里">已合并</span>`
+        : (parent ? `<span class="exp-badge exp-badge-merge" title="由多条极相似经验合并而来">二次提炼 · ${(item.merged_from || []).length} 条</span>` : "");
+      const restore = item.merged && item.merged_into
+        ? `<button class="btn exp-restore" data-restore="${esc(String(item.merged_into))}" title="把这次合并还原，原件全部恢复">还原</button>`
+        : "";
+      return `<article class="exp-card${item.merged ? " merged" : ""}">
+        <div class="exp-card-tags">${tags || '<span class="exp-ins-tag muted">未打标签</span>'}${badge}</div>
         <p class="exp-insight">${esc(item.insight || "")}</p>
         ${item.context ? `<p class="exp-context">适用：${esc(item.context)}</p>` : ""}
         <footer>${source}<span class="exp-card-ops">
+          ${pick}
+          ${restore}
           <span class="exp-meta">${esc(item.source_model || "")} · ${esc(time(item.ts))}</span>
           ${iid ? `<button class="btn exp-del" data-del="${esc(iid)}" title="删除这条经验">删除</button>` : ""}
         </span></footer>
@@ -129,6 +255,14 @@ const ExperiencePage = (() => {
       b.onclick = () => openSession(b.dataset.openSession));
     box.querySelectorAll("[data-del]").forEach(b =>
       b.onclick = () => armConfirm(b, () => removeItem(b.dataset.del)));
+    box.querySelectorAll("[data-restore]").forEach(b =>
+      b.onclick = () => armConfirm(b, () => restoreMerge(b.dataset.restore)));
+    box.querySelectorAll("[data-pick]").forEach(b => b.onchange = () => {
+      const id = String(b.dataset.pick || "");
+      if (!id) return;
+      if (b.checked) state.picks.add(id); else state.picks.delete(id);
+      renderMergePanel();
+    });
     root().querySelector("[data-more]").hidden = !state.more;
   }
 
@@ -176,7 +310,8 @@ const ExperiencePage = (() => {
     load(true);
   }
 
-  return {open, load};
+  return {open, load, toggleMerge, loadGroups, applyMerge, restoreMerge,
+          renderMergePanel, state};
 })();
 
 /* 会话页「经验」页签：这次会话产出了哪些经验，没有就手动补一次。

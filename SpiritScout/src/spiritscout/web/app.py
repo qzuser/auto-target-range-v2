@@ -17,6 +17,7 @@ from fastapi.responses import (
     HTMLResponse,
 )
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
 
 from spiritscout import __version__
 from spiritscout.config.settings import ModelEntry, SystemConfig
@@ -42,6 +43,19 @@ from spiritscout.web.sessions import (
 _STATIC = Path(__file__).parent / "static" / "index.html"
 _STATIC_DIR = Path(__file__).parent / "static"
 _LOGIN = _STATIC_DIR / "login.html"
+
+
+class MergePayload(BaseModel):
+    """二次提炼：选定条目 + 相似度阈值（服务端会再复检一次）。"""
+
+    ids: list[str] = Field(min_length=2, max_length=6)
+    threshold: float = Field(default=0.85, ge=0.5, le=1.0)
+
+
+class MergeRestorePayload(BaseModel):
+    """还原一次合并：给合并后的条目 id。"""
+
+    merged_id: str = Field(min_length=1, max_length=80)
 
 
 def _iso_ts(value: Any) -> str:
@@ -165,17 +179,20 @@ def create_app(cfg: SystemConfig, models: list[ModelEntry], *,
     @app.get("/api/experience")
     def experience_page(q: str = "", tag: str = "",
                         limit: int = Query(50, ge=1, le=200),
-                        offset: int = Query(0, ge=0)) -> dict[str, Any]:
+                        offset: int = Query(0, ge=0),
+                        include_merged: bool = False) -> dict[str, Any]:
         """经验提炼页：自我进化的全部产出（可检索/按标签过滤）+ 提炼过程记录。
 
         history 从各会话审计尾段提取 experience.distill 事件——含失败与
         跳过，让「学没学到、为什么没学到」对用户完全可见。
+        include_merged=true 时连「已被二次提炼合并掉」的原件一起给出（可还原）。
         """
         from spiritscout.knowledge.experience import experience_db_path, read_page
 
         data = read_page(
             experience_db_path(cfg.experience.root, cfg.workspace.root),
-            q=q, tag=tag, limit=limit, offset=offset)
+            q=q, tag=tag, limit=limit, offset=offset,
+            include_merged=include_merged)
         titles = {s.session_id: s.brief(include_summary=False)["title"]
                   for s in manager.list()}
         for item in data["items"]:
@@ -183,6 +200,52 @@ def create_app(cfg: SystemConfig, models: list[ModelEntry], *,
                 str(item.get("source_session") or ""), "")
         data["history"] = _distill_history(cfg)
         return data
+
+    @app.get("/api/experience/merge/candidates")
+    def experience_merge_candidates(threshold: float = Query(0.85, ge=0.5, le=1.0),
+                                    limit: int = Query(20, ge=1, le=100)
+                                    ) -> dict[str, Any]:
+        """二次提炼候选：只给「整组两两都极相似」的组，供用户复核后再合并。"""
+        from spiritscout.knowledge.experience import (
+            experience_db_path,
+            merge_candidates,
+        )
+
+        groups = merge_candidates(
+            experience_db_path(cfg.experience.root, cfg.workspace.root),
+            threshold=threshold, limit=limit)
+        return {"threshold": threshold, "groups": groups, "count": len(groups)}
+
+    @app.post("/api/experience/merge")
+    def experience_merge(payload: MergePayload) -> dict[str, Any]:
+        """合并压缩选定经验：原件只标记不删除，随时可还原。"""
+        from spiritscout.knowledge.experience import experience_db_path, merge_insights
+
+        try:
+            return merge_insights(
+                experience_db_path(cfg.experience.root, cfg.workspace.root),
+                payload.ids, threshold=payload.threshold,
+                audit=AuditLogger(cfg.audit_log_path))
+        except SpiritScoutError as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+    @app.post("/api/experience/merge/restore")
+    def experience_merge_restore(payload: MergeRestorePayload) -> dict[str, Any]:
+        """还原一次合并：原件解封，派生的合并条目移除。"""
+        from spiritscout.knowledge.experience import (
+            experience_db_path,
+            restore_merge,
+        )
+
+        try:
+            result = restore_merge(
+                experience_db_path(cfg.experience.root, cfg.workspace.root),
+                payload.merged_id, audit=AuditLogger(cfg.audit_log_path))
+        except SpiritScoutError as exc:
+            raise HTTPException(500, str(exc)) from exc
+        if result is None:
+            raise HTTPException(404, f"没有这条合并记录: {payload.merged_id}")
+        return result
 
     @app.delete("/api/experience/{insight_id}")
     def delete_experience(insight_id: str) -> dict[str, Any]:
