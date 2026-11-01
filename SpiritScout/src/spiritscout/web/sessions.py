@@ -44,6 +44,7 @@ from spiritscout.policy.approvals import ApprovalBroker
 from spiritscout.policy.questions import QuestionBroker
 from spiritscout.policy.scope import ScopeGuard
 from spiritscout.web import agentcfg, vault
+from spiritscout.web.status import derived
 
 if TYPE_CHECKING:
     from spiritscout.resources.store import ResourceStore
@@ -1037,6 +1038,8 @@ class Session:
             "paused": self.pause_gate.paused,
             "excluded_seconds": round(self.pause_gate.excluded_seconds, 1),
         }
+        # 「提炼中 / 询问中」是派生态：列表和详情都从这里取，前端不自己猜
+        out.update(derived(self))
         if self.request.get("side_agent"):
             source = self.request.get("side_context") or {}
             out["side_session"] = {"agent": self.request["side_agent"],

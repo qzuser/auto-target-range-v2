@@ -39,7 +39,19 @@ function toast(msg, err = false) {
 }
 const TERMINAL = new Set(["completed", "failed", "stopped", "interrupted"]);
 const STATUS_CN = { created: "排队中", running: "运行中", completed: "已完成",
-                    failed: "失败", stopped: "已停止", interrupted: "已中断" };
+                    failed: "失败", stopped: "已停止", interrupted: "已中断",
+                    /* 两个派生态：都不是持久化 status，由 brief 的附加字段现算 */
+                    distilling: "提炼中", asking: "询问中" };
+/* 徽标口径：提炼中 > 询问中 > 持久化状态。
+   与后端 web/status.py 的 display_status 保持一致——提炼常常发生在会话收尾之后，
+   这时按 status 显示「已完成」会让人以为彻底收工了；询问中只对未结束会话生效。 */
+function statusInfo(s) {
+  const raw = String((s && s.status) || "");
+  if (s && s.distilling) return { key: "distilling", text: STATUS_CN.distilling };
+  if (s && s.pending_questions > 0 && !TERMINAL.has(raw))
+    return { key: "asking", text: STATUS_CN.asking };
+  return { key: raw, text: STATUS_CN[raw] || raw };
+}
 const MODE_CN = { src: "SRC 渗透", ctf: "CTF 解题", competition: "智能渗透赛",
                   dialogue: "对话", rules: "规则" };
 const TASK_CN = { business_context: "业务体验与上下文", recon: "侦察测绘", port_scan: "端口扫描", web_probe: "Web 探测",
@@ -231,9 +243,10 @@ function foldFolder(id, folded) {
 }
 
 function sessionItemHtml(s) {
+  const st = statusInfo(s);
   return `
     <div class="sess-item ${s.session_id === S.cur ? "on" : ""}" data-id="${s.session_id}">
-      <div class="t"><span class="pill ${s.status}" style="padding:1px 7px;font-size:10.5px">${STATUS_CN[s.status] || s.status}</span>
+      <div class="t"><span class="pill ${st.key}" style="padding:1px 7px;font-size:10.5px">${esc(st.text)}</span>
         <span class="name" title="${esc(s.title)}">${esc(s.title)}</span></div>
       <div class="s">${esc(s.target || s.session_id)} · <span class="mono">${esc(s.session_id.slice(5, 13))}</span></div>
       <div class="ops">
@@ -325,12 +338,15 @@ function renderTaskDock() {
       : `${behind.length} 个任务在后台（${running} 个运行中）`;
   }
   if (!body) return;
-  body.innerHTML = behind.map(s => `
+  body.innerHTML = behind.map(s => {
+    const st = statusInfo(s);
+    return `
     <button class="dock-row" type="button" data-id="${esc(s.session_id)}" title="切到这个任务">
-      <span class="pill ${esc(s.status)}">${esc(STATUS_CN[s.status] || s.status)}</span>
+      <span class="pill ${esc(st.key)}">${esc(st.text)}</span>
       <span class="dock-name">${esc(s.title)}</span>
       <span class="dock-target">${esc(s.target || "")}</span>
-    </button>`).join("");
+    </button>`;
+  }).join("");
   body.hidden = !box.classList.contains("open");   /* 重渲染后仍守住展开状态 */
   body.querySelectorAll(".dock-row").forEach(el => {
     el.onclick = () => openSession(el.dataset.id);

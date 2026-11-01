@@ -1149,10 +1149,26 @@ async def _distill_experience(gateway: Any, experience: ExperienceStore,
     """提炼一次会话经验并返回摘要，由调用方记录审计。
 
     使用 chat_decision 处理思考型模型正文为空时的重试。"""
-    import json as _json
-
+    from spiritscout.core import distill_state
     from spiritscout.gateway.backends import extract_json
     from spiritscout.gateway.gateway import chat_decision
+
+    # 进去就登记：自动提炼与手动提炼都走这里，控制台据此亮「提炼中」徽标
+    with distill_state.tracked(source_session):
+        return await _distill_with_model(
+            gateway, experience, digest, timeout_seconds=timeout_seconds,
+            audit=audit, source_session=source_session,
+            chat_decision=chat_decision, extract_json=extract_json)
+
+
+async def _distill_with_model(gateway: Any, experience: ExperienceStore,
+                              digest: dict[str, Any], *,
+                              timeout_seconds: int, audit: Any,
+                              source_session: str,
+                              chat_decision: Any,
+                              extract_json: Any) -> dict[str, Any]:
+    """真正跑一次提炼（提示词、落库与去重都在这里）。"""
+    import json as _json
 
     resp = await asyncio.wait_for(chat_decision(
         gateway,
