@@ -34,6 +34,7 @@ from spiritscout.web.routes.notify import mount_notify
 from spiritscout.web.routes.preferences import mount_preferences
 from spiritscout.web.routes.session_detail import mount_session_detail
 from spiritscout.web.routes.sessions import make_require, mount_sessions
+from spiritscout.web.routes.usage import mount_usage
 from spiritscout.web.sessions import (
     SessionManager,
 )
@@ -98,6 +99,17 @@ def create_app(cfg: SystemConfig, models: list[ModelEntry], *,
         # 关停时停掉所有未终态会话，避免孤儿任务
         manager.start()
         resource_assistant.start()
+        # 旧版本把手动提炼写进了会话目录里的 experience.db：启动时并回共享库，
+        # 否则「经验库」页永远看不到那次提炼（并库幂等，目标库已有同文即跳过）
+        with suppress(OSError, sqlite3.Error):
+            from spiritscout.knowledge.experience import (
+                absorb_session_dbs,
+                experience_db_path,
+            )
+
+            absorb_session_dbs(
+                experience_db_path(cfg.experience.root, cfg.workspace.root),
+                Path(cfg.workspace.root) / "sessions")
         # 读取已存在的资产，不启动旧会话或发起网络探测。
         for path in (Path(cfg.workspace.root)/"sessions").glob("sess-*"):
             with suppress(OSError, ValueError, sqlite3.Error):
@@ -117,6 +129,7 @@ def create_app(cfg: SystemConfig, models: list[ModelEntry], *,
     mount_auth(app, admin_store=admin_store, auth_enabled=auth_enabled,
                limiter=limiter, loopback=loopback)
     mount_maintenance(app, cfg=cfg)
+    mount_usage(app, cfg=cfg)
 
     # ------------------------------------------------------------ 前端
 

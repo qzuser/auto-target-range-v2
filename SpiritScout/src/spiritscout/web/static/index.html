@@ -9,7 +9,7 @@
 <meta name="theme-color" content="#121316" media="(prefers-color-scheme: dark)">
 <link rel="stylesheet" href="/static/css/base.css?v=20261030-attachdrop">
 <link rel="stylesheet" href="/static/css/dashboard.css?v=20261026-scroll">
-<link rel="stylesheet" href="/static/css/views.css?v=20261101-cache">
+<link rel="stylesheet" href="/static/css/views.css?v=20261102-usage">
 <link rel="stylesheet" href="/static/css/deliverables.css?v=20261026-scroll">
 <link rel="stylesheet" href="/static/css/resources.css?v=20261101-exptab">
 <link rel="stylesheet" href="/static/css/projects.css?v=20261026-scroll">
@@ -44,6 +44,10 @@
       <button data-nav="dash">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 4v16h16M8 16v-4M13 16V8M18 16V5"/></svg>
         仪表盘
+      </button>
+      <button data-nav="usage">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 3v18M3 12h18"/><circle cx="12" cy="12" r="9"/></svg>
+        用量
       </button>
       <button data-nav="agents">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="3"/><circle cx="16.5" cy="9.5" r="2.5"/><path d="M3.5 19c.6-3 2.6-4.5 4.5-4.5s3.9 1.5 4.5 4.5M13.5 19c.4-2.2 1.7-3.4 3-3.4s2.6 1.2 3 3.4"/></svg>
@@ -303,6 +307,8 @@
         </aside>
         <div class="set-body">
           <section id="view-mcp" class="resource-page" hidden></section>
+          <!-- 用量统计：按模型汇总 token（数据来自 /api/usage/stats，只读账本） -->
+          <section id="view-usage" class="resource-page" hidden></section>
           <section id="view-skill" class="resource-page" hidden></section>
           <!-- 通知分类：面板内容由 static/js/notify.js 渲染（权限状态随浏览器走） -->
           <section id="view-notify" hidden></section>
@@ -469,6 +475,7 @@
 <script src="/static/js/agent-side-chat.js?v=20261026-scroll"></script>
 <script src="/static/js/agent-workbench.js?v=20261101-priority"></script>
 <script src="/static/js/maintenance.js?v=20261101-cache"></script>
+<script src="/static/js/usage.js?v=20261102-usage"></script>
 <script src="/static/js/experience.js?v=20261101-exptab"></script>
 <script src="/static/js/projects.js?v=20261026-scroll"></script>
 <script src="/static/js/session-history.js?v=20261026-process"></script>

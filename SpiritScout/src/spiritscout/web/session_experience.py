@@ -212,9 +212,21 @@ def _distilling(session_id: str) -> bool:
     return bool(lock and lock.locked())
 
 
+def experience_library(cfg: Any) -> Path:
+    """共享经验库路径——与会话页、经验库页、开工召回必须是同一本。
+
+    ``experience.root`` 为空时跟随**基础工作区**（``cfg.workspace.root``），而不是
+    会话工作区：手动提炼曾经按 ``session.workspace`` 算路径，条目写进
+    ``sessions/<id>/experience.db``，经验库页读共享库，于是「提炼了却查不到」。
+    """
+    root = getattr(getattr(cfg, "experience", None), "root", "")
+    workspace = getattr(getattr(cfg, "workspace", None), "root", "")
+    return experience_db_path(str(root or ""), str(workspace or ""))
+
+
 def session_page(cfg: Any, session: Any) -> dict[str, Any]:
     """会话页「经验」页签的数据：本次产出 + 提炼记录 + 现在能不能手动提炼。"""
-    db_path = experience_db_path(cfg.experience.root, str(session.workspace))
+    db_path = experience_library(cfg)
     items = read_session_insights(db_path, session.session_id)
     digest = session_digest(session)
     blocker = distill_blocker(session, digest)
@@ -272,7 +284,7 @@ def _error_result(cfg: Any, session: Any, message: str) -> dict[str, Any]:
     audit.log("experience.distill", "master", {
         "result": "error", "insights": 0, "error": message[:400],
         "trigger": "manual", "outcome": str(session.status or "")})
-    db_path = experience_db_path(cfg.experience.root, str(session.workspace))
+    db_path = experience_library(cfg)
     items = read_session_insights(db_path, session.session_id)
     return {"result": "error", "insights": 0, "error": message, "trigger": "manual",
             "items": items, "total": len(items),
@@ -309,8 +321,7 @@ async def distill_now(cfg: Any, session: Any, *, models: list[Any]) -> dict[str,
         audit = AuditLogger(session.audit_path)
         digest = session_digest(session)
         started = time.monotonic()
-        store = ExperienceStore(
-            experience_db_path(cfg.experience.root, str(session.workspace)), audit=audit)
+        store = ExperienceStore(experience_library(cfg), audit=audit)
         try:
             try:
                 gateway = _conversation_gateway(cfg, models, audit)
@@ -330,8 +341,6 @@ async def distill_now(cfg: Any, session: Any, *, models: list[Any]) -> dict[str,
         audit.log("experience.distill", "master", {
             **result, "trigger": "manual", "outcome": digest.get("outcome", ""),
             "duration_ms": round((time.monotonic() - started) * 1000, 1)})
-        items = read_session_insights(
-            experience_db_path(cfg.experience.root, str(session.workspace)),
-            session.session_id)
+        items = read_session_insights(experience_library(cfg), session.session_id)
         return {**result, "trigger": "manual", "items": items, "total": len(items),
                 "history": read_distill_events(session.audit_path)}
