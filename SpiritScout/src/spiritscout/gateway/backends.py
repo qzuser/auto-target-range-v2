@@ -17,6 +17,7 @@ from typing import Any
 from spiritscout.config.settings import ModelEntry
 from spiritscout.gateway.attempts import current_attempt_trace, tracked_request
 from spiritscout.gateway.capabilities import EndpointCapabilities
+from spiritscout.gateway.credentials import api_key_for
 
 # 流式增量回调：(kind, text) -> None | Awaitable[None]
 DeltaCallback = Callable[[str, str], Any]
@@ -276,8 +277,9 @@ class LiteLLMBackend(ChatBackend):
             kwargs["max_tokens"] = _ANTHROPIC_MIN_MAX_TOKENS
         if entry.base_url:
             kwargs["api_base"] = entry.base_url
-        if entry.api_key:
-            kwargs["api_key"] = entry.api_key
+        key = api_key_for(entry)     # 本机端点用占位密钥，远端没配就是空
+        if key:
+            kwargs["api_key"] = key
         # 发给 litellm 的模型名必须带可路由前缀：裸名解析不出供应商时
         # litellm 打红字横幅且调用必败（前缀规则见 _routed_model_name）
         kwargs["model"] = self._routed_model_name(
@@ -528,8 +530,9 @@ class LiteLLMBackend(ChatBackend):
             kwargs["instructions"] = instructions
         if entry.base_url:
             kwargs["api_base"] = entry.base_url
-        if entry.api_key:
-            kwargs["api_key"] = entry.api_key
+        key = api_key_for(entry)     # 本机端点用占位密钥，远端没配就是空
+        if key:
+            kwargs["api_key"] = key
         if tools:
             kwargs["tools"] = tools
             if tool_choice:

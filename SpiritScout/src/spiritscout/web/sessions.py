@@ -1147,7 +1147,9 @@ class SessionManager:
                  *, max_concurrent: int = 4,
                  resources: ResourceStore | None = None):
         self._cfg = cfg
-        self._models = models
+        # 传进来的清单可能来自只读了 models.yaml 的地方（CLI 起服务就是这样），
+        # 这里补一次密钥注入：运行期谁拿到这份清单都能直接调。
+        self._models = vault.apply_keys(models)
         self._models_stamp: tuple[float, float] = (0.0, 0.0)
         self._models_stamp = self._model_stamp()
         self._sem = asyncio.Semaphore(max_concurrent)
