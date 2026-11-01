@@ -2568,5 +2568,19 @@ class SessionManager:
         except (OSError, sqlite3.Error, SpiritScoutError) as exc:
             print(f"[spiritscout] 删除会话成员行失败（{session_id}）: {exc}",
                   file=sys.stderr)
+        # 删会话只删工作区：经验在共享库里，必须留下。老版本可能把经验写进了
+        # 会话目录（sessions/<id>/experience.db），先并回共享库再删目录，
+        # 免得这条会话学到的东西随目录一起消失（并库幂等，重复删不会多收）。
+        try:
+            from spiritscout.knowledge.experience import (
+                absorb_session_dbs,
+                experience_db_path,
+            )
+
+            shared = experience_db_path(self._cfg.experience.root,
+                                        self._cfg.workspace.root)
+            absorb_session_dbs(shared, Path(session.workspace).parent)
+        except (OSError, sqlite3.Error):
+            pass
         shutil.rmtree(session.workspace, ignore_errors=True)
         return session

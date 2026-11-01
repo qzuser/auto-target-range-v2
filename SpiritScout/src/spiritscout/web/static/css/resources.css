@@ -34,3 +34,26 @@
 .exa-guide { border-left:1px solid var(--line); padding:24px; background:var(--surface-2); }.exa-guide h3 { font-size:14px; margin:0 0 12px; }
 .exa-guide ol { padding-left:19px; margin:0; }.exa-guide li { padding:4px 0; font-size:12px; line-height:1.9; color:var(--ink-2); }.exa-guide p { font-size:11px; line-height:1.8; color:var(--ink-2); margin:14px 0 10px; }.exa-guide a { font-size:12px; color:var(--accent-ink); }
 @media(max-width:700px) { .exa-settings { grid-template-columns:1fr; }.exa-config,.exa-guide { padding:18px; }.exa-guide { border-left:0; border-top:1px solid var(--line); } }
+/* 二次提炼（合并压缩）：面板本身是"复核区"，不是自动执行——每组都要人点一下。
+   已合并的原件压暗但仍可读、可还原，让「没丢东西」看得见。 */
+.exp-merge {border:1px dashed var(--line-strong);border-radius:12px;padding:16px 18px;margin:0 0 16px;background:var(--surface-2,rgba(127,127,127,.04));}
+.exp-merge-head h3 {margin:0 0 6px;font-size:14px;}
+.exp-merge-head p {margin:0 0 12px;font-size:12px;line-height:1.8;color:var(--ink-2);}
+.exp-merge-th {color:var(--accent-ink);font-weight:600;}
+.exp-merge-groups {display:flex;flex-direction:column;gap:12px;}
+.exp-merge-groups>.muted {font-size:12px;line-height:1.8;}
+.exp-merge-group {border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--surface);}
+.exp-merge-group header {display:flex;gap:10px;align-items:center;font-size:11px;margin-bottom:8px;}
+.exp-merge-score {font:11px var(--mono);border:1px solid var(--ok);border-radius:4px;padding:1px 6px;color:var(--ok);}
+.exp-merge-items {margin:0 0 8px;padding-left:18px;font-size:12px;line-height:1.8;color:var(--ink-2);}
+.exp-merge-items li {overflow-wrap:anywhere;}
+.exp-merge-preview {margin:0 0 10px;font-size:12px;line-height:1.8;overflow-wrap:anywhere;}
+.exp-merge-batch {display:flex;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap;font-size:12px;color:var(--ink-2);}
+.exp-merge-batch .btn[disabled] {opacity:.5;cursor:not-allowed;}
+.exp-pick {display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--ink-2);cursor:pointer;}
+.exp-badge {font:10px var(--mono);border-radius:4px;padding:2px 7px;border:1px solid var(--line);}
+.exp-badge-merge {border-color:var(--ok);color:var(--ok);}
+.exp-badge-merged {border-style:dashed;color:var(--ink-3);}
+.exp-card.merged {opacity:.72;border-style:dashed;}
+.exp-restore {padding:3px 10px;font-size:11px;font-weight:500;color:var(--ink-2);}
+#view-exp [data-merge-toggle].on {border-color:var(--accent);color:var(--accent-ink);}

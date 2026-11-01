@@ -13,6 +13,7 @@ function fakeEl() {
   const children = new Map();
   return {
     dataset: {}, hidden: false, innerHTML: "", textContent: "",
+    classList: {toggle() {}, add() {}, remove() {}, contains() { return false; }},
     querySelector(sel) {
       if (!children.has(sel)) children.set(sel, fakeEl());
       return children.get(sel);
