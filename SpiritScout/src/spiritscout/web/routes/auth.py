@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.responses import (
@@ -26,8 +27,11 @@ _LOGIN = _STATIC_DIR / "login.html"
 # 无管理员本机模式允许的 Host（DNS 重绑定防护）：正规本机访问只会用回环名
 _LOCAL_HOSTNAMES = frozenset({"127.0.0.1", "localhost", "::1"})
 
-# 未登录也可访问：登录页、登录/登出接口、前端静态资源
-_PUBLIC_PATHS = frozenset({"/login", "/api/auth/login", "/api/auth/logout"})
+# 未登录也可访问：登录页、登录/登出接口、状态查询（客户端据此决定要不要登录）、
+# 前端静态资源
+_PUBLIC_PATHS = frozenset({
+    "/login", "/api/auth/login", "/api/auth/logout", "/api/auth/status",
+})
 
 
 def _is_public_path(path: str) -> bool:
@@ -100,6 +104,13 @@ def mount_auth(app: FastAPI, *, admin_store: web_auth.AdminStore,
                 return _secure(PlainTextResponse(
                     "拒绝跨站写请求", status_code=403))
         return _secure(await call_next(request))
+
+    @app.get("/api/auth/status")
+    def auth_status(request: Request) -> dict[str, Any]:
+        """控制台要不要登录——前端据此决定是否显示「未登录」提示，不用猜。"""
+        return {"required": bool(auth_enabled),
+                "authenticated": bool(getattr(request.state, "authenticated", False)),
+                "username": str(getattr(request.state, "username", "") or "")}
 
     @app.get("/login", response_class=HTMLResponse)
     async def login_page(request: Request) -> Response:

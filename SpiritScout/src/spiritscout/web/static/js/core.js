@@ -136,7 +136,8 @@ function show(view) {
   if (view === "agents") loadAgents();
   if (view === "models") loadModels();
   if (view === "notify" && typeof ConsoleNotify !== "undefined") ConsoleNotify.open();
-  if (view === "about") renderAbout();
+  if (view === "about") { renderAbout();
+    if (typeof Maintenance !== "undefined") Maintenance.open(); }
   if (view === "dash") renderDash();
   if (typeof ProjectsPage !== "undefined") {
     if (view === "projects") ProjectsPage.open(); else ProjectsPage.close();
