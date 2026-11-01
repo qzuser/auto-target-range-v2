@@ -1072,6 +1072,24 @@ class _TurnRoute:
     handled: bool = False
 
 
+def replace_with_retry(tmp: Path, target: Path, *, attempts: int = 5,
+                       delay: float = 0.02) -> None:
+    """原子替换，带 Windows 重试。
+
+    杀毒/索引服务正在读 ``target`` 时，``os.replace`` 会短暂抛
+    ``PermissionError: [WinError 5]``（共享冲突）。会话每收一条消息都要落一次
+    meta，一次抖动就该重试，而不是把用户的一条消息变成 500。
+    """
+    for attempt in range(attempts):
+        try:
+            tmp.replace(target)
+            return
+        except PermissionError:
+            if attempt == attempts - 1:
+                raise
+            time.sleep(delay * (attempt + 1))
+
+
 class SessionManager:
     """会话注册表与生命周期（创建/启动/停止/删除/重启重建）。
 
@@ -1233,7 +1251,7 @@ class SessionManager:
         # 原子替换：写半截崩进程不留损坏的 meta.json（损坏文件扫描时会被隔离）
         tmp = session.meta_path.with_name("meta.json.tmp")
         tmp.write_text(payload, encoding="utf-8")
-        tmp.replace(session.meta_path)
+        replace_with_retry(tmp, session.meta_path)
 
     def list(self) -> list[Session]:
         # 先复制再遍历：/api/sessions 等同步端点在线程池执行，与本事件

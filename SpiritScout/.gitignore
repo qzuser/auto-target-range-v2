@@ -55,3 +55,6 @@ configs/models.yaml
 /home.html
 /login_sms.yml
 /login_snapshot.yml
+
+# 本机 %TEMP% 不可用时 tempfile 会退回 cwd，一轮全量会在仓库里留一批 tmp*
+tmp*/

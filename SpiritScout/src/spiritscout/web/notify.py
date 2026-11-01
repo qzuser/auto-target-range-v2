@@ -28,8 +28,10 @@ KIND_QUESTION = "question"
 MAX_ITEMS = 60
 VALUE_PREVIEW = 32
 QUESTION_PREVIEW = 160
-# flags.json 解析缓存：轮询每十几秒一次，50 个会话不该每轮都重读一遍磁盘
-_CACHE: dict[str, tuple[float, list[dict[str, Any]]]] = {}
+# flags.json 解析缓存：轮询每十几秒一次，50 个会话不该每轮都重读一遍磁盘。
+# 键是 (mtime, 大小)——只看 mtime 会漏掉同一时钟刻度内的两次写（Windows 上是
+# 100ns 精度，但同一落盘批次里确实能撞上）；满了就丢最早的一条，不整表清空。
+_CACHE: dict[str, tuple[tuple[float, int], list[dict[str, Any]]]] = {}
 _CACHE_MAX = 512
 
 
@@ -46,12 +48,13 @@ def read_accepted_flags(flags_path: Path) -> list[dict[str, Any]]:
     """``flags.json`` → 已被平台判定正确的 Flag（未判定、判错都不算解出）。"""
     path = Path(flags_path)
     try:
-        mtime = path.stat().st_mtime
+        stat = path.stat()
     except OSError:
         return []
+    stamp = (stat.st_mtime, stat.st_size)
     key = str(path)
     cached = _CACHE.get(key)
-    if cached is not None and cached[0] == mtime:
+    if cached is not None and cached[0] == stamp:
         return cached[1]
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
@@ -68,9 +71,10 @@ def read_accepted_flags(flags_path: Path) -> list[dict[str, Any]]:
             "value": value,
             "found_by": str(item.get("found_by") or ""),
         })
-    if len(_CACHE) > _CACHE_MAX:
-        _CACHE.clear()
-    _CACHE[key] = (mtime, accepted)
+    while len(_CACHE) >= _CACHE_MAX:
+        _CACHE.pop(next(iter(_CACHE)), None)
+    _CACHE.pop(key, None)          # 重新插到队尾，让热点条目最后被淘汰
+    _CACHE[key] = (stamp, accepted)
     return accepted
 
 
@@ -85,13 +89,18 @@ def solved_items(session: Any) -> list[dict[str, Any]]:
         if workspace is None:
             return []
         flags_path = Path(workspace) / "flags.json"
+    # 先判有没有解出的题：绝大多数会话这一轮是空的，别为它们多 stat 一次、
+    # 也别去格式化标题
+    accepted = read_accepted_flags(flags_path)
+    if not accepted:
+        return []
     try:
         at = Path(flags_path).stat().st_mtime
     except OSError:
-        return []
+        at = 0.0
     title = _session_title(session)
     items: list[dict[str, Any]] = []
-    for flag in read_accepted_flags(flags_path):
+    for flag in accepted:
         challenge = flag["challenge_id"] or "未标注题目"
         value = _preview(flag["value"], VALUE_PREVIEW)
         items.append({
@@ -121,9 +130,11 @@ def question_items(session: Any) -> list[dict[str, Any]]:
         pending = view()
     except Exception:  # noqa: BLE001 —— 提醒是旁路，读不到就当没有
         return []
+    if not isinstance(pending, list) or not pending:
+        return []
     title = _session_title(session)
     items: list[dict[str, Any]] = []
-    for record in pending if isinstance(pending, list) else []:
+    for record in pending:
         if not isinstance(record, dict):
             continue
         question_id = str(record.get("question_id") or "")
@@ -178,4 +189,8 @@ def snapshot(sessions: Iterable[Any]) -> dict[str, Any]:
         counts[item["kind"]] = counts.get(item["kind"], 0) + 1
     revision = hashlib.sha1(
         "|".join(sorted(item["id"] for item in items)).encode("utf-8")).hexdigest()[:16]
-    return {"items": items[:MAX_ITEMS], "counts": counts, "revision": revision}
+    shown = items[:MAX_ITEMS]
+    return {"items": shown, "counts": counts, "revision": revision,
+            # 计数是全部条目的实数，items 只给最近的一批；差出来的部分由客户端
+            # 折成一条汇总，别让人以为「就这些」
+            "truncated": len(items) > len(shown)}
