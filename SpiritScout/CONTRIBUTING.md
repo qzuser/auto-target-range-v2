@@ -15,12 +15,14 @@ python3 -m venv .venv
 .venv/bin/python -m pip install -e '.[dev]'
 ```
 
-**Windows PowerShell**
+**Windows（cmd）**
 
-```powershell
+```bat
 py -3 -m venv .venv
 .venv\Scripts\python.exe -m pip install -e '.[dev]'
 ```
+
+启动控制台用 `launch.cmd`（首次启动会先设管理员密码），不要用 PowerShell 脚本启动。
 
 各系统使用自己的虚拟环境。完整工具执行优先使用 Docker；Linux 原生沙箱需要
 bubblewrap 和命名空间权限。测试密钥使用明确标记的夹具值，真实密钥通过控制台配置。
@@ -51,17 +53,11 @@ for file in src/spiritscout/web/static/js/*.js; do node --check "$file" || exit;
 for file in tests/test_*.js; do node "$file" || exit; done
 ```
 
-Windows PowerShell 的等价命令：
+Windows（cmd）的等价命令：
 
-```powershell
-Get-ChildItem src/spiritscout/web/static/js/*.js | ForEach-Object {
-    node --check $_.FullName
-    if ($LASTEXITCODE -ne 0) { throw "JavaScript 语法检查失败" }
-}
-Get-ChildItem tests/test_*.js | ForEach-Object {
-    node $_.FullName
-    if ($LASTEXITCODE -ne 0) { throw "前端测试失败" }
-}
+```bat
+for %f in (src\spiritscout\web\static\js\*.js) do @node --check "%f" || exit /b 1
+for %f in (tests\test_*.js) do @node "%f" || exit /b 1
 ```
 
 - 新模块至少通过最小可用性测试后再扩展；交付前完成后端、Ruff 和前端全量检查。

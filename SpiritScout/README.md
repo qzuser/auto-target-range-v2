@@ -9,7 +9,7 @@
 
 **简体中文 · [English](README_EN.md)**
 
-[![Version](https://img.shields.io/badge/version-v0.28.0-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
+[![Version](https://img.shields.io/badge/version-v0.28.1-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
 
 [快速开始](#快速开始) · [三种模式](#三种模式) · [界面](#界面) · [工作原理](#工作原理) · [配置参考](#配置参考) · [常见问题](#常见问题) · [部署指南](docs/部署与配置.md)
 
@@ -158,15 +158,15 @@ sudo apt install bubblewrap   # Debian / Ubuntu；Fedora 用 sudo dnf install bu
 ./launch.sh
 ```
 
-**Windows PowerShell**
+**Windows（cmd）**
 
-```powershell
+```bat
 py -3 -m venv .venv
 .venv\Scripts\python.exe -m pip install -e .
-.\launch.ps1
+launch.cmd
 ```
 
-访问 <http://127.0.0.1:8000>，`Ctrl+C` 停止。改端口：`./launch.sh --port 10010` 或把参数传给 `launch.ps1`。
+访问 <http://127.0.0.1:8000>，`Ctrl+C` 停止。改端口：`./launch.sh --port 10010` 或 `launch.cmd --port 10010`。
 
 启动器在还没有管理员时会先让你设密码（输两遍、不回显），只把 scrypt 哈希写进
 `.spiritscout/admin.db`；回车两次就是不设，控制台只绑回环地址。之后想改：
@@ -354,7 +354,7 @@ Docker 用 `python deploy.py migrate`；手工迁移时停服 → 拷 `.spiritsc
 
 ## 文档与贡献
 
-当前代码版本 **v0.28.0**。版本唯一来源、递增规则与历史说明见 [版本管理](CONTRIBUTING.md#版本管理)。
+当前代码版本 **v0.28.1**。版本唯一来源、递增规则与历史说明见 [版本管理](CONTRIBUTING.md#版本管理)。
 
 | 我想了解 | 阅读入口 |
 | --- | --- |
