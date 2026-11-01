@@ -307,7 +307,13 @@ class ModelGateway:
             except Exception as exc:  # noqa: BLE001 —— 主备切换语义（4.9.3-5）
                 last_exc = exc
                 continue
-        raise SpiritScoutError(f"模型调用全链失败（主备均不可用）: {last_exc}")
+        # 全链失败时把「为什么」也说出来：最常见的是渠道没配密钥，
+        # 原始 LiteLLM 文案（Missing credentials）对用户没有指向性。
+        hint = ""
+        if last_exc is not None and "Missing credentials" in str(last_exc):
+            hint = ("；这条渠道没有可用密钥：去「模型」页给对应供应商填 API Key，"
+                    "或把它从优先级链里移掉（本机端点会自动用占位密钥，不需要填）")
+        raise SpiritScoutError(f"模型调用全链失败（主备均不可用）: {last_exc}{hint}")
 
     async def _invoke_with_retry(self, entry: ModelEntry, *args: Any, **kwargs: Any) -> ChatResponse:
         """瞬时断连/超时就地重试一次，别把整轮耗在等一个已经不回来的流上。

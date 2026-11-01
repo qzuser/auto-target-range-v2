@@ -1,6 +1,7 @@
 """模型优先级与子 Agent 模型展示：改完立刻生效，面板不空着。"""
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import tempfile
@@ -11,6 +12,14 @@ from types import SimpleNamespace
 
 from spiritscout.config.agent_models import read_naming_chain
 from spiritscout.config.settings import ModelEntry
+from spiritscout.core.audit import NullAuditLogger
+from spiritscout.core.exceptions import SpiritScoutError
+from spiritscout.gateway.credentials import (
+    LOCAL_PLACEHOLDER_KEY,
+    api_key_for,
+    is_usable,
+)
+from spiritscout.gateway.gateway import ModelGateway
 from spiritscout.gateway.registry import ModelRegistry, registry_for
 from spiritscout.web.events import agent_models
 
@@ -68,6 +77,56 @@ class PriorityRoutingTests(unittest.TestCase):
             cfg = SimpleNamespace(agent_models_path=str(path))
             registry = registry_for([_entry("a"), _entry("b")], cfg)
             self.assertEqual(registry.route().model, "a")   # 退回注册表顺序
+
+
+class CredentialTests(unittest.TestCase):
+    """没配密钥的渠道不能挡在链首——litellm 会在发请求前就拒单。"""
+
+    def test_local_endpoint_gets_placeholder_key(self) -> None:
+        local = _entry("bonsai", provider="local", key="")
+        local = local.model_copy(update={"base_url": "http://127.0.0.1:1234/v1"})
+        self.assertEqual(api_key_for(local), LOCAL_PLACEHOLDER_KEY)
+        self.assertTrue(is_usable(local))
+
+    def test_remote_without_key_is_unusable(self) -> None:
+        remote = _entry("glm", key="")
+        remote = remote.model_copy(
+            update={"base_url": "https://newapi.example.com/v1"})
+        self.assertEqual(api_key_for(remote), "")
+        self.assertFalse(is_usable(remote))
+
+    def test_keyless_remote_is_pushed_behind_usable_models(self) -> None:
+        keyless = _entry("glm", key="")
+        keyless = keyless.model_copy(
+            update={"base_url": "https://newapi.example.com/v1"})
+        keyed = _entry("works", key="sk-1")
+        keyed = keyed.model_copy(update={"base_url": "https://newapi.example.com/v1"})
+        # 优先级链把没密钥的排在第一位，也不该被选中
+        registry = ModelRegistry([keyless, keyed], priority=["glm", "works"])
+        self.assertEqual(registry.route("execution").model, "works")
+
+    def test_registry_keeps_order_when_nothing_is_usable(self) -> None:
+        first = _entry("glm", key="").model_copy(update={"base_url": "https://a.example/v1"})
+        second = _entry("b", key="").model_copy(update={"base_url": "https://b.example/v1"})
+        registry = ModelRegistry([first, second], priority=["b"])
+        # 全都不可用时仍按优先级/文件顺序给出明确目标，报错里才有可查的名字
+        self.assertEqual(registry.route().model, "b")
+
+    def test_failure_message_points_at_the_missing_key(self) -> None:
+        from spiritscout.config.settings import GatewayConfig
+
+        entry = _entry("glm", key="").model_copy(
+            update={"base_url": "https://newapi.example.com/v1"})
+        gateway = ModelGateway(ModelRegistry([entry]), config=GatewayConfig(),
+                               audit=NullAuditLogger())
+
+        async def boom(*args, **kwargs):
+            raise RuntimeError("Missing credentials. Please pass an `api_key`")
+
+        gateway._backend = SimpleNamespace(chat=boom)
+        with self.assertRaises(SpiritScoutError) as ctx:
+            asyncio.run(gateway.chat([{"role": "user", "content": "hi"}]))
+        self.assertIn("没有可用密钥", str(ctx.exception))
 
 
 class HotReloadTests(unittest.TestCase):

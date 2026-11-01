@@ -243,7 +243,11 @@ def main(argv: list[str] | None = None) -> int:
         cfg = load_system_config(args.config)
         if args.set_admin_password:
             return set_admin_password(cfg, args)
-        models = load_model_config(cfg.models_config_path)
+        # 密钥在密钥库里，不在 models.yaml：启动这份清单必须注入，否则整条
+        # 链路拿到的都是没有 api_key 的条目（litellm 会直接报 Missing credentials）
+        from spiritscout.web import vault
+
+        models = vault.apply_keys(load_model_config(cfg.models_config_path))
     except SpiritScoutError as exc:
         print(f"[错误] {exc}", file=sys.stderr)
         return 2
