@@ -78,8 +78,11 @@ function build() {
   sandbox.window = sandbox;
   const ctx = createContext(sandbox);
   runInContext(
-    pick("function backgroundTasks()", "/* 重命名：就地编辑") +
-      "\nthis.backgroundTasks = backgroundTasks;" +
+    /* 徽标口径也是真实实现：坞里那一行和侧栏列表必须同一套判断 */
+    pick("function statusInfo(s) {", "\nconst MODE_CN") +
+      pick("function backgroundTasks()", "/* 重命名：就地编辑") +
+      "\nthis.statusInfo = statusInfo;" +
+      "this.backgroundTasks = backgroundTasks;" +
       "this.renderTaskDock = renderTaskDock;" +
       "this.initTaskDock = initTaskDock;",
     ctx,

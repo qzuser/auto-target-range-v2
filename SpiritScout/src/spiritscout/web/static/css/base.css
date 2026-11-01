@@ -225,6 +225,12 @@ main { min-width: 0; padding: 22px 26px 40px; }
 .pill.completed { border-color: color-mix(in srgb, var(--ok) 45%, var(--line)); color: var(--ok); }
 .pill.failed { border-color: color-mix(in srgb, var(--bad) 45%, var(--line)); color: var(--bad); }
 .pill.created, .pill.stopped, .pill.interrupted { color: var(--ink-3); }
+/* 派生态：提炼中（收尾后仍在沉淀经验）、询问中（挂起等你作答）。
+   两者都与 status 同级显示，靠颜色与节奏区分，不复用运行中的实心强调色。 */
+.pill.distilling { border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); color: var(--accent-ink); border-style: dashed; }
+.pill.distilling::before { animation: blink 2.4s ease-in-out infinite; }
+.pill.asking { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); color: var(--warn); }
+.pill.asking::before { animation: blink 1.2s ease-in-out infinite; }
 @keyframes blink { 50% { opacity: .25; } }
 .tag {
   display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 7px;

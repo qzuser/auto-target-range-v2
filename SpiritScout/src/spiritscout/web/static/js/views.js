@@ -409,8 +409,9 @@ function renderSessionHead() {
   $("#s-title").textContent = s.title || s.target || s.session_id;
   $("#s-title").title = s.target || "";
   $("#op-rename").onclick = () => startRename(S.cur, $("#s-title"));
+  const headStatus = statusInfo(s);
   $("#s-meta").innerHTML = [
-    `<span class="pill ${s.status}">${STATUS_CN[s.status] || s.status}</span>`,
+    `<span class="pill ${esc(headStatus.key)}">${esc(headStatus.text)}</span>`,
     running && s.paused ? `<span class="pill paused">已暂停</span>` : "",
     `<span class="tag blue">${MODE_CN[s.mode] || s.mode}</span>`,
     `<button type="button" class="tag proj-chip" data-move-project title="项目分区 · 点击移动会话">${esc(projectName(s.project_id))}</button>`,
