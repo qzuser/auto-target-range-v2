@@ -1,6 +1,6 @@
 /* ================= 视图：会话详情/拓扑/报告 ================= */
 /* ================= 会话详情 ================= */
-const TABS = ["chat", "topo", "challenges", "vulns", "flags", "events", "deliverables", "writeup", "report"];
+const TABS = ["chat", "topo", "challenges", "vulns", "flags", "experience", "events", "deliverables", "writeup", "report"];
 const STEERING_STATUS_CN = {delivered: "已投递", accepted: "计划执行", completed: "已报告完成", blocked: "执行受阻"};
 $("#mobile-sessions-toggle").onclick = () => {
   const open = document.querySelector(".side").classList.toggle("mobile-sessions-open");
@@ -38,6 +38,7 @@ function openSession(id) {
   SessionArchive.reset(id);
   ToolParameters.reset(id);
   WriteUp.reset();
+  SessionExperience.reset();          // 换会话别把上一个会话的经验留在页签里
   if (window.innerWidth <= 860) {
     document.querySelector(".side").classList.remove("mobile-sessions-open");
     $("#mobile-sessions-toggle").setAttribute("aria-expanded", "false");
@@ -75,6 +76,7 @@ document.querySelectorAll("#s-tabs button").forEach(b => {
     if (S.tab === "challenges") renderChallenges();
     if (S.tab === "vulns") renderVulns();
     if (S.tab === "flags") renderFlags();
+    if (S.tab === "experience") SessionExperience.load(S.cur);
     if (S.tab === "chat") { SessionObserver.render(); AgentWorkbench.render(); }
     if (S.tab === "report") loadReport();
     if (S.tab === "writeup") WriteUp.load();
@@ -115,6 +117,7 @@ async function refreshState() {
     if (S.tab === "topo") drawTopo();
     if (S.tab === "vulns") renderVulns();
     if (S.tab === "flags") renderFlags();
+    if (S.tab === "experience") SessionExperience.refreshIfStale();
     renderChallenges();
     renderWriteUpTab();
     SessionObserver.render();

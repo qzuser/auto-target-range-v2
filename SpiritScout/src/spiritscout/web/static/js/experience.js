@@ -178,3 +178,168 @@ const ExperiencePage = (() => {
 
   return {open, load};
 })();
+
+/* 会话页「经验」页签：这次会话产出了哪些经验，没有就手动补一次。
+   数据源是 /api/sessions/<id>/experience；手动提炼与收尾提炼共用同一段
+   提示词，结果照实显示（ok / empty / unparsed / error 各是各的）。 */
+const SessionExperience = (() => {
+  const FRESH_MS = 20000;
+  const state = {session: "", items: [], history: [], view: null, at: 0, busy: false};
+  const stamp = t => t ? new Date(t * 1000).toLocaleString("zh-CN", {hour12: false}) : "未记录";
+  const root = () => $("#tab-experience");
+
+  function shell() {
+    const el = root();
+    if (!el || el.dataset.ready) return el;
+    el.dataset.ready = "yes";
+    el.innerHTML = `
+      <header class="exp-head">
+        <div>
+          <h3>这次产出的经验</h3>
+          <p data-state role="status">正在读取…</p>
+        </div>
+        <div class="exp-head-ops">
+          <button class="btn primary" type="button" data-distill>手动提炼</button>
+          <button class="btn sm" type="button" data-refresh>刷新</button>
+        </div>
+      </header>
+      <div class="exp-layout">
+        <section aria-label="本次会话的经验">
+          <div class="exp-list" data-list></div>
+        </section>
+        <aside class="exp-history" aria-label="提炼记录">
+          <h3>提炼记录</h3>
+          <p class="exp-history-note">自动提炼在会话收尾时跑；这里也会出现手动提炼。</p>
+          <div data-hist></div>
+        </aside>
+      </div>`;
+    el.querySelector("[data-refresh]").onclick = () => load(S.cur, true);
+    el.querySelector("[data-distill]").onclick = () => distill();
+    return el;
+  }
+
+  const badge = {ok: ["成功", "ok"], empty: ["无新增经验", "empty"],
+                 unparsed: ["没按格式返回", "skip"], error: ["失败", "error"],
+                 skipped: ["跳过", "skipped"]};
+  const triggerName = h => (String(h.trigger || "auto") === "manual" ? "手动" : "自动");
+
+  function render() {
+    const el = shell();
+    if (!el) return;
+    const view = state.view || {};
+    const items = state.items || [], history = state.history || [];
+    const canDistill = !!view.state?.can_distill;      // 没读到数据前一律不可点
+    const button = el.querySelector("[data-distill]");
+    const distilling = state.busy || !!view.state?.distilling;
+    button.disabled = distilling || !canDistill;
+    button.textContent = distilling ? "正在提炼…" : "手动提炼";
+    const reason = String(view.state?.reason || "");
+    el.querySelector("[data-state]").textContent = !state.session
+      ? "先选一个会话"
+      : (items.length ? `本次产出 ${items.length} 条经验` : "这次还没有提炼出经验")
+        + (distilling ? " · 正在提炼" : "")
+        + (reason && !distilling ? ` · ${reason}` : "");
+
+    el.querySelector("[data-list]").innerHTML = items.map(item => {
+      const tags = (item.tags || []).map(t => `<span class="exp-ins-tag">${esc(t)}</span>`).join("");
+      const iid = String(item.insight_id || "");
+      return `<article class="exp-card">
+        <div class="exp-card-tags">${tags || '<span class="exp-ins-tag muted">未打标签</span>'}</div>
+        <p class="exp-insight">${esc(item.insight || "")}</p>
+        ${item.context ? `<p class="exp-context">适用：${esc(item.context)}</p>` : ""}
+        <footer><span class="exp-meta">${esc(item.source_model || "")} · ${esc(stamp(item.ts))}</span>
+          <span class="exp-card-ops">${iid ? `<button class="btn exp-del" type="button" data-del="${esc(iid)}" title="删除这条经验">删除</button>` : ""}</span>
+        </footer>
+      </article>`;
+    }).join("") || `<div class="resource-empty">
+        这次还没有经验
+        <p>${reason ? esc(reason) : "会话收尾会自动提炼；也可以点右上角「手动提炼」现在补一次。"}</p>
+      </div>`;
+    el.querySelectorAll("[data-del]").forEach(b =>
+      b.onclick = () => armConfirm(b, () => removeItem(b.dataset.del)));
+
+    el.querySelector("[data-hist]").innerHTML = history.map(h => {
+      const [text, cls] = badge[h.result] || [h.result || "未知", ""];
+      const extra = [h.insights ? `新增 ${h.insights} 条` : "",
+                     h.error ? esc(h.error) : ""].filter(Boolean).join(" · ");
+      return `<article class="exp-hist-row ${cls}">
+        <header><span class="exp-hist-badge">${esc(text)}</span>
+          <small>${esc(String(h.ts || "").replace("T", " ").slice(0, 19))}</small></header>
+        <p>${esc(triggerName(h))} · ${esc(h.outcome || "—")}${extra ? ` · ${extra}` : ""}</p>
+      </article>`;
+    }).join("") || `<p class="muted">还没有提炼记录。会话收尾时自动提炼，失败原因也会记在这里。</p>`;
+  }
+
+  function apply(data) {
+    state.view = data;
+    state.items = data.items || [];
+    state.history = data.history || [];
+    state.at = Date.now();
+    render();
+  }
+
+  async function load(sessionId, force = false) {
+    if (!sessionId) { state.session = ""; state.items = []; render(); return; }
+    if (!force && state.session === sessionId && Date.now() - state.at < FRESH_MS) return;
+    state.session = sessionId;
+    shell();
+    try {
+      const data = await api(`/api/sessions/${encodeURIComponent(sessionId)}/experience`);
+      if (S.cur !== sessionId) return;          // 换了会话：这轮结果作废
+      apply(data);
+    } catch (e) {
+      const el = root();
+      if (el) el.querySelector("[data-state]").textContent = `读取失败：${e.message}`;
+    }
+  }
+
+  async function distill() {
+    const sessionId = S.cur;
+    if (!sessionId || state.busy) return;
+    state.busy = true;
+    render();
+    try {
+      const data = await api(`/api/sessions/${encodeURIComponent(sessionId)}/experience/distill`,
+                             {method: "POST"});
+      if (S.cur !== sessionId) return;
+      state.busy = false;
+      apply({...data, state: (state.view?.state || {})});
+      const added = Number(data.insights || 0);
+      if (data.result === "ok") toast(`提炼完成，新增 ${added} 条经验`);
+      else if (data.result === "empty") toast("这次没有值得沉淀的新经验");
+      else if (data.result === "unparsed") toast("模型没按格式返回，本次没有新增经验", true);
+      else toast(data.error || "提炼失败，原因已记在提炼记录里", true);
+      await load(sessionId, true);              // 结论行要以服务端口径为准
+    } catch (e) {
+      state.busy = false;
+      render();
+      toast(e.message, true);
+    }
+  }
+
+  async function removeItem(id) {
+    try {
+      await api(`/api/experience/${encodeURIComponent(id)}`, {method: "DELETE"});
+      state.items = state.items.filter(it => String(it.insight_id || "") !== id);
+      render();
+      toast("已删除这条经验");
+    } catch (e) { toast(e.message, true); }
+  }
+
+  function refreshIfStale() {
+    if (!S.cur || state.session !== S.cur) return;
+    if (state.busy) return;
+    load(S.cur);
+  }
+
+  function reset() {
+    state.session = "";
+    state.items = [];
+    state.history = [];
+    state.view = null;
+    state.at = 0;
+    state.busy = false;
+  }
+
+  return {load, refreshIfStale, reset, distill};
+})();

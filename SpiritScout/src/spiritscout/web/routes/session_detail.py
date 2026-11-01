@@ -673,6 +673,37 @@ def mount_session_detail(app: FastAPI, *, manager: SessionManager,
         return FileResponse(report, media_type="text/markdown",
                             filename=report.name)
 
+    # ------------------------------------------------------ 经验提炼（本会话）
+
+    @app.get("/api/sessions/{session_id}/experience")
+    def session_experience(session_id: str) -> dict[str, Any]:
+        """本次会话产出的经验、提炼记录，以及现在能不能手动补一次。"""
+        from spiritscout.web.session_experience import session_page
+
+        return session_page(cfg, require(session_id))
+
+    @app.post("/api/sessions/{session_id}/experience/distill")
+    async def session_experience_distill(session_id: str) -> dict[str, Any]:
+        """手动提炼一次：自动提炼被跳过或失败时，用户自己点这一下。
+
+        与收尾提炼共用同一段提示词与落库逻辑；结果（ok/empty/unparsed/error）
+        原样返回，页面照实显示，不当成功。
+        """
+        from spiritscout.web.session_experience import (
+            distill_blocker,
+            distill_now,
+            session_digest,
+        )
+
+        session = require(session_id)
+        blocker = distill_blocker(session, session_digest(session))
+        if blocker:
+            raise HTTPException(409, blocker)
+        result = await distill_now(cfg, session, models=_writable_models(cfg, manager))
+        if result.get("result") == "busy":
+            raise HTTPException(409, str(result.get("reason") or "正在提炼中"))
+        return result
+
     # ------------------------------------------------------ CTF 解题思路（WP）
 
     def _writable_models(cfg: SystemConfig, manager: SessionManager) -> list[Any]:

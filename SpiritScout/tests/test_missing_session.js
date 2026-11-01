@@ -51,6 +51,7 @@ function build({ sessions = [], cur = null } = {}) {
     SessionArchive: { reset() {} },
     ToolParameters: { reset() {} },
     WriteUp: { reset() {} },
+    SessionExperience: { reset() {} },
   };
   sandbox.window.$ = sandbox.$;
   sandbox.window.document = sandbox.document;
