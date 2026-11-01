@@ -20,7 +20,12 @@ def _read_doc(path: str | Path) -> dict[str, Any]:
         raw = p.read_text(encoding="utf-8")
     except OSError:
         return {}
-    data = yaml.safe_load(raw)
+    try:
+        data = yaml.safe_load(raw)
+    except yaml.YAMLError as exc:
+        # 半截文件（编辑到一半保存）不该让整条路由链起不来：调用方按
+        # 「读不到优先级」处理，沿用上一份可用排序。
+        raise SpiritScoutError(f"编队表解析失败（{p}）: {exc}") from exc
     if data is None:
         return {}
     if not isinstance(data, dict):

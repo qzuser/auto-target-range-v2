@@ -403,6 +403,49 @@ async function renderDash() {
   }
 }
 
+/* ===== 会话页模型选择：本会话优先使用的模型 =====
+   空值 = 跟随「模型」页排的优先级链（那份顺序由后端定时重读，改完不用重启）。
+   选定后只影响本会话：灵枢车道与未在编队页指派的子 Agent 用它，编队页给
+   具体子 Agent 的指派仍然优先。保存即生效，运行中改也认。 */
+function sessionModelOptions(session, models) {
+  const cur = (session && session.model) || "";
+  const ids = (models || []).map(m => (typeof m === "string" ? m : (m && m.model))).filter(Boolean);
+  const opts = ['<option value="">自动 · 跟随全局优先级</option>'];
+  for (const id of ids) {
+    opts.push(`<option value="${esc(id)}"${id === cur ? " selected" : ""}>${esc(id)}</option>`);
+  }
+  // 选过但它已从注册表消失（停用/改名/删除）：如实列出，后端会退回优先级链
+  if (cur && !ids.includes(cur)) {
+    opts.push(`<option value="${esc(cur)}" selected>${esc(cur)}（已下线）</option>`);
+  }
+  return opts.join("");
+}
+
+function sessionModelChip(session, models) {
+  const cur = (session && session.model) || "";
+  return `<select id="s-model" class="tag model-chip${cur ? " on" : ""}"
+      title="本会话优先使用的模型（自动 = 按「模型」页排的优先级链选）">
+      ${sessionModelOptions(session, models)}</select>`;
+}
+
+async function loadSessionModels() {
+  if (S.sessionModels && S.sessionModels.length) return S.sessionModels;
+  try {
+    const data = await api("/api/models");
+    S.sessionModels = (data && data.models) || [];
+  } catch { S.sessionModels = S.sessionModels || []; }
+  return S.sessionModels;
+}
+
+async function saveSessionModel(sessionId, model) {
+  const data = await api(`/api/sessions/${sessionId}/model`,
+    { method: "POST", body: JSON.stringify({ model }) });
+  if (S.state && S.state.session && S.state.session.session_id === sessionId) {
+    S.state.session.model = (data && data.model) || "";
+  }
+  return data;
+}
+
 function renderSessionHead() {
   const s = S.state.session;
   const running = !TERMINAL.has(s.status);
@@ -414,12 +457,32 @@ function renderSessionHead() {
     `<span class="pill ${esc(headStatus.key)}">${esc(headStatus.text)}</span>`,
     running && s.paused ? `<span class="pill paused">已暂停</span>` : "",
     `<span class="tag blue">${MODE_CN[s.mode] || s.mode}</span>`,
+    sessionModelChip(s, S.sessionModels || []),
     `<button type="button" class="tag proj-chip" data-move-project title="项目分区 · 点击移动会话">${esc(projectName(s.project_id))}</button>`,
     // 用时扣除暂停与执行间隙区间（门内累计，实时随轮询刷新）
     s.started_at ? `<span class="tag">用时 ${fmtDur(s.started_at + (s.excluded_seconds || 0), s.finished_at)}</span>` : "",
     `<span class="tag mono">${esc(s.session_id)}</span>`,
     s.side_session?.parent_session_id ? '<button type="button" class="tag" data-side-parent>返回来源会话</button>' : "",
   ].join("");
+  const modelSelect = $("#s-meta #s-model");
+  if (modelSelect) {
+    modelSelect.onchange = async () => {
+      const picked = modelSelect.value;
+      try {
+        await saveSessionModel(S.cur, picked);
+        toast(picked ? `本会话改用 ${picked}，下一批调用生效` : "已回到全局优先级");
+        refreshState();
+      } catch (e) { toast(e.message, true); }
+      renderSessionHead();
+    };
+    if (!S.sessionModels || !S.sessionModels.length) {
+      loadSessionModels().then(list => {
+        // 拉回来才有真选项：只为当前这个会话补渲染，别把别的视图顶掉
+        if (list.length && S.state && S.state.session
+            && S.state.session.session_id === s.session_id) renderSessionHead();
+      });
+    }
+  }
   const sideParent=$("#s-meta [data-side-parent]");
   if(sideParent) sideParent.onclick=()=>openSession(s.side_session.parent_session_id);
   const moveProject = $("#s-meta [data-move-project]");

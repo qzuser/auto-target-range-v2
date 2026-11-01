@@ -9,7 +9,7 @@
 
 **简体中文 · [English](README_EN.md)**
 
-[![Version](https://img.shields.io/badge/version-v0.33.0-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
+[![Version](https://img.shields.io/badge/version-v0.34.0-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
 
 [快速开始](#快速开始) · [三种模式](#三种模式) · [界面](#界面) · [工作原理](#工作原理) · [配置参考](#配置参考) · [常见问题](#常见问题) · [部署指南](docs/部署与配置.md)
 
@@ -57,7 +57,7 @@
 | **项目** | 把资产和会话归到一起；候选漏洞由「鉴真」独立复测 |
 | **经验** | 沉淀下来的、可复用的判断与踩坑记录；极相似的条目可二次提炼合并（原件保留可还原） |
 
-会话详情不进导航，从任务列表点进去就是。
+会话详情不进导航，从任务列表点进去就是。会话页的状态标签里还有一个**模型下拉**：只给这一个会话指定首选模型（空 = 跟随「模型」页的优先级链），运行中改也立即生效。
 
 任务下发后就一直在跑，不因为你切了视图而停。**所以切走的时候左下角会浮出一条「N 个任务在后台运行」**——点开能看见每条的标题和状态（排队中 / 运行中），点一行直接切回去；全部收尾后坞自己消失。只报状态不报进度条：别的会话跑到第几步前端并不知道，与其画个假的，不如点进去看真的。
 
@@ -351,7 +351,10 @@ Docker 部署改 `.env` 里的端口映射；本地运行用 `--port`。换端�
 「模型」页新增供应商与模型 ID，然后去「编队」页把角色重新指派。不需要改配置文件或重启。
 
 **想让某个模型排前面？**
-「模型」页的优先级链就是路由顺序：链上第一条是首选，取不到才往下走，没列进链的排在最后。改完下一次开工就换过去，不用重启；想给某个角色钉死一个模型，就在「编队」页指派，指派永远优先于优先级链。
+「模型」页的优先级链就是路由顺序：链上第一条是首选，取不到才往下走，没列进链的排在最后。运行中的会话按 `gateway.priority_refresh_seconds`（默认 30 秒）重读这份顺序，改完下一批调用就跟上，不重启也不重开会话；想给某个角色钉死一个模型，就在「编队」页指派。
+
+**这个会话能不能单独用某个模型？**
+能。会话页的状态标签里有个模型下拉：选完只有这一个会话改用它（灵枢车道 + 没在编队页指派的子 Agent），下一批调用立刻生效，运行中改也认；选「自动 · 跟随全局优先级」就回到上面的优先级链。取舍只有一条：**编队页给具体子 Agent 的指派仍然优先**——那是你逐角色的定点配置，不该被一个会话的选择盖掉。选的模型后来被停用/删除时，会话自动退回优先级链，不会因此卡死。
 
 **解题思路里团队信息是空的？**
 信息页可以完全留空——留空处写「（待填写）」，不影响生成。填过一次后会自动带出；
@@ -375,7 +378,7 @@ Docker 用 `python deploy.py migrate`；手工迁移时停服 → 拷 `.spiritsc
 
 ## 文档与贡献
 
-当前代码版本 **v0.33.0**。版本唯一来源、递增规则与历史说明见 [版本管理](CONTRIBUTING.md#版本管理)。
+当前代码版本 **v0.34.0**。版本唯一来源、递增规则与历史说明见 [版本管理](CONTRIBUTING.md#版本管理)。
 
 | 我想了解 | 阅读入口 |
 | --- | --- |

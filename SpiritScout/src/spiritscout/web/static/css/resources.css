@@ -57,3 +57,11 @@
 .exp-card.merged {opacity:.72;border-style:dashed;}
 .exp-restore {padding:3px 10px;font-size:11px;font-weight:500;color:var(--ink-2);}
 #view-exp [data-merge-toggle].on {border-color:var(--accent);color:var(--accent-ink);}
+
+/* 会话页模型选择：沿用 tag 造型的下拉（选中即本会话首选，空 = 全局优先级） */
+.model-chip { cursor: pointer; background: transparent; border-style: solid;
+  font-family: inherit; font-size: 12px; padding: 2px 8px; max-width: 16em;
+  text-overflow: ellipsis; color: inherit; }
+.model-chip:hover { border-color: var(--accent); color: var(--accent-ink); }
+.model-chip.on { border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.model-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }

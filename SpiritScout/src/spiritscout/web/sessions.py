@@ -65,14 +65,18 @@ def _bound_model(cfg: SystemConfig, models: list[ModelEntry],
     return assigned if any(m.model == assigned for m in models) else ""
 
 
-def _conversation_gateway(cfg: SystemConfig, models: list[ModelEntry], audit: AuditLogger) -> Any:
+def _conversation_gateway(cfg: SystemConfig, models: list[ModelEntry], audit: AuditLogger,
+                          model: Any = "") -> Any:
     """路由与空闲对话也进入同一会话用量台账，运行期继续回灌该快照。
 
-    注册表带上用户排的模型优先级（编队表 naming 链）——改完不用重启。
+    注册表带上用户排的模型优先级（编队表 naming 链）——改完不用重启：
+    注册表按 `gateway.priority_refresh_seconds` 定时重读优先级链。
+    model 为会话页选定的模型（空 = 跟随优先级链），优先于全局默认。
     """
     from spiritscout.gateway import ModelGateway, registry_for
 
     gateway = ModelGateway(registry_for(models, cfg), config=cfg.gateway, audit=audit)
+    gateway.set_session_model(model)
     from spiritscout.gateway.usage import bind_usage
 
     bind_usage(gateway, Path(cfg.workspace.root) / "usage.json")
@@ -563,7 +567,8 @@ def _remember_reply(session: Session, reply: str) -> None:
 async def _master_reply(cfg: SystemConfig, models: list[ModelEntry],
                         user_text: str, audit, *, kind: str,
                         history: list[dict[str, str]] | None = None,
-                        project_memory: dict[str, Any] | None = None) -> str:
+                        project_memory: dict[str, Any] | None = None,
+                        model: str = "") -> str:
     """灵枢对非派工输入的应答（dialogue 正常对话 / rules 规则确认）。
 
     history 为此前的对话往来（不含本条 user_text）——会话终态后继续发
@@ -590,11 +595,12 @@ async def _master_reply(cfg: SystemConfig, models: list[ModelEntry],
                   for e in (history or [])[-20:]],
                 {"role": "user", "content": user_text[:4000]}]
     try:
-        gateway = _conversation_gateway(cfg, models, audit)
+        # 会话页选的模型压过编队里给灵枢的指派（用户当场选择优先于全局配置）
+        gateway = _conversation_gateway(cfg, models, audit, model=model)
         resp = await gateway.chat(
             messages,
             task_type="meta_planning", max_tokens=1024,
-            model=_bound_model(cfg, models),
+            model=str(model or "").strip() or _bound_model(cfg, models),
             timeout_seconds=min(60, cfg.gateway.request_timeout_seconds))
         text = (resp.content or "").strip()
         if text:
@@ -857,6 +863,7 @@ def _coerce_meta(data: dict[str, Any]) -> dict[str, Any]:
         "request": _dict(data.get("request")),
         "launch_request": _dict(data.get("launch_request")),
         "standing_rules": _str(data.get("standing_rules")),
+        "model": _str(data.get("model"))[:120],
         "opinions": [e for e in _list(data.get("opinions"))
                      if isinstance(e, dict)],
         "dialogue_history": [
@@ -898,6 +905,9 @@ class Session:
     # 用户下发的执行规则（rules/task_with_rules 意图入库）：随每次开工
     # 下发到灵枢与各智能体；跨轮次与续传保留
     standing_rules: str = ""
+    # 会话页选定的模型（'' = 跟随「模型」页排的优先级链）。只影响本会话：
+    # 灵枢车道与未在编队页指派的子 Agent 用它；改选择即时生效，不必重启
+    model: str = ""
     task: asyncio.Task | None = field(default=None, repr=False, compare=False)
     # 高风险动作即时确认队列（G5 交互形态；进程内状态，会话终态即失效）
     approvals: ApprovalBroker = field(
@@ -1032,6 +1042,7 @@ class Session:
             "title": self.display_title(), "renamed": bool(self.title),
             "project_id": self.project_id,
             "target": self.target, "status": self.status,
+            "model": self.model,
             "phase": self.phase,
             "created_at": self.created_at, "started_at": self.started_at,
             "finished_at": self.finished_at, "error": self.error,
@@ -1245,6 +1256,7 @@ class SessionManager:
                     finished_at=data["finished_at"],
                     summary=data["summary"], error=data["error"],
                     standing_rules=data["standing_rules"],
+                    model=data["model"],
                 )
                 session.pause_gate.restore(data["paused"], data["excluded_seconds"])
             except (TypeError, ValueError) as exc:
@@ -1284,6 +1296,7 @@ class SessionManager:
             "request": session.request,
             "launch_request": session.launch_request,
             "standing_rules": session.standing_rules,
+            "model": session.model,
             "opinions": session.opinions[-8:],
             "dialogue_history": session.dialogue_history[-DIALOGUE_HISTORY_MAX:],
             "status": session.status, "phase": session.phase,
@@ -1933,7 +1946,8 @@ class SessionManager:
                 approval_gate=session.approvals.ask, question_broker=session.questions,
                 ring=session.ring, pause_gate=session.pause_gate,
                 dialogue_history=copy.deepcopy(session.dialogue_history),
-                standing_rules=session.standing_rules, on_reply=remember_reply)
+                standing_rules=session.standing_rules, on_reply=remember_reply,
+                model_override=lambda: session.model)
             session.summary = {"run": result.run_summary, "flags": result.flag_stats}
             if not session.user_inbox:
                 break
@@ -2026,7 +2040,7 @@ class SessionManager:
                 cfg, models, route_mission, audit,
                 kind="rules" if intent == "rules" else "dialogue",
                 history=session.dialogue_history[:-1],
-                project_memory=project_memory)
+                project_memory=project_memory, model=session.model)
             audit.log("master.reply", "master", {"text": reply[:4000]})
             _remember_reply(session, reply)
             # 收件箱消费语义：本轮已答复的消息移出（对话史已留痕，
@@ -2149,7 +2163,7 @@ class SessionManager:
                     audit, kind="dialogue",
                     history=(session.dialogue_history if asked else
                              session.dialogue_history[:-1]),
-                    project_memory=project_memory)
+                    project_memory=project_memory, model=session.model)
                 audit.log("master.reply", "master",
                           {"text": reply[:4000]})
                 _remember_reply(session, reply)
@@ -2215,7 +2229,7 @@ class SessionManager:
                     f"{route_mission}\n\n（装配提示：{exc}）",
                     audit, kind="dialogue",
                     history=session.dialogue_history[:-1],
-                    project_memory=project_memory)
+                    project_memory=project_memory, model=session.model)
                 audit.log("master.reply", "master",
                           {"text": reply[:4000]})
                 _remember_reply(session, reply)
@@ -2411,7 +2425,8 @@ class SessionManager:
                         pause_gate=session.pause_gate,
                         dialogue_history=session.dialogue_history,
                         platform_profile=plan.platform_profile,
-                        resume=resume)
+                        resume=resume,
+                        model_override=lambda: session.model)
                 elif mode == RunMode.COMPETITION:
                     result = await run_competition_engagement(
                         cfg=cfg, models=models,
@@ -2427,7 +2442,8 @@ class SessionManager:
                         pause_gate=session.pause_gate,
                         dialogue_history=session.dialogue_history,
                         platform_profile=plan.platform_profile,
-                        mission=plan.mission)
+                        mission=plan.mission,
+                        model_override=lambda: session.model)
                 else:
                     result = await run_engagement(
                         cfg=cfg, models=models,
@@ -2442,7 +2458,8 @@ class SessionManager:
                         question_broker=session.questions,
                         standing_rules=session.standing_rules,
                         pause_gate=session.pause_gate,
-                        dialogue_history=session.dialogue_history)
+                        dialogue_history=session.dialogue_history,
+                        model_override=lambda: session.model)
                 session.status = "completed"
                 session.phase = "completed"
                 session.summary = {
@@ -2516,6 +2533,29 @@ class SessionManager:
             else:
                 session.pause_gate.resume()
             self._persist(session)
+        return session
+
+    def set_model(self, session_id: str, model: str) -> Session | None:
+        """改本会话优先使用的模型（空串 = 回到设置页的优先级链）。
+
+        校验走当前注册表：模型被停用/改名/删行时当场拒绝并说明，不把一条
+        必然失败的模型写进会话。保存即生效——运行中的会话下一批调用改道
+        （网关持有 `lambda: session.model`，每次都现取）。
+        """
+        session = self._sessions.get(session_id)
+        if session is None:
+            return None
+        model = str(model or "").strip()[:120]
+        if model:
+            valid = {m.model for m in self.reload_models() if m.enabled}
+            if model not in valid:
+                raise SpiritScoutError(f"模型不在可用注册表里：{model}")
+        if model != session.model:
+            session.model = model
+            self._persist(session)
+            AuditLogger(self._cfg.audit_log_path).log(
+                "session.model_selected", "user",
+                {"session_id": session_id, "model": model or "auto"})
         return session
 
     def rename(self, session_id: str, title: str) -> Session | None:

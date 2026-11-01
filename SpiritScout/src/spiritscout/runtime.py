@@ -587,6 +587,7 @@ async def _build_infra(
     ring: Any = None,
     question_broker: Any = None,
     pause_gate: Any = None,
+    model_override: Any = "",
 ) -> _Infra:
     # 启动前检查人工授权确认。
     if not authorization.human_confirmed:
@@ -638,6 +639,9 @@ async def _build_infra(
             cfg, authorization, resources, audit, question_broker)
         convergence = ConvergenceEngine(blackboard)
         gateway = ModelGateway(registry_for(models, cfg), config=cfg.gateway, audit=audit)
+        # 会话页选定的模型：显式绑定（编队指派）优先，其次是它，最后才是
+        # 设置页的优先级链（链本身由注册表定时重读，见 ModelRegistry）
+        gateway.set_session_model(model_override)
         gateway.set_mode(authorization.mode.value)   # 模式预算计量与熔断
         # 执行器三态：本地 CLI 默认；docker 后端为子 Agent 沙箱隔离（加固）
         executor: ToolExecutor
@@ -826,7 +830,8 @@ async def _run_master(
     master = MasterAgent(MasterContext(
         bus=infra.bus, blackboard=infra.blackboard, convergence=infra.convergence,
         gateway=AgentBoundGateway(
-            infra.gateway, infra.agent_models.get("master", "")),
+            infra.gateway, infra.agent_models.get("master", ""),
+            session_first=True),
         policy=infra.policy, agents=assembly.agents,
         audit=infra.audit, enable_llm_planning=enable_llm_planning,
         tactic_map=assembly.tactic_map, plan_override=assembly.plan_provider,
@@ -962,7 +967,8 @@ async def _render_writeup(
     body = None
     if enable_llm:
         body = await writeup_body(
-            AgentBoundGateway(infra.gateway, infra.agent_models.get("master", "")),
+            AgentBoundGateway(infra.gateway, infra.agent_models.get("master", ""),
+                              session_first=True),
             digest=build_digest(challenges=challenges, flags=flag_manager.all(),
                                 run_summary=run_summary, blackboard=infra.blackboard,
                                 facts=run_facts(infra.audit)),
@@ -1486,6 +1492,7 @@ async def run_engagement(
     standing_rules: str = "",
     pause_gate: Any = None,
     dialogue_history: list[dict[str, str]] | None = None,
+    model_override: Any = "",
 ) -> EngagementResult:
     """SRC 模式任务入口：侦察 → 探测 → 全链路核验 → 报告。
 
@@ -1499,7 +1506,8 @@ async def run_engagement(
                                agent_models=agent_models,
                                approval_gate=approval_gate, ring=ring,
                                question_broker=question_broker,
-                               pause_gate=pause_gate)
+                               pause_gate=pause_gate,
+                               model_override=model_override)
     try:
         _foreground_started()
         assembly = _make_assembler(infra, enable_llm_planning).assemble(RunMode.SRC)
@@ -1564,6 +1572,7 @@ async def run_ctf_engagement(
     resume: bool = False,
     dialogue_history: list[dict[str, str]] | None = None,
     platform_profile: dict[str, Any] | None = None,
+    model_override: Any = "",
 ) -> EngagementResult:
     """CTF 专项任务入口：五方向专项 Agent + Flag 统一管理。
 
@@ -1580,7 +1589,8 @@ async def run_ctf_engagement(
                                agent_models=agent_models,
                                approval_gate=approval_gate, ring=ring,
                                question_broker=question_broker,
-                               pause_gate=pause_gate)
+                               pause_gate=pause_gate,
+                               model_override=model_override)
     adapter: Any = None
     try:
         _foreground_started()
@@ -1714,6 +1724,7 @@ async def run_competition_engagement(
     dialogue_history: list[dict[str, str]] | None = None,
     platform_profile: dict[str, Any] | None = None,
     mission: str = "",
+    model_override: Any = "",
 ) -> EngagementResult:
     """智能渗透赛任务入口：赛制自适应调度。
 
@@ -1738,7 +1749,8 @@ async def run_competition_engagement(
                                agent_models=agent_models,
                                approval_gate=approval_gate, ring=ring,
                                question_broker=question_broker,
-                               pause_gate=pause_gate)
+                               pause_gate=pause_gate,
+                               model_override=model_override)
     adapter: Any = None
     try:
         _foreground_started()
@@ -1878,7 +1890,8 @@ async def run_agent_side_session(*, cfg: SystemConfig, models: list[ModelEntry],
                                  question_broker: Any, ring: Any, pause_gate: Any,
                                  dialogue_history: list[dict[str, str]],
                                  standing_rules: str = "",
-                                 on_reply: Any = None) -> EngagementResult:
+                                 on_reply: Any = None,
+                                 model_override: Any = "") -> EngagementResult:
     """独立执行选定子 Agent；沿用普通模式的工具审批与会话隔离。"""
     from spiritscout.agents.profiles import get_profile
     from spiritscout.core.models import AgentType, Task, TaskStatus
@@ -1893,7 +1906,8 @@ async def run_agent_side_session(*, cfg: SystemConfig, models: list[ModelEntry],
         raise SpiritScoutError("该子 Agent 不支持当前模式")
     infra = await _build_infra(cfg, models, authorization, agent_models=agent_models,
                                approval_gate=approval_gate, question_broker=question_broker,
-                               ring=ring, pause_gate=pause_gate)
+                               ring=ring, pause_gate=pause_gate,
+                               model_override=model_override)
     scope_token = None
     conversation = None
     agent = None

@@ -58,6 +58,13 @@ class SessionCreatePayload(BaseModel):
     accept_rule_conflicts: StrictBool = False
 
 
+class SessionModelPayload(BaseModel):
+    """会话级模型选择：空串 = 回到「模型」页排的优先级链。"""
+
+    model_config = ConfigDict(extra="forbid")
+    model: str = Field(default="", max_length=120)
+
+
 def make_require(manager: SessionManager) -> Callable[[str], Session]:
     """生成"取会话，取不到就 404"的取用器。"""
 
@@ -214,6 +221,23 @@ def mount_sessions(app: FastAPI, *, manager: SessionManager, cfg: SystemConfig,
         except SpiritScoutError as exc:
             raise HTTPException(422, str(exc)) from exc
         return _agents_view()
+
+    @app.post("/api/sessions/{session_id}/model")
+    async def select_session_model(session_id: str,
+                                   payload: SessionModelPayload) -> dict[str, Any]:
+        """把本会话的模型定成指定条目（空 = 撤销，跟随全局优先级）。
+
+        只影响这一个会话：灵枢车道与未在编队页指派的子 Agent 立刻改用它；
+        编队页给具体子 Agent 的指派仍然优先。保存即生效，运行中改也认。
+        """
+        require(session_id)
+        try:
+            session = manager.set_model(session_id, payload.model)
+        except SpiritScoutError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        if session is None:
+            raise HTTPException(404, f"会话不存在: {session_id}")
+        return {**session.brief(), "request": session.request}
 
     @app.get("/api/sessions")
     def list_sessions() -> dict[str, Any]:

@@ -111,6 +111,10 @@ class GatewayConfig(ValidatedConfig):
     shared_ctf_prefix: bool = False  # 共享布局实验关闭，真实复杂对照尚未证明命中收益
     compact_decision_patches: bool = False  # 无损补丁短编码，真实模型对照通过后再启用
     remember_endpoint_capabilities: bool = True  # 只复用已成功的可选参数兼容回退
+    priority_refresh_seconds: int = Field(
+        default=30, ge=5, le=3600,
+        description="模型优先级链（设置页排的顺序）重读间隔：运行中的会话按最新"
+                    "排序选模型，改完顺序最多等这么久，不用重启")
 
 
 class ExecutorConfig(ValidatedConfig):
