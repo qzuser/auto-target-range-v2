@@ -186,6 +186,27 @@ class AdminStore:
                 conn.close()
         _chmod_quiet(self.db_path)
 
+    def clear(self) -> int:
+        """删掉所有管理员账号，返回删除条数；用来彻底解除控制台登录。
+
+        只删账号，不动会话签名密钥：清掉之后再设密码，旧 Cookie 会因为用户
+        不存在而失效，不需要额外换密钥。
+        """
+        conn = self._connect_ro()
+        if conn is None:
+            return 0
+        conn.close()
+        with self._lock:
+            conn = self._connect()
+            try:
+                with conn:
+                    cursor = conn.execute("DELETE FROM admins")
+                    removed = cursor.rowcount if cursor.rowcount > 0 else 0
+            finally:
+                conn.close()
+        _chmod_quiet(self.db_path)
+        return removed
+
     def password_fingerprint(self, username: str) -> str:
         stored = self._hash_for(username)
         if not stored:

@@ -33,9 +33,11 @@ def env_only(**values: str):
 
 
 def _app(root: str, host: str = "127.0.0.1"):
+    # 这个文件测的是「登录这条链路」，所以显式打开 password 模式；
+    # 默认 none（不登录）由 test_auth_optional.py 覆盖。
     cfg = SystemConfig(
         workspace=WorkspaceConfig(root=root),
-        web=WebConfig(host=host),
+        web=WebConfig(host=host, auth_mode="password"),
     )
     return create_app(cfg, [])
 

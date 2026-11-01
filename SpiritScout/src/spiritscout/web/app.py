@@ -28,6 +28,7 @@ from spiritscout.core.exceptions import (
 from spiritscout.web import auth as web_auth
 from spiritscout.web import vault
 from spiritscout.web.routes.auth import mount_auth
+from spiritscout.web.routes.maintenance import mount_maintenance
 from spiritscout.web.routes.models import mount_models
 from spiritscout.web.routes.notify import mount_notify
 from spiritscout.web.routes.preferences import mount_preferences
@@ -66,13 +67,18 @@ def create_app(cfg: SystemConfig, models: list[ModelEntry], *,
     admin_store.sync_from_env(cfg.web.password_env,
                               cfg.web.admin_username_env,
                               cfg.web.admin_password_env)
-    auth_enabled = admin_store.has_admins()
+    auth_mode = cfg.web.auth_mode
+    has_admins = admin_store.has_admins()
+    # 登录只由 auth_mode 决定：none 就真的不拦（本机工作台默认直接进），
+    # 库里残留的管理员账号不会把控制台重新锁上。
+    auth_enabled = auth_mode == "password" and has_admins
     if cfg.web.remote_auth_required and not loopback and not auth_enabled:
         raise ConfigurationError(
-            f"Web 控制台绑定 {cfg.web.host} 时必须配置管理员凭据：在 .env 中"
-            f"设置 {cfg.web.admin_username_env} 与 "
-            f"{cfg.web.admin_password_env}（旧版 {cfg.web.password_env} 也兼容）"
-            "后重启")
+            f"Web 控制台绑定 {cfg.web.host} 时必须启用管理员登录：把配置里的 "
+            f"web.auth_mode 设为 password，并在 .env 中设置 "
+            f"{cfg.web.admin_username_env} 与 "
+            f"{cfg.web.admin_password_env}（旧版 {cfg.web.password_env} 也兼容）；"
+            "只想本机用就把 host 改回 127.0.0.1，或把 remote_auth_required 设为 false")
     limiter = web_auth.LoginRateLimiter()
     vault.configure(cfg.workspace.root)   # 密钥库落在工作区（vault.db/vault.key）
     from spiritscout.resources.assistant import ResourceAssistant
@@ -110,6 +116,7 @@ def create_app(cfg: SystemConfig, models: list[ModelEntry], *,
     app.state.resources = resource_store
     mount_auth(app, admin_store=admin_store, auth_enabled=auth_enabled,
                limiter=limiter, loopback=loopback)
+    mount_maintenance(app, cfg=cfg)
 
     # ------------------------------------------------------------ 前端
 

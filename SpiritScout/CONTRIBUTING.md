@@ -22,7 +22,8 @@ py -3 -m venv .venv
 .venv\Scripts\python.exe -m pip install -e '.[dev]'
 ```
 
-启动控制台用 `launch.cmd`（首次启动会先设管理员密码），不要用 PowerShell 脚本启动。
+启动控制台用 `launch.cmd`（默认不登录直接进；需要登录时先 `--set-admin-password`
+再 `launch.cmd --auth password`），不要用 PowerShell 脚本启动。
 
 各系统使用自己的虚拟环境。完整工具执行优先使用 Docker；Linux 原生沙箱需要
 bubblewrap 和命名空间权限。测试密钥使用明确标记的夹具值，真实密钥通过控制台配置。

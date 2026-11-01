@@ -74,8 +74,12 @@ def build_parser() -> argparse.ArgumentParser:
                         help="绑定地址（默认取配置 web.host=127.0.0.1）")
     parser.add_argument("--port", type=int, default=None,
                         help="端口（默认取配置 web.port=8000）")
+    parser.add_argument("--auth", choices=("none", "password"), default=None,
+                        help="控制台登录：none=不启用（默认），password=启用管理员登录")
     parser.add_argument("--set-admin-password", action="store_true",
                         help="设置/重置控制台管理员密码后退出（只保存 scrypt 哈希）")
+    parser.add_argument("--clear-admin-password", action="store_true",
+                        help="删除所有管理员账号后退出（彻底解除控制台登录）")
     parser.add_argument("--admin-username", default=None,
                         help=f"配合 --set-admin-password，默认 {DEFAULT_ADMIN_USERNAME}")
     parser.add_argument("--if-missing", action="store_true",
@@ -152,6 +156,21 @@ def set_admin_password(cfg, args: argparse.Namespace) -> int:
     store.upsert(username, password)
     print(f"[完成] 管理员 {username} 已写入 {store.db_path}")
     print("       文件里只有 scrypt 加盐哈希；忘记密码删掉 admin.db 再设一次即可。")
+    return 0
+
+
+def clear_admin_password(cfg) -> int:
+    """删掉所有管理员账号：控制台从此不再要求登录。"""
+    from spiritscout.web import auth as web_auth
+
+    store = web_auth.AdminStore(cfg.workspace.root)
+    removed = store.clear()
+    if removed:
+        print(f"[完成] 已删除 {removed} 个管理员账号（{store.db_path}）")
+    else:
+        print(f"[跳过] 本来就没有管理员账号（{store.db_path}）")
+    print("       控制台登录现在由配置 web.auth_mode 决定，默认 none 即不登录；")
+    print("       想重新启用：先 --set-admin-password 设密，再把 auth_mode 设为 password。")
     return 0
 
 
@@ -241,6 +260,10 @@ def main(argv: list[str] | None = None) -> int:
         _load_dotenv(dotenv)      # 忘记管理员凭据时改 .env 重启即可恢复
     try:
         cfg = load_system_config(args.config)
+        if args.auth:
+            cfg.web.auth_mode = args.auth      # 命令行只影响本次启动
+        if args.clear_admin_password:
+            return clear_admin_password(cfg)
         if args.set_admin_password:
             return set_admin_password(cfg, args)
         # 密钥在密钥库里，不在 models.yaml：启动这份清单必须注入，否则整条
@@ -276,7 +299,9 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as exc:  # noqa: BLE001
         print(f"[警告] litellm 预热失败（首次调用时重试）：{exc}", file=sys.stderr)
     auth_note = ("管理员登录已启用" if app.state.auth_enabled
-                 else "未配置管理员，仅回环地址可访问")
+                 else "登录已关闭，本机直接进入（auth_mode=none）"
+                 if cfg.web.auth_mode == "none"
+                 else "还没有管理员账号，暂按开放模式运行")
     print(f"灵枢 Web 控制台: http://{host}:{port}  "
           f"({auth_note}，并发上限 {cfg.web.max_concurrent_sessions}，"
           "Ctrl+C 停止)")

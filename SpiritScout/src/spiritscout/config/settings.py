@@ -157,6 +157,9 @@ class WebConfig(ValidatedConfig):
     host: str = "127.0.0.1"               # 默认仅回环
     port: int = Field(default=8000, ge=1, le=65535)
     max_concurrent_sessions: int = Field(default=4, ge=1, description="并发会话上限（信号量）")
+    auth_mode: Literal["none", "password"] = Field(
+        default="none",
+        description="控制台登录：none=不启用（本机直接进），password=启用管理员登录")
     remote_auth_required: bool = Field(
         default=True, description="非回环绑定必须配置管理密码，否则拒绝启动")
     password_env: str = Field(

@@ -9,7 +9,7 @@
 
 **简体中文 · [English](README_EN.md)**
 
-[![Version](https://img.shields.io/badge/version-v0.29.2-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
+[![Version](https://img.shields.io/badge/version-v0.30.0-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
 
 [快速开始](#快速开始) · [三种模式](#三种模式) · [界面](#界面) · [工作原理](#工作原理) · [配置参考](#配置参考) · [常见问题](#常见问题) · [部署指南](docs/部署与配置.md)
 
@@ -68,7 +68,7 @@
 | **MCP 接入** | MCP 服务器配置、管理对话、Exa 检索 |
 | **Skill 知识** | 技能包与参考知识 |
 | **通知** | 解出题、灵枢等你拍板时弹系统通知；开关、权限、已读都在这页 |
-| **关于** | 版本、主题切换、退出登录 |
+| **关于** | 版本、主题切换、退出登录、一键清理无用缓存 |
 
 跑在后台的任务最怕「解出来了没人告诉你」。**解出一道题（平台判定正确），或者灵枢卡在需要你回答的问题上，控制台会弹一条系统通知**——切到别的窗口也收得到，点一下直接跳回那个会话。浏览器没给通知权限时退化成页面内提示加标签页标题计数，不会静默跳过；正看着那个会话、屏幕上已经有提问卡时不再重复弹；一轮积压太多只弹前三条，其余折成一条「另有 N 条提醒」，剩下的去「设置 → 通知」的「最近提醒」里看。拉取的节奏跟着控制台原有的轮询（可见 15 秒、隐藏 30 秒），不另开定时器，也不在服务端记「已读」——多开几个标签页，各看各的屏。
 
@@ -168,18 +168,24 @@ launch.cmd
 
 访问 <http://127.0.0.1:8000>，`Ctrl+C` 停止。改端口：`./launch.sh --port 10010` 或 `launch.cmd --port 10010`。
 
-启动器在还没有管理员时会先让你设密码（输两遍、不回显），只把 scrypt 哈希写进
-`.spiritscout/admin.db`；回车两次就是不设，控制台只绑回环地址。之后想改：
-`.venv/bin/python -m spiritscout --set-admin-password`（Windows 换
-`.venv\Scripts\python.exe`），删掉 `admin.db` 也能从头设一次。
-监听外部地址前必须先配置管理员凭据与 HTTPS。
+**默认没有登录**：控制台直接进（`web.auth_mode: none`）。启动器不再逼你设密码，
+库里以前留下的管理员账号也不会把界面重新锁上。想开登录：
+
+```bat
+.venv\Scripts\python.exe -m spiritscout --set-admin-password
+launch.cmd --auth password
+```
+
+想彻底清掉凭据：`.venv\Scripts\python.exe -m spiritscout --clear-admin-password`。
+监听非回环地址（`0.0.0.0`）时默认仍要求先启用登录，除非显式把
+`web.remote_auth_required` 设为 false。
 
 终端窗口会先打出绑定地址，**等端口真能连上再说一句 `[就绪] 浏览器可以打开了`**——
 首次启动要建库、预热模型，等多久说不准，所以不拿固定秒数猜。之后每 60 秒报一行
 `[状态] 已运行 01:00 · 会话 2（运行中 0） · 内存 244 MB`，不开任务管理器也能知道它活着。
 
 ```
-灵枢 Web 控制台: http://127.0.0.1:8010  (管理员登录已启用，并发上限 4，Ctrl+C 停止)
+灵枢 Web 控制台: http://127.0.0.1:8010  (登录已关闭，本机直接进入（auth_mode=none），并发上限 4，Ctrl+C 停止)
 
 [就绪] 浏览器可以打开了: http://127.0.0.1:8010
        每 60 秒报一次状态；Ctrl+C 停止
@@ -357,7 +363,7 @@ Docker 用 `python deploy.py migrate`；手工迁移时停服 → 拷 `.spiritsc
 
 ## 文档与贡献
 
-当前代码版本 **v0.29.2**。版本唯一来源、递增规则与历史说明见 [版本管理](CONTRIBUTING.md#版本管理)。
+当前代码版本 **v0.30.0**。版本唯一来源、递增规则与历史说明见 [版本管理](CONTRIBUTING.md#版本管理)。
 
 | 我想了解 | 阅读入口 |
 | --- | --- |

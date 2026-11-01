@@ -73,9 +73,10 @@ report:
   output_dir: .spiritscout/reports
 
 web:                            # Web 控制台：spiritscout 启动
-  host: 127.0.0.1               # 非回环绑定时必须设置下方环境变量对应的管理密码
+  host: 127.0.0.1               # 非回环绑定时必须启用管理员登录（见 auth_mode）
   port: 8000
   max_concurrent_sessions: 4    # 并发会话上限
+  auth_mode: none               # none=不登录直接进；password=启用管理员登录
   remote_auth_required: true
   password_env: SPIRITSCOUT_SERVER_PASSWORD
 
