@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import json
 import sqlite3
+import sys
 import time
 from pathlib import Path
 from typing import Any
@@ -229,22 +230,60 @@ def session_page(cfg: Any, session: Any) -> dict[str, Any]:
     }
 
 
+def _credential_hint(models: list[Any]) -> str:
+    """点名没配 API Key 的渠道：提炼失败最常见的原因就是它，不该让用户自己猜。"""
+    missing: list[str] = []
+    for entry in models:
+        if str(getattr(entry, "api_key", "") or ""):
+            continue
+        name = str(getattr(entry, "provider_ref", "")
+                   or getattr(entry, "model", "") or "未命名渠道")
+        if name not in missing:
+            missing.append(name)
+    if not missing:
+        return ""
+    return f"；以下渠道没有 API Key：{'、'.join(missing)}（到「模型」页补上再试）"
+
+
+def _missing_dependency(exc: ModuleNotFoundError) -> str:
+    """解释器跑错时导入会在请求里炸，用户只看到 500。这里把它翻成人话。"""
+    name = str(getattr(exc, "name", "") or "运行依赖")
+    return (f"服务端缺少运行依赖 {name}：当前解释器（{sys.executable}）只能起控制台壳子，"
+            f"跑任务与提炼都会失败。请用项目虚拟环境启动："
+            f".venv\\Scripts\\python.exe -m spiritscout --config configs\\system.yaml，"
+            f"或直接 .\\launch.ps1")
+
+
+def _error_result(cfg: Any, session: Any, message: str) -> dict[str, Any]:
+    """失败也要给与成功一致的结构（页签照常刷新），并把原因留在提炼记录里。"""
+    audit = AuditLogger(session.audit_path)
+    audit.log("experience.distill", "master", {
+        "result": "error", "insights": 0, "error": message[:400],
+        "trigger": "manual", "outcome": str(session.status or "")})
+    db_path = experience_db_path(cfg.experience.root, str(session.workspace))
+    items = read_session_insights(db_path, session.session_id)
+    return {"result": "error", "insights": 0, "error": message, "trigger": "manual",
+            "items": items, "total": len(items),
+            "history": read_distill_events(session.audit_path)}
+
+
 async def distill_now(cfg: Any, session: Any, *, models: list[Any]) -> dict[str, Any]:
     """手动提炼一次；返回提炼结果与本会话最新的经验列表。
 
     与自动提炼共用同一段提示词与落库逻辑（``runtime._distill_experience``），
     审计里多一个 ``trigger: manual``，用户能分清哪条是自己点的。
     """
+    try:
+        from spiritscout.runtime import _distill_experience
+        from spiritscout.web.sessions import _conversation_gateway
+    except ModuleNotFoundError as exc:      # 服务端跑在没装依赖的解释器上
+        return _error_result(cfg, session, _missing_dependency(exc))
     lock = _LOCKS.setdefault(session.session_id, asyncio.Lock())
     if lock.locked():
         return {"result": "busy", "insights": 0, "reason": "正在提炼中，稍等一会儿"}
     async with lock:
         if not models:
-            return {"result": "error", "insights": 0,
-                    "error": "没有可用模型：先到设置里配一个，再回来提炼"}
-        from spiritscout.runtime import _distill_experience
-        from spiritscout.web.sessions import _conversation_gateway
-
+            return _error_result(cfg, session, "没有可用模型：先到设置里配一个，再回来提炼")
         audit = AuditLogger(session.audit_path)
         digest = session_digest(session)
         started = time.monotonic()
@@ -260,6 +299,10 @@ async def distill_now(cfg: Any, session: Any, *, models: list[Any]) -> dict[str,
             except Exception as exc:  # noqa: BLE001 —— 模型/网络问题如实记账，不炸请求
                 result = {"result": "error", "insights": 0,
                           "error": f"{type(exc).__name__}: {exc}"[:200]}
+            if result.get("result") == "error":
+                hint = _credential_hint(models)
+                if hint:
+                    result["error"] = f"{result.get('error') or '提炼失败'}{hint}"
         finally:
             store.close()
         audit.log("experience.distill", "master", {

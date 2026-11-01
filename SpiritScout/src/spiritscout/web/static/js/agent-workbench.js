@@ -4,6 +4,13 @@ const AgentWorkbench = (() => {
   const create = () => ({agents: new Map(), selected: "", task: "", follow: true});
   const worker = actor => !!actor && !/^(master(?:-|$)|gateway$|runtime$|system$|user$)/.test(actor);
   const limit = 24000;
+  /* 每个实例当前跑的模型与渠道：渠道取供应商名（模型页里的那一条），
+     拿不到名字时退回端点主机名，总比只显示模型 ID 让人猜不到打到哪强。 */
+  function modelLabel(agent) {
+    if (!agent || !agent.model) return "尚未调用模型";
+    const channel = agent.channel || (agent.baseUrl || "").replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+    return channel ? `${agent.model} · ${channel}` : agent.model;
+  }
   function reduce(store, event) {
     const actor = String(event.actor || ""), d = event.detail || {}, type = event.type || "";
     if (!worker(actor) || !/^(agent\.|task\.|model\.)/.test(type)) return;
@@ -39,6 +46,8 @@ const AgentWorkbench = (() => {
     if (type === "task.start") { agent.status="执行中"; agent.target=d.target || ""; if(taskId && agent.tasks.has(taskId)) agent.tasks.get(taskId).status="执行中"; }
     if (type === "agent.turn") { agent.turn=d.turn || 0; agent.status="执行中"; append("进展",d.angle); }
     if (type === "model.started") { agent.calls.add(d.call_id); agent.callTasks.set(d.call_id,taskId); agent.status="模型生成中"; }
+    if (d.model) agent.model = d.model;
+    if (d.provider_ref || d.base_url) { agent.channel = d.provider_ref || ""; agent.baseUrl = d.base_url || ""; }
     if (/^model\.(call|failed|cancelled)$/.test(type)) {
       agent.calls.delete(d.call_id);agent.callTasks.delete(d.call_id);
       agent.status=agent.calls.size ? "模型生成中" : type === "model.call" ? "执行中" : "调用异常";
@@ -114,14 +123,20 @@ const AgentWorkbench = (() => {
     }
     const name=root.querySelector("[data-aw-name]"),target=root.querySelector("[data-aw-target]");
     if(name) name.textContent=selected ? `${actorName(selected.actor)} · ${selected.status}` : "等待派发";
+    const modelEl=root.querySelector("[data-aw-model]");
+    if(modelEl) {
+      const label=selected ? modelLabel(selected) : "尚未调用模型";
+      if(modelEl.textContent!==label) modelEl.textContent=label;
+      modelEl.title=selected?.baseUrl ? `${selected.model || ""} @ ${selected.baseUrl}` : (label === "尚未调用模型" ? "这个实例还没发起模型调用" : label);
+    }
     if(target) target.textContent=selected ? (selected.tasks.get(store.task || selected.taskId)?.target || selected.target || "") : "";
     const follow=root.querySelector("[data-aw-follow]");
     if(follow) {follow.setAttribute("aria-pressed",String(store.follow));follow.textContent=store.follow ? "跟随最新" : "暂停跟随";}
-    const navSignature=JSON.stringify(agents.map(a=>[a.actor,a.status,a.turn,store.selected]));
+    const navSignature=JSON.stringify(agents.map(a=>[a.actor,a.status,a.turn,store.selected,a.model,a.channel]));
     if(nav.dataset.signature !== navSignature) {
       const focus=document.activeElement?.dataset.awActor, offset=nav.scrollLeft, vertical=nav.scrollTop;
       nav.dataset.signature=navSignature;
-      nav.innerHTML=agents.map(a=>`<button type="button" data-aw-actor="${esc(a.actor)}" aria-pressed="${a.actor===store.selected}" class="aw-agent ${a.actor===store.selected ? "selected" : ""}"><strong>${esc(actorName(a.actor))}</strong><small>${esc(a.status)}${a.turn ? ` · 第 ${esc(a.turn)} 回合` : ""}</small><span>${esc(a.actor)}</span></button>`).join("");
+      nav.innerHTML=agents.map(a=>`<button type="button" data-aw-actor="${esc(a.actor)}" aria-pressed="${a.actor===store.selected}" class="aw-agent ${a.actor===store.selected ? "selected" : ""}"><strong>${esc(actorName(a.actor))}</strong><small>${esc(a.status)}${a.turn ? ` · 第 ${esc(a.turn)} 回合` : ""}</small><span>${esc(a.actor)}</span>${a.model ? `<em class="aw-agent-model" title="${esc(a.baseUrl || "")}">${esc(modelLabel(a))}</em>` : ""}</button>`).join("");
       nav.scrollLeft=offset;nav.scrollTop=vertical;
       if(focus) [...nav.querySelectorAll("button")].find(b=>b.dataset.awActor===focus)?.focus({preventScroll:true});
     }
@@ -162,5 +177,5 @@ const AgentWorkbench = (() => {
     const selected=store.agents.get(store.selected);
     if(selected && typeof AgentSideChat!=="undefined") AgentSideChat.select(selected.actor,store.task || selected.taskId);
   }
-  return {push,reset,render,init,create,reduce};
+  return {push,reset,render,init,create,reduce,modelLabel};
 })();

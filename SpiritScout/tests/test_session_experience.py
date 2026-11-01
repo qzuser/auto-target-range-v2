@@ -234,6 +234,41 @@ class DistillTests(unittest.IsolatedAsyncioTestCase):
         result = await sx.distill_now(self.cfg, self.session, models=[])
         self.assertEqual(result["result"], "error")
         self.assertIn("没有可用模型", result["error"])
+        self.assertEqual(result["items"], [], "失败也要给页面能直接用的结构")
+
+    async def test_error_names_the_channels_without_keys(self) -> None:
+        """渠道没配 key 是最常见的失败原因：报错要点名，别让用户自己翻配置。"""
+
+        async def boom(*_args, **_kwargs):
+            raise RuntimeError("Missing credentials")
+
+        keyed = SimpleNamespace(api_key="sk-xxxx", provider_ref="glm", model="cn:glm-5.3-flash")
+        keyless = SimpleNamespace(api_key="", provider_ref="zerohh",
+                                  model="cn:deepseek-v4.1-flash")
+        with patch("spiritscout.web.sessions._conversation_gateway", return_value=object()), \
+                patch("spiritscout.runtime._distill_experience", boom):
+            result = await sx.distill_now(self.cfg, self.session, models=[keyless, keyed])
+        self.assertEqual(result["result"], "error")
+        self.assertIn("zerohh", result["error"], "没 key 的渠道要出现在报错里")
+        self.assertNotIn("glm", result["error"], "有 key 的渠道不该被点名")
+        self.assertIn("zerohh", result["history"][0]["error"], "提炼记录里也要留痕")
+
+    async def test_missing_runtime_dependency_is_explained_not_raised(self) -> None:
+        """解释器跑错（缺 langgraph）时，用户看到的要是一句能照做的话，不是 500。"""
+        import builtins
+
+        real_import = builtins.__import__
+
+        def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+            if name == "spiritscout.runtime":
+                raise ModuleNotFoundError("No module named 'langgraph'", name="langgraph")
+            return real_import(name, globals, locals, fromlist, level)
+
+        with patch("builtins.__import__", fake_import):
+            result = await sx.distill_now(self.cfg, self.session, models=[object()])
+        self.assertEqual(result["result"], "error")
+        self.assertIn("langgraph", result["error"])
+        self.assertIn(".venv", result["error"], "要告诉用户换成项目虚拟环境启动")
 
 
 class PageTests(Case):

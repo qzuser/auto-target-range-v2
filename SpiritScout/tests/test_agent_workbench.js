@@ -49,3 +49,12 @@ feed('agent.delta',{task_id:'t1',route_id:'r1',route:'same-route',turn:1,kind:'r
 feed('agent.delta',{task_id:'t2',route_id:'r2',route:'same-route',turn:1,kind:'reasoning',text:'任务二'});
 assert.equal(active.blocks.filter(b=>b.taskId==='t1').at(-1).text,'任务一');
 assert.equal(active.blocks.filter(b=>b.taskId==='t2').at(-1).text,'任务二');
+// 子 Agent 页要显示「模型 · 渠道」：模型 ID 与供应商名都来自 model.started
+feed('model.started',{task_id:'t2',call_id:'c3',model:'cn:glm-5.3-flash',provider_ref:'zerohh-glm-5.3-flash',base_url:'https://newapi.zerohh.cn/v1/'});
+assert.equal(active.model,'cn:glm-5.3-flash');
+assert.equal(active.channel,'zerohh-glm-5.3-flash');
+assert.equal(api.modelLabel(active),'cn:glm-5.3-flash · zerohh-glm-5.3-flash','模型与渠道要一起显示');
+assert.equal(api.modelLabel({}),'尚未调用模型','还没调用就照实说');
+assert.equal(api.modelLabel({model:'x',channel:'',baseUrl:'https://api.example.test/v1'}),
+  'x · api.example.test','渠道名缺失时退回端点主机名');
+console.log('workbench model/channel display passed');

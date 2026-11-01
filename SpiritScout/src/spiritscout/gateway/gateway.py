@@ -411,7 +411,10 @@ class ModelGateway:
         prefix = self.prefix_tracker.observe(
             (entry.provider, entry.base_url or "", entry.model, actor, scope.task_id or "", scope.route_id or "", task_type, role),
             messages, tools)
+        # provider_ref 是用户眼里的「渠道」（供应商名），模型页/子 Agent 页都按它显示；
+        # base_url 跟着一起记，排查「打到了哪个端点」时不用再翻配置。
         call = {"call_id": f"model-{uuid.uuid4().hex}", "model": entry.model, "runtime_version": __version__,
+                "provider_ref": entry.provider_ref, "base_url": entry.base_url or "",
                 "task_type": task_type, "task_id": scope.task_id, "route_id": scope.route_id, "cache_scope": role or task_type, **prefix}
         self.audit.log("model.started", actor, call)
         stream = None

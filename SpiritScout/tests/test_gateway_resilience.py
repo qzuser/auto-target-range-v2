@@ -7,10 +7,14 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import tempfile
 import unittest
+from pathlib import Path
 
 from spiritscout.config.settings import GatewayConfig, ModelEntry
-from spiritscout.core.audit import NullAuditLogger
+from spiritscout.core.audit import AuditLogger, NullAuditLogger
+from spiritscout.core.exceptions import SpiritScoutError
 from spiritscout.gateway.gateway import ModelGateway, _is_transient
 from spiritscout.gateway.registry import ModelRegistry
 
@@ -149,3 +153,30 @@ class TransientRetryTests(unittest.IsolatedAsyncioTestCase):
         finally:
             server.close()
             await server.wait_closed()
+
+
+class CallRecordTests(unittest.IsolatedAsyncioTestCase):
+    async def test_model_started_records_model_and_channel(self) -> None:
+        """子 Agent 页要显示「模型 · 渠道」：模型 ID、渠道名与端点都得进 model.started。
+
+        渠道名取供应商名（用户在「模型」页看到的那一条），端点跟着记，排查
+        「到底打到了哪个 base_url」时不用再翻配置。
+        """
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            audit_path = Path(tmp) / "audit.jsonl"
+            entry = ModelEntry(model="fixture-model", provider="openai_compatible",
+                               provider_ref="zerohh",
+                               base_url="http://127.0.0.1:9/v1",
+                               api_key="local-test-only")
+            gateway = ModelGateway(ModelRegistry([entry]),
+                                   config=GatewayConfig(request_timeout_seconds=2),
+                                   audit=AuditLogger(audit_path))
+            with self.assertRaises(SpiritScoutError):
+                await gateway.chat([{"role": "user", "content": "fixture"}], max_tokens=16)
+            records = [json.loads(line) for line
+                       in audit_path.read_text(encoding="utf-8").splitlines()]
+            started = [rec["detail"] for rec in records if rec.get("type") == "model.started"]
+            self.assertTrue(started, "调用前必须先落 model.started")
+            self.assertEqual(started[0]["model"], "fixture-model")
+            self.assertEqual(started[0]["provider_ref"], "zerohh")
+            self.assertEqual(started[0]["base_url"], "http://127.0.0.1:9/v1")
