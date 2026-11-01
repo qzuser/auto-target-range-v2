@@ -230,19 +230,31 @@ def session_page(cfg: Any, session: Any) -> dict[str, Any]:
     }
 
 
-def _credential_hint(models: list[Any]) -> str:
-    """点名没配 API Key 的渠道：提炼失败最常见的原因就是它，不该让用户自己猜。"""
-    missing: list[str] = []
+def _skipped_note(names: list[str]) -> str:
+    """失败时交代清楚：这一轮把哪些没 Key 的渠道跳过了。"""
+    if not names:
+        return ""
+    return f"（本次跳过了没有 API Key 的渠道：{'、'.join(names)}）"
+
+
+def _usable_models(models: list[Any]) -> list[Any]:
+    """只把真的能调通的渠道交给网关。
+
+    没 Key 的模型派过去必定失败，而网关的路由会按质量分挑primary——挑到没 Key
+    的那条，一次提炼就白跑（``Missing credentials``）。所以先把没凭据的剔掉，
+    剩下有 Key 的照常走主备；一个都没有时由调用方直接给原因，不发这次请求。
+    """
+    return [entry for entry in models if str(getattr(entry, "api_key", "") or "")]
+
+
+def _channel_names(models: list[Any]) -> str:
+    names: list[str] = []
     for entry in models:
-        if str(getattr(entry, "api_key", "") or ""):
-            continue
         name = str(getattr(entry, "provider_ref", "")
                    or getattr(entry, "model", "") or "未命名渠道")
-        if name not in missing:
-            missing.append(name)
-    if not missing:
-        return ""
-    return f"；以下渠道没有 API Key：{'、'.join(missing)}（到「模型」页补上再试）"
+        if name not in names:
+            names.append(name)
+    return "、".join(names)
 
 
 def _missing_dependency(exc: ModuleNotFoundError) -> str:
@@ -284,6 +296,16 @@ async def distill_now(cfg: Any, session: Any, *, models: list[Any]) -> dict[str,
     async with lock:
         if not models:
             return _error_result(cfg, session, "没有可用模型：先到设置里配一个，再回来提炼")
+        usable = _usable_models(models)
+        if not usable:
+            return _error_result(
+                cfg, session,
+                f"没有配了 API Key 的渠道：{_channel_names(models)}"
+                f"（到「模型」页补上 Key，或把已有 Key 的渠道设为主模型）")
+        skipped = [str(getattr(entry, "provider_ref", "") or getattr(entry, "model", ""))
+                   for entry in models if entry not in usable]
+        if skipped:
+            models = usable       # 没凭据的渠道进链只会白跑一次
         audit = AuditLogger(session.audit_path)
         digest = session_digest(session)
         started = time.monotonic()
@@ -300,9 +322,9 @@ async def distill_now(cfg: Any, session: Any, *, models: list[Any]) -> dict[str,
                 result = {"result": "error", "insights": 0,
                           "error": f"{type(exc).__name__}: {exc}"[:200]}
             if result.get("result") == "error":
-                hint = _credential_hint(models)
-                if hint:
-                    result["error"] = f"{result.get('error') or '提炼失败'}{hint}"
+                note = _skipped_note([name for name in skipped if name])
+                if note:
+                    result["error"] = f"{result.get('error') or '提炼失败'}{note}"
         finally:
             store.close()
         audit.log("experience.distill", "master", {

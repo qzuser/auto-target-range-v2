@@ -13,11 +13,14 @@ from typing import ClassVar
 from unittest.mock import AsyncMock
 
 from spiritscout.blackboard import Blackboard
+from spiritscout.core.audit import AuditLogger
 from spiritscout.core.models import BlackboardLayer, FlagCandidate
 from spiritscout.ctf.writeup import (
+    _WP_SYSTEM,
     WP_DIRECTIONS,
     build_wp_digest,
     direction_key,
+    tool_inventory,
     wp_body,
     wp_fallback,
 )
@@ -32,7 +35,8 @@ def _challenge(cid: str, title: str, direction: str = "web", **kw) -> dict:
     return {"id": cid, "title": title, "direction": direction, **kw}
 
 
-def _digest(challenges, flags=(), routes=(), findings=(), team=None, overrides=None):
+def _digest(challenges, flags=(), routes=(), findings=(), team=None, overrides=None,
+            tools=None):
     with tempfile.TemporaryDirectory() as tmp:
         bb = Blackboard(f"{tmp}/bb.db")
         for index, (title, notes) in enumerate(routes):
@@ -49,7 +53,7 @@ def _digest(challenges, flags=(), routes=(), findings=(), team=None, overrides=N
             challenges=challenges, flags=list(flags), run_summary={},
             # team 传空 dict 表示"什么都没填"，与不传（默认战队名）区分开
             blackboard=bb, team={"name": "灵枢战队"} if team is None else team,
-            facts={"model_calls": 12}, direction_overrides=overrides,
+            facts={"model_calls": 12}, direction_overrides=overrides, tools=tools,
         )
         bb.close()
     return digest
@@ -123,6 +127,53 @@ class DigestTests(unittest.TestCase):
     def test_run_facts_pass_through(self) -> None:
         digest = _digest([_challenge("c1", "题一")])
         self.assertEqual(digest["run_facts"], {"model_calls": 12})
+
+
+class PromptTests(unittest.TestCase):
+    """写手口径：交的是解题思路（中文、写明工具），不是这次作业是怎么编排的。"""
+
+    def test_prompt_asks_for_the_solution_not_the_pipeline(self) -> None:
+        self.assertIn("解题思路", _WP_SYSTEM)
+        self.assertIn("全文中文", _WP_SYSTEM)
+        self.assertIn("工具与关键命令", _WP_SYSTEM)
+        self.assertIn("不写内部过程", _WP_SYSTEM)
+        # 这些词只出现在「不许写」的纪律里，素材本身不再往编排上引
+        for word in ("子 Agent", "派发", "编排", "回合"):
+            with self.subTest(word=word):
+                self.assertIn(word, _WP_SYSTEM)
+
+    def test_prompt_keeps_the_contest_skeleton(self) -> None:
+        for heading in ("## 团队信息", "## 解题情况", "## 具体WP", "获取 Flag"):
+            with self.subTest(heading=heading):
+                self.assertIn(heading, _WP_SYSTEM)
+
+
+class ToolTests(unittest.TestCase):
+    def test_digest_carries_the_tool_inventory(self) -> None:
+        digest = _digest([_challenge("c1", "题一")],
+                         tools=[{"tool": "nmap", "calls": 3}])
+        self.assertEqual(digest["tools"], [{"tool": "nmap", "calls": 3}])
+        self.assertNotIn("rounds", digest, "编排回合数不该进写手材料")
+
+    def test_fallback_lists_what_was_used(self) -> None:
+        digest = _digest([_challenge("c1", "题一")],
+                         tools=[{"tool": "sqlmap", "calls": 2}])
+        body = wp_fallback(digest)
+        self.assertIn("sqlmap", body)
+        self.assertIn("工具与关键命令", body)
+
+    def test_inventory_counts_the_audit_tool_calls(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            audit = AuditLogger(f"{tmp}/audit.jsonl")
+            audit.log("agent.tool_call", "ctf-web-x",
+                      {"calls": [{"id": "1", "name": "investigate"}]})
+            audit.log("agent.tool_call", "ctf-web-x",
+                      {"calls": [{"id": "2", "name": "investigate"},
+                                 {"id": "3", "name": "bash"}]})
+            audit.log("model.started", "ctf-web-x", {"call_id": "c"})
+            rows = tool_inventory(audit)
+        self.assertEqual([r["tool"] for r in rows], ["investigate", "bash"])
+        self.assertEqual(rows[0]["calls"], 2)
 
 
 class FallbackTests(unittest.TestCase):
