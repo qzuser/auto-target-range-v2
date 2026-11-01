@@ -97,5 +97,59 @@ class SharedLibraryTests(unittest.TestCase):
         self.assertEqual(items[0]["tags"], ["gateway"])
 
 
+class AutoDistillLibraryTests(unittest.TestCase):
+    """自动提炼（含重启后补跑）也必须写共享库——这是「提炼成功但库页没有」的主因。"""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name)
+        self.cfg = SystemConfig(workspace=WorkspaceConfig(root=str(self.root)),
+                                models_config_path=str(self.root / "models.yaml"))
+        self.workspace = self.root / "sessions" / "sess-auto"
+        self.workspace.mkdir(parents=True)
+
+    def _queue_snapshot(self) -> None:
+        from spiritscout.runtime import _write_distill_snapshot
+
+        path = self.workspace / "experience_distill" / "20261102T000000000Z-distill-x.json"
+        _write_distill_snapshot(path, {
+            "schema": 1, "status": "pending", "attempts": 0,
+            "outcome": "completed", "trigger": "end", "challenge": "",
+            "digest": {"target": "lab", "outcome": "completed"},
+            "session": self.workspace.name, "created_at": "2026-11-02T00:00:00+00:00",
+        })
+
+    def test_resume_writes_to_shared_library(self) -> None:
+        from spiritscout.runtime import resume_pending_distills
+
+        self._queue_snapshot()
+        seen: dict[str, str] = {}
+
+        async def fake(gateway, store, digest, *, timeout_seconds, audit=None,
+                       source_session=""):
+            seen["db"] = str(store.db_path)
+            seen["session"] = source_session
+            store.add("自动提炼也要落进共享库", tags=["经验"],
+                      source_session=source_session, source_model="master")
+            return {"result": "ok", "insights": 1, "duplicates": 0}
+
+        with patch("spiritscout.runtime._distill_experience", fake):
+            done = asyncio.run(resume_pending_distills(
+                workspace=self.workspace, cfg=self.cfg,
+                models=[_keyed()]))
+        self.assertEqual(done, 1)
+        expected = sx.experience_library(self.cfg)
+        self.assertEqual(seen["db"], str(expected), "补跑提炼要写共享库")
+        self.assertEqual(seen["session"], "sess-auto")
+        self.assertFalse((self.workspace / "experience.db").exists(),
+                         "会话目录里不该另起一本经验库")
+        store = ExperienceStore(expected)
+        try:
+            self.assertEqual(store.count(), 1)
+        finally:
+            store.close()
+
+
 if __name__ == "__main__":   # pragma: no cover
     unittest.main()

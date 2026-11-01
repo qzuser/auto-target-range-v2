@@ -23,7 +23,12 @@ from spiritscout.knowledge.merge import (
 
 
 def _store(path: Path) -> exp.ExperienceStore:
-    return exp.ExperienceStore(path)
+    """测试用的库：关掉入库判重，好造出「已经进库的同义句」。
+
+    入库判重（0.95）是新加的一道闸门，会挡掉这里刻意准备的两条近义条目；
+    二次提炼处理的是**已经在库里的**历史数据，所以这里按 0 阈值造样本。
+    """
+    return exp.ExperienceStore(path, duplicate_threshold=0)
 
 
 def _add(store: exp.ExperienceStore, insight: str, **kwargs: Any) -> str:

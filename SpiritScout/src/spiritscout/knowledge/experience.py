@@ -18,6 +18,15 @@ from spiritscout.knowledge import merge as merge_mod
 
 _INSIGHT_CAP = 600
 _CONTEXT_CAP = 300
+# 入库判重：与库里任一有效条目相似度达到这个比例就不再存一条新的。
+# 0.95 意味着只允许标点、语气词、个别虚词的差异——那属于同一句话。
+# 二次提炼（合并）用的 0.85 更宽松，因为它有「原件保留、可还原」托底；
+# 入库这一层是新增条目，闸门要更紧，宁可少存也不要让库被同义句灌满。
+DEFAULT_DUPLICATE_THRESHOLD = 0.95
+# 判重时的扫描上限：只跟最近的这些条比。库再大也不至于为一条新经验全表比对。
+_DEDUPE_SCAN = 2000
+# 候选缓存的有效期（秒）：跨进程写入最多晚这么久被看到，批量入库不必逐条全表读
+_CACHE_TTL = 30.0
 
 _COLUMNS = ["insight_id", "insight", "context", "tags",
             "source_session", "source_model", "ts",
@@ -47,6 +56,19 @@ def experience_db_path(root: str, workspace: str) -> Path:
     """经验库文件路径：root 非空用 root，否则跟随工作区（CLI 兼容语义）。"""
     base = Path(root) if str(root or "").strip() else Path(workspace)
     return base / "experience.db"
+
+
+def shared_db_path(cfg: Any) -> Path:
+    """共享经验库路径——**提炼落库、经验库页、开工召回、并库都用这一个**。
+
+    ``experience.root`` 为空时跟随基础工作区 ``cfg.workspace.root``，绝不能用会话
+    工作区：会话工作区是 ``sessions/<id>/``，那会写出每会话一本小库，而库页与召回
+    读的是共享库，于是「提炼成功但库里没有」。自动提炼与手动提炼都必须走这里。
+    """
+    exp = getattr(cfg, "experience", None)
+    ws = getattr(cfg, "workspace", None)
+    return experience_db_path(str(getattr(exp, "root", "") or ""),
+                              str(getattr(ws, "root", "") or ""))
 
 
 def absorb_session_dbs(target: str | Path, sessions_dir: str | Path) -> int:
@@ -288,11 +310,21 @@ def delete_insight(db_path: str | Path, insight_id: str, *,
 
 
 class ExperienceStore:
-    """全局经验库：写入（灵枢提炼）+ 检索（智能体查询）。"""
+    """全局经验库：写入（灵枢提炼）+ 检索（智能体查询）。
 
-    def __init__(self, db_path: str | Path, *, audit=None):
+    ``duplicate_threshold``：入库判重阈值（0 = 只挡完全同文，并库时用）。
+    默认 0.95，比二次提炼的 0.85 更严——合并有原件托底，新增没有。
+    """
+
+    def __init__(self, db_path: str | Path, *, audit=None,
+                 duplicate_threshold: float | None = DEFAULT_DUPLICATE_THRESHOLD):
         self.db_path = str(db_path)
         self.audit = audit or NullAuditLogger()
+        self.duplicate_threshold = (
+            DEFAULT_DUPLICATE_THRESHOLD if duplicate_threshold is None
+            else float(duplicate_threshold))
+        self._cache: list[tuple[str, str]] | None = None   # 判重候选（id, 原文）
+        self._cache_at = 0.0
         Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(self.db_path)
         self._conn.execute("""CREATE TABLE IF NOT EXISTS insights (
@@ -309,20 +341,63 @@ class ExperienceStore:
             "CREATE INDEX IF NOT EXISTS idx_insights_ts ON insights(ts DESC)")
         self._conn.commit()
 
+    def nearest(self, text: str) -> tuple[str, float]:
+        """库里最相似的**有效**条目（id, 相似度）；空库返回 ('', 0.0)。"""
+        best_id, best = "", 0.0
+        for insight_id, other in self._candidates():
+            score = merge_mod.similarity(text, other)
+            if score > best:
+                best_id, best = insight_id, score
+                if best >= 1.0:
+                    break
+        return best_id, best
+
+    def _candidates(self) -> list[tuple[str, str]]:
+        """判重用的候选行（id, 原文）；带短 TTL 缓存，批量入库不必每条都全表读。
+
+        TTL 存在的理由：库可能被另一个进程（Web 控制台、CLI）同时写，缓存太久会让
+        新进来的同义句漏判。30 秒是个折中——一批提炼/一次并库共享同一份候选，
+        跨进程的写入最多晚半分钟被看到。
+        """
+        fresh = self._cache is not None and (time.time() - self._cache_at) < _CACHE_TTL
+        if not fresh:
+            self._cache = [
+                (str(row[0]), str(row[1] or ""))
+                for row in self._conn.execute(
+                    "SELECT insight_id, insight FROM insights"
+                    " WHERE COALESCE(merged_into, '') = ''"
+                    " ORDER BY ts DESC LIMIT ?", (_DEDUPE_SCAN,)).fetchall()
+            ]
+            self._cache_at = time.time()
+        return self._cache or []
+
     def add(self, insight: str, *, context: str = "",
             tags: list[str] | None = None,
-            source_session: str = "", source_model: str = "") -> str:
-        """写入一条经验；完全重复的洞察直接跳过（返回空串）。"""
+            source_session: str = "", source_model: str = "",
+            report: dict[str, Any] | None = None) -> str:
+        """写入一条经验；与库里高度相似（默认 ≥0.95）的直接取消，返回空串。
+
+        ``report``（可选）用来告诉调用方为什么没写进去：``reason`` 为
+        ``empty``／``duplicate``（完全同文）／``similar``（高度相似），另带
+        ``match_id``、``score``。提炼据此如实汇报「新增 N 条、跳过 M 条重复」。
+        """
         text = insight.strip()[:_INSIGHT_CAP]
         if not text:
+            if report is not None:
+                report.update({"reason": "empty"})
             return ""
         dup = self._conn.execute(
             "SELECT insight_id FROM insights WHERE insight = ? LIMIT 1",
             (text,)).fetchone()
         if dup:
-            self.audit.log("experience.duplicate", "master", {
-                "insight_id": dup[0], "insight": text[:200]})
+            self._skip(report, "duplicate", str(dup[0]), 1.0, text, "experience.duplicate")
             return ""
+        if self.duplicate_threshold > 0:
+            match_id, score = self.nearest(text)
+            if match_id and score >= self.duplicate_threshold:
+                self._skip(report, "similar", match_id, score, text,
+                           "experience.near_duplicate")
+                return ""
         eid = new_id("exp")
         self._conn.execute(
             "INSERT OR IGNORE INTO insights (insight_id, insight, context, tags,"
@@ -331,9 +406,20 @@ class ExperienceStore:
              json.dumps([str(tag) for tag in (tags or [])][:8], ensure_ascii=False),
              source_session[:200], source_model, time.time()))
         self._conn.commit()
+        if self._cache is not None:
+            self._cache.insert(0, (eid, text))
         self.audit.log("experience.added", "master", {
             "insight_id": eid, "insight": text[:200]})
         return eid
+
+    def _skip(self, report: dict[str, Any] | None, reason: str,
+              match_id: str, score: float, text: str, event: str) -> None:
+        """记一次「没收下」：审计留痕 + 回填给调用方的原因。"""
+        payload = {"insight_id": match_id, "insight": text[:200],
+                   "score": round(float(score), 4)}
+        self.audit.log(event, "master", payload)
+        if report is not None:
+            report.update(payload, reason=reason, match_id=match_id)
 
     def search(self, query: str, *, limit: int = 5) -> list[dict[str, Any]]:
         """关键词检索（简化版 FTS：LIKE 匹配 context + insight + tags）。"""

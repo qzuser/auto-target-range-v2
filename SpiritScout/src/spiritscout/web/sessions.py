@@ -2614,12 +2614,11 @@ class SessionManager:
         try:
             from spiritscout.knowledge.experience import (
                 absorb_session_dbs,
-                experience_db_path,
+                shared_db_path,
             )
 
-            shared = experience_db_path(self._cfg.experience.root,
-                                        self._cfg.workspace.root)
-            absorb_session_dbs(shared, Path(session.workspace).parent)
+            absorb_session_dbs(shared_db_path(self._cfg),
+                               Path(session.workspace).parent)
         except (OSError, sqlite3.Error):
             pass
         shutil.rmtree(session.workspace, ignore_errors=True)

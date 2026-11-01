@@ -53,8 +53,8 @@ from spiritscout.gateway import (
 from spiritscout.knowledge import KnowledgeStore
 from spiritscout.knowledge.experience import (
     ExperienceStore,
-    experience_db_path,
     format_insights,
+    shared_db_path,
 )
 from spiritscout.modes import ModeAssembler
 from spiritscout.policy import PolicyEngine, ScopeGuard
@@ -261,8 +261,11 @@ def _open_workspace(
     bind_usage(gateway, workspace / "usage.json")
     # 经验库默认跟随工作区；Web 会话在 _session_cfg 里把 root 指向共享目录，
     # 保证提炼出的经验跨会话可见（会话隔离不隔离经验）。
+    # 经验库是**共享库**，不是会话目录里的那本：写进 sessions/<id>/experience.db
+    # 的话，经验库页与开工召回读共享库，就成了「提炼成功但库里没有」。
     experience = ExperienceStore(
-        experience_db_path(cfg.experience.root, str(workspace)), audit=audit)
+        shared_db_path(cfg), audit=audit,
+        duplicate_threshold=cfg.experience.duplicate_threshold)
     for name in ("attachments", "sandbox", "artifacts"):
         if (workspace / name).is_symlink():
             raise ConfigurationError(f"共享目录不能是符号链接: {name}")
@@ -1211,16 +1214,26 @@ async def _distill_with_model(gateway: Any, experience: ExperienceStore,
         return {"result": "unparsed", "insights": 0,
                 "error": f"模型未按 JSON 返回洞察：{str(exc)[:120]}"}
     added = 0
+    duplicates = 0
     for item in (data.get("insights") or [])[:5]:
         if isinstance(item, dict) and str(item.get("insight") or "").strip():
             tags = item.get("tags") if isinstance(item.get("tags"), list) else []
+            report: dict[str, Any] = {}
             if experience.add(str(item["insight"]),
                               context=str(item.get("context", "")),
                               tags=[str(tag) for tag in tags],
                               source_session=source_session,
-                              source_model="master"):
+                              source_model="master", report=report):
                 added += 1
-    return {"result": "ok" if added else "empty", "insights": added}
+            elif report.get("reason") in {"similar", "duplicate"}:
+                # 库里已有高度相似的一条：这条结果取消，不重复存储
+                duplicates += 1
+    if added:
+        result = "ok"
+    else:
+        # 一条都没进库，但要分清「模型没给出」和「给的都是重复的」
+        result = "duplicate" if duplicates else "empty"
+    return {"result": result, "insights": added, "duplicates": duplicates}
 
 
 def _prepare_distill(infra: _Infra, assembly: Any, enabled: bool, experience: Any,
@@ -1429,7 +1442,8 @@ async def resume_pending_distills(
     audit = AuditLogger(cfg.audit_log_path)
     gateway = ModelGateway(registry_for(models, cfg), config=cfg.gateway, audit=audit)
     store = ExperienceStore(
-        experience_db_path(cfg.experience.root, str(workspace)), audit=audit)
+        shared_db_path(cfg), audit=audit,
+        duplicate_threshold=cfg.experience.duplicate_threshold)
     completed = 0
     try:
         for snapshot in snapshots:
