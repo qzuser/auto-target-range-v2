@@ -17,6 +17,10 @@ case "${1:-start}" in
       echo "缺少虚拟环境：先执行 python3 -m venv .venv，再执行 .venv/bin/python -m pip install -e ." >&2
       exit 1
     fi
+    # 首次启动：还没有管理员就当场设密码（只存 scrypt 哈希，明文不落盘）。
+    # 已有账号、或不是交互终端（脚本/管道里调用）时它自己跳过，不挡启动。
+    .venv/bin/python -m spiritscout --set-admin-password --if-missing \
+      --config configs/system.yaml || true
     ;;
 esac
 

@@ -1,5 +1,8 @@
 #!/usr/bin/env python
-"""发布 0.24.2 到 GitHub：push + 创建 Release + 上传资产。
+"""发布当前版本到 GitHub：push + 创建 Release + 上传资产。
+
+版本号从 ``SpiritScout/src/spiritscout/__init__.py`` 读，tag、notes 文件名、
+三个资产名都跟着它走——发新版本不需要改这个脚本。
 
 为什么是 Python 而不是 curl/gh：这台机器的 Windows Schannel 坏了
 （AcquireCredentialsHandle 返回 SEC_E_NO_CREDENTIALS），curl 和 git 的
@@ -25,16 +28,36 @@ import urllib.request
 from pathlib import Path
 
 REPO = "qzuser/auto-target-range-v2"
-TAG = "v0.24.2"
-TITLE = "0.24.2 — CTF 不再拦输入、附件清空修复、打包说明"
 ROOT = Path(__file__).resolve().parent.parent
 PACKAGES = ROOT / "packages"
-NOTES = ROOT / "_work" / "release_notes_0.24.2.md"
+
+
+def _version() -> str:
+    """版本号的唯一来源：产品的 ``__version__``，这里不写字面量。"""
+    text = (ROOT / "SpiritScout" / "src" / "spiritscout" / "__init__.py"
+            ).read_text(encoding="utf-8")
+    return text.split('__version__ = "')[1].split('"')[0]
+
+
+VERSION = _version()
+TAG = f"v{VERSION}"
+NOTES = ROOT / "_work" / f"release_notes_{VERSION}.md"
+
+
+def _title() -> str:
+    """Release 标题取 notes 的一级标题，正文与标题不会各写一份。"""
+    if not NOTES.exists():
+        return VERSION
+    first = NOTES.read_text(encoding="utf-8").splitlines()[0].strip()
+    return first.lstrip("#").strip() or VERSION
+
+
+TITLE = _title()
 
 ASSETS = [
-    PACKAGES / "SpiritScout-0.24.2-portable.zip",
-    PACKAGES / "spiritscout-0.24.2-py3-none-any.whl",
-    PACKAGES / "spiritscout-0.24.2.tar.gz",
+    PACKAGES / f"SpiritScout-{VERSION}-portable.zip",
+    PACKAGES / f"spiritscout-{VERSION}-py3-none-any.whl",
+    PACKAGES / f"spiritscout-{VERSION}.tar.gz",
 ]
 
 API = "https://api.github.com"

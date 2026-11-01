@@ -237,9 +237,18 @@ $env:PYTHONUNBUFFERED = '1'
 if ($Debug) { $env:SPIRITSCOUT_LOG_LEVEL = 'DEBUG' }
 
 Write-Host "[+] 执行后端 host（工作目录锁定 + 运行期 ACL 收口 + 环境白名单 + 超时杀进程树；仍无读隔离）"
-Write-Host "[>] 控制台：http://127.0.0.1:$Port"
-Write-Host "    首次进入按提示设管理员密码；模型页应已看到 configs/models.yaml 里配置的模型。"
 Push-Location (Join-Path $root 'SpiritScout')
+# 3) 管理员账号：首次启动让本人当场设密码，只把 scrypt 哈希写进工作区 admin.db。
+#    已有账号就跳过；不是交互终端（脚本/CI 调用）时同样跳过，绝不卡住启动。
+Write-Host "[>] 管理员账号：首次启动在这里设置密码（明文不落盘，只存哈希）"
+& $venvPy -X utf8 -m spiritscout --set-admin-password --if-missing --config configs\system.yaml
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "    [!] 没设置管理员密码：控制台仍只在回环地址可用；" -ForegroundColor Yellow
+    Write-Host "        之后可手动补：SpiritScout\.venv\Scripts\python.exe -m spiritscout --set-admin-password" -ForegroundColor Yellow
+}
+
+Write-Host "[>] 控制台：http://127.0.0.1:$Port"
+Write-Host "    模型页应已看到 configs/models.yaml 里配置的模型。"
 Write-Host "[>] 前台运行中：关闭本窗口（或按 Ctrl+C）即停止控制台" -ForegroundColor Cyan
 try {
     & $venvPy -X utf8 -m spiritscout --config configs\system.yaml --port $Port

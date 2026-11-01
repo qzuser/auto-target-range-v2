@@ -198,7 +198,7 @@ def build_configs():
     (cfg / "system.yaml").write_text(text, encoding="utf-8")
 
     # 模型注册表：发布版不预置任何真实 key，只留一个 OpenAI 兼容供应商骨架
-    (cfg / "models.yaml").write_text(f"""\
+    (cfg / "models.yaml").write_text("""\
 # 模型注册表 —— 灵枢（SpiritScout）便携版
 #
 # 这里不存任何密钥。填 key 走 Web 控制台「模型」页：选中供应商 → 填 API Key
@@ -266,6 +266,17 @@ echo   SpiritScout __VER__   Web console  ^|  http://127.0.0.1:8010
 echo   Close this window to stop it.
 echo.
 
+rem First run: let the owner pick the console admin password. Only a scrypt hash
+rem is written, to data/workspace/admin.db - nothing is shipped and no plaintext
+rem ever touches disk. Press Enter twice to skip; the console then stays
+rem loopback-only. Existing accounts are kept as-is (--if-missing).
+if not exist "%~dp0data\\workspace\\admin.db" (
+  echo   [first run] Set the console admin password ^(input is hidden^).
+  echo   [first run] Press Enter twice to skip - console stays local-only.
+  "%~dp0runtime\\python.exe" -X utf8 -m spiritscout --set-admin-password --if-missing --config "%~dp0configs\\system.yaml"
+  echo.
+)
+
 start "" "http://127.0.0.1:8010"
 "%~dp0runtime\\python.exe" -X utf8 -m spiritscout --config "%~dp0configs\\system.yaml" --port 8010
 if errorlevel 1 (
@@ -297,9 +308,11 @@ README = """灵枢（SpiritScout）v__VER__ 便携版 —— 解压即用的自�
 ------------
 1. 双击「1-启动服务.bat」
    - 会弹出一个黑窗口（服务本体，别关；关掉=停服务）
+   - **第一次启动会让你设控制台管理员密码**：密码输入不回显，只把 scrypt 加盐
+     哈希写进 data\\workspace\\admin.db，明文不落盘、也不进包。直接回车两次
+     表示跳过——那样控制台只绑本机 127.0.0.1，别的机器进不来。
    - 浏览器自动打开 http://127.0.0.1:8010
-2. 直接就是控制台，不用登录（默认只绑本机 127.0.0.1）。要把控制台开放到
-   局域网才需要设置管理密码，见下方「常见问题」。
+2. 用刚才设的用户名/密码登录（默认用户名 spiritscout，可在设密码时改）
 3. 进控制台 → 侧栏「模型」→ 选供应商填 API Key → 「获取模型列表」勾选模型
    → 「编队」页把模型指派给 Agent。密钥加密存进 data\\workspace\\vault.db，
    重启后仍有效。没 key 时也可以先把 configs\\models.mock.yaml 复制成
@@ -322,6 +335,8 @@ audit.jsonl（每次模型调用与工具调用都可回溯）。
   app\\          程序本体（src / docs / scripts）
   configs\\      system.yaml（系统配置）、models.yaml（模型注册表）、agent_models.yaml
   data\\         运行数据：会话、审计、报告、密钥库。备份搬机就拷这个目录
+                （出厂只有做题经验库；管理员密码库 admin.db 等是你本地
+                 第一次启动后才生成的，不会随包发出去）
 
 四、包里自带的做题经验
 ----------------------
@@ -358,6 +373,20 @@ audit.jsonl（每次模型调用与工具调用都可回溯）。
 --------
 关掉那个黑窗口，或双击「2-停止服务.bat」（按端口收口，含残留进程）。
 
+管理员密码（第一次启动就设好，包里不含任何凭据）
+----------------------------------------------
+- 首次双击「1-启动服务.bat」时在黑窗口里设置：先问用户名（直接回车=spiritscout），
+  再输两遍密码（不回显）。密码至少 8 个字符。
+- 存哪：data\\workspace\\admin.db（表 admins，password_hash 形如
+  scrypt$16384$8$1$盐$哈希）。登录后的会话 Cookie 用 data\\workspace\\auth.key
+  里的随机密钥签名。**这两个文件都是本地生成的，打包时会被清掉，包里没有。**
+- 明文不落盘：输入不回显，不进命令行参数，不写日志；包内 py 代码只有校验逻辑。
+- 忘了密码 / 想换一个：
+      删掉 data\\workspace\\admin.db，重新双击启动（会再问一次）
+  或手动覆盖同名账号：
+      runtime\\python.exe -m spiritscout --set-admin-password --config configs\\system.yaml
+- 不想设也能用：直接回车两次跳过，控制台只绑 127.0.0.1，别的机器进不来。
+
 五、常见问题
 ------------
 - shell 工具报「没有可用 shell」：Windows 上建议装 Git for Windows（自带
@@ -367,11 +396,13 @@ audit.jsonl（每次模型调用与工具调用都可回溯）。
 - 浏览器自动化（playwright / chrome 两个 MCP）要 Node.js + npx；没装只是这两个
   工具不可用，不影响解题与打靶。
 - 端口被占：改「1-启动服务.bat」里的 --port 8010。
-- 想给局域网别的机器访问：改 configs\\system.yaml 里 web.host 为 0.0.0.0，
-  并先设好管理密码环境变量再启动（否则非回环绑定会被拒绝启动）：
-      set SPIRITSCOUT_ADMIN_PASSWORD=你的密码
-      set SPIRITSCOUT_ADMIN_USERNAME=admin
-  旧变量名 SPIRITSCOUT_SERVER_PASSWORD 也认。首次会被防火墙拦，选允许。
+- 想给局域网别的机器访问：先在首次启动时设好管理员密码，再把
+  configs\\system.yaml 里的 web.host 改成 0.0.0.0 重启（没设密码时非回环绑定
+  会被拒绝启动，这是有意的）。首次会被防火墙拦，选允许。
+- 想用环境变量喂密码（写在 .env 或 set）：SPIRITSCOUT_ADMIN_USERNAME /
+  SPIRITSCOUT_ADMIN_PASSWORD 仍被支持，启动时会同步进 admin.db；旧变量名
+  SPIRITSCOUT_SERVER_PASSWORD 也认。日常不建议——明文留在环境里，不如第一次
+  启动时设的那份哈希。
 - 目录别放 C:\\Program Files（控制台要写 configs\\models.yaml，Program Files
   默认不可写）；桌面、D 盘、U 盘都行，路径带中文没问题。
 - 杀软对打包了 python + pwntools 的目录偶尔会拦：加信任/排除即可，包内没有
@@ -390,7 +421,19 @@ README = README.replace("__VER__", VERSION)
 
 
 def write_crlf(path: Path, text: str, encoding: str = "utf-8") -> None:
-    path.write_bytes(text.replace("\r\n", "\n").replace("\n", "\r\n").encode(encoding))
+    """写成品脚本/说明：统一 CRLF，并拦住悄悄混进来的控制字符。
+
+    模板是普通字符串，`\\a` `\\b` `\\t` 这类转义一旦漏掉一个反斜杠就会变成真正的
+    控制字符（曾经把 `data\\workspace\\admin.db` 写成 BEL + `dmin.db`，cmd 里看不出
+    毛病但文件已经坏了）。宁可构建失败，也不发一个带隐藏字节的包。
+    """
+    body = text.replace("\r\n", "\n").replace("\n", "\r\n")
+    bad = sorted({ch for ch in body if ord(ch) < 32 and ch not in "\r\n\t"})
+    if bad:
+        raise SystemExit(
+            f"{path.name} 里出现控制字符 {[hex(ord(c)) for c in bad]}——"
+            "检查模板里的反斜杠转义")
+    path.write_bytes(body.encode(encoding))
 
 
 def build_scripts():
@@ -418,6 +461,15 @@ def build_scripts():
         except Exception:
             print("  预置做题经验 experience.db")
 
+    # 出厂包不带任何本机凭据：管理员哈希库、会话签名密钥、密钥库都可能已经被
+    # 开发机自己用过（admin.db 里有设过的密码哈希、vault.key 能解本地 key）。
+    # 收包的人必须自己设密，所以这里一律清掉——不是可以商量的打包选项。
+    for name in CREDENTIAL_FILES:
+        for candidate in (workspace / name, data_root / name):
+            if candidate.exists():
+                candidate.unlink()
+                print(f"  清掉本机凭据 {candidate.relative_to(STAGE)}")
+
     write_crlf(data_root / "说明.txt", """这个目录放运行数据，删掉等于把灵枢恢复成刚装好的状态。
 
   workspace\\              工作区根（配置里 workspace.root）
@@ -427,6 +479,9 @@ def build_scripts():
     blackboard.db          共享黑板
     knowledge.db/chroma/   知识库
     experience.db          做题经验库（预置了一批实战判读经验，见下）
+    admin.db              控制台管理员（第一次启动时设的密码，只存 scrypt 哈希；
+                          打包时被清掉，出厂包没有这个文件）
+    auth.key              登录会话 Cookie 的签名密钥（同样是本地生成，不进包）
     vault.db + vault.key   本机密钥库（模型 API Key 加密存这里）
     resources\\            共享资源目录
 
@@ -446,7 +501,50 @@ def build_scripts():
 
 
 # ------------------------------------------------------------------ 6) 打 zip
+#: 出厂包里绝不允许存在的本机凭据（首次启动才由用户自己生成）。
+CREDENTIAL_FILES = ("admin.db", "auth.key", "vault.db", "vault.key")
+
+
+def assert_no_credentials() -> None:
+    """打包前最后一道闸：凭据文件一个都不许在包里，发现就拒绝出包。
+
+    只看 ``data\\``：那是运行数据的落点，凭据只可能出现在这里；``runtime\\``
+    是第三方依赖，同名文件（如果有）跟凭据无关。
+    """
+    data_root = STAGE / "data"
+    hits = [p for p in data_root.rglob("*")
+            if p.is_file() and p.name in CREDENTIAL_FILES] if data_root.exists() else []
+    if hits:
+        for p in hits:
+            print(f"  清掉漏网凭据 {p.relative_to(STAGE)}")
+            p.unlink(missing_ok=True)
+        raise SystemExit("出厂包含本机凭据，已清理并中止出包；请重新组装后再打 zip")
+    print("  凭据闸：data\\ 内无 admin.db / auth.key / vault.*")
+
+
+def prune_app_bytecode() -> int:
+    """出包前剪掉 ``app\\`` 下的 __pycache__。
+
+    ``APP_IGNORE`` 只在复制时排除，验包会把控制台真起一遍，Python 又在自己
+    代码旁边写回 ``.pyc``；不剪的话发布包里会带着一份可能比源码旧的字节码。
+    ``runtime\\`` 下的第三方字节码保留：那是依赖预编译，属于正常内容。
+    """
+    app = STAGE / "app"
+    if not app.exists():
+        return 0
+    count = 0
+    for cache in sorted(app.rglob("__pycache__"), reverse=True):
+        if cache.is_dir():
+            count += sum(1 for p in cache.rglob("*") if p.is_file())
+            shutil.rmtree(cache, ignore_errors=True)
+    return count
+
+
 def make_zip() -> Path:
+    assert_no_credentials()
+    pruned = prune_app_bytecode()
+    if pruned:
+        print(f"  剪掉 app\\ 下的 __pycache__ {pruned} 个文件")
     zip_path = OUT / f"{NAME}.zip"
     zip_path.unlink(missing_ok=True)
     files = [p for p in STAGE.rglob("*") if p.is_file()]

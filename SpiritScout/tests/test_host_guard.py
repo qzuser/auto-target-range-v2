@@ -45,8 +45,13 @@ class HardeningTests(unittest.TestCase):
         report = host_guard.harden(self.root, (self.evidence,))
         self.assertTrue(report.workspace_locked, report.skipped)
         acl = host_guard.describe_acl(self.root)
-        # (I) 标记继承 ACE；去继承后只应剩显式授权（本机用户 / SYSTEM / Administrators）
-        self.assertNotIn("(I)", acl, acl)
+        # (I) 标记继承 ACE；要查的是 DACL——授权行里去继承后只应剩显式的
+        # 本机用户 / SYSTEM / Administrators。完整性标签必须排除在外：
+        # `icacls /inheritance:r` 不处理 Mandatory Label，而且那条低完整性
+        # ACE 正是「Agent 只能读证据」的凭据，删掉才是错的。
+        dacl = "\n".join(line for line in acl.splitlines()
+                         if "Mandatory Label" not in line)
+        self.assertNotIn("(I)", dacl, dacl)
         self.assertIn("SYSTEM", acl.upper())
         self.assertIn("ADMINISTRATORS", acl.upper())
 

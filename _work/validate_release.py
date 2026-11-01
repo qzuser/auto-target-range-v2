@@ -32,6 +32,9 @@ def clean_env() -> dict[str, str]:
     env["PYTHONUTF8"] = "1"
     env["PYTHONNOUSERSITE"] = "1"
     env["PYTHONIOENCODING"] = "utf-8"
+    # 验包会把控制台真起一次；不关字节码缓存，app\src 下就会留下这次编译的
+    # __pycache__，下一步 --zip-only 把它们一起打进发布包（自己代码的陈旧 .pyc）。
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
     return env
 
 
@@ -110,6 +113,19 @@ def sweep(root: Path, before: set[Path]) -> list[str]:
     return removed
 
 
+def prune_bytecode(root: Path) -> list[str]:
+    """删掉验包跑出来的 __pycache__（app\\ 是自家代码，不该带着编译残渣出包）。"""
+    removed = []
+    app = root / "app"
+    if not app.exists():
+        return removed
+    for d in app.rglob("__pycache__"):
+        if d.is_dir():
+            shutil.rmtree(d, ignore_errors=True)
+            removed.append(str(d.relative_to(root)))
+    return removed
+
+
 def main() -> int:
     print("包:", PKG, "| python:", PY.exists())
     fails: list[str] = []
@@ -138,7 +154,8 @@ def main() -> int:
     print(out[:800])
     if rc != 0 or f"{PKG}\\runtime" not in out:
         fails.append("VIRTUAL_ENV 探测")
-    if f"Scripts\\python.exe" not in out:
+    if "Scripts\\python.exe" not in out:
+        fails.append("VIRTUAL_ENV 里的 python.exe 没被探测到")
         fails.append("Scripts/python.exe 未命中")
 
     step("3) 真跑一次 python 工具（沙箱内 import 依赖）")
@@ -208,6 +225,57 @@ def main() -> int:
     step("7) 清场（下一步 --zip-only 打的必须是没跑过的包）")
     removed = sweep(PKG / "data", data_before)
     print("清掉验包跑出的文件:", removed or "无")
+    pycache = prune_bytecode(PKG)
+    print("清掉验包写出的 __pycache__:", pycache or "无")
+
+    step("8) 出厂包不带本机凭据")
+    workspace = PKG / "data" / "workspace"
+    creds = [name for name in ("admin.db", "auth.key", "vault.db", "vault.key")
+             if (workspace / name).exists()]
+    print("data/workspace 下的凭据文件:", creds or "无")
+    if creds:
+        fails.append(f"出厂包含本机凭据：{creds}")
+        for name in creds:
+            (workspace / name).unlink(missing_ok=True)
+
+    step("9) 包内 --set-admin-password：明文不进文件、二次调用跳过")
+    probe = PKG.parent / "_admin_probe"
+    shutil.rmtree(probe, ignore_errors=True)
+    probe_ws = probe / "workspace"
+    probe_cfg = probe / "system.yaml"
+    probe.mkdir(parents=True, exist_ok=True)
+    probe_cfg.write_text(f'workspace:\n  root: "{probe_ws.as_posix()}"\n',
+                         encoding="utf-8")
+    plaintext = "Probe-Pass-1234"
+    base = [str(PY), "-X", "utf8", "-m", "spiritscout", "--config",
+            str(probe_cfg), "--set-admin-password", "--password-stdin"]
+
+    def probe_run(password: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run([*base, "--if-missing"], input=password + "\n",
+                              capture_output=True, text=True, encoding="utf-8",
+                              errors="replace", env=clean_env(), cwd=str(PKG),
+                              timeout=180)
+
+    first = probe_run(plaintext)
+    db = probe_ws / "admin.db"
+    print("首次设密退出码:", first.returncode, "| admin.db:", db.exists())
+    print((first.stdout or "").strip() or "(无输出)")
+    if first.returncode != 0 or not db.exists():
+        fails.append(f"--set-admin-password 失败：rc={first.returncode}")
+    else:
+        blob = db.read_bytes()
+        if plaintext.encode() in blob:
+            fails.append("admin.db 里出现了明文密码")
+        if b"scrypt$" not in blob:
+            fails.append("admin.db 里没有 scrypt 哈希")
+        if plaintext in (first.stdout or "") + (first.stderr or ""):
+            fails.append("命令行输出里出现了明文密码")
+        second = probe_run("Another-Pass-99")
+        print("二次调用退出码:", second.returncode, "|",
+              (second.stdout or "").strip().splitlines()[-1:] or "")
+        if second.returncode != 0 or "跳过" not in (second.stdout or ""):
+            fails.append("--if-missing 没有跳过已有管理员")
+    shutil.rmtree(probe, ignore_errors=True)
 
     print("\n================ 结果 ================")
     if fails:
