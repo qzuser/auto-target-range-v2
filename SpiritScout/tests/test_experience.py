@@ -346,7 +346,7 @@ class DistillTests(unittest.IsolatedAsyncioTestCase):
                 stored = store.count()
             finally:
                 store.close()
-            self.assertEqual(result, {"result": "ok", "insights": 1})
+            self.assertEqual(result, {"result": "ok", "insights": 1, "duplicates": 0})
             self.assertEqual(stored, 1)
             self.assertEqual(len(calls), 2)
             self.assertEqual(calls[0]["max_tokens"], 8192)

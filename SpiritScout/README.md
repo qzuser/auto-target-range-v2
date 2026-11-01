@@ -9,7 +9,7 @@
 
 **简体中文 · [English](README_EN.md)**
 
-[![Version](https://img.shields.io/badge/version-v0.34.0-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
+[![Version](https://img.shields.io/badge/version-v0.35.0-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
 
 [快速开始](#快速开始) · [三种模式](#三种模式) · [界面](#界面) · [工作原理](#工作原理) · [配置参考](#配置参考) · [常见问题](#常见问题) · [部署指南](docs/部署与配置.md)
 
@@ -55,7 +55,7 @@
 | **用量** | 按模型统计 token：调用次数、输入/输出、缓存读、占比与费用（近 1 小时 / 今天 / 7 天 / 30 天 / 全部） |
 | **编队** | 给灵枢和各子 Agent 分配模型与提示词 |
 | **项目** | 把资产和会话归到一起；候选漏洞由「鉴真」独立复测 |
-| **经验** | 沉淀下来的、可复用的判断与踩坑记录；极相似的条目可二次提炼合并（原件保留可还原） |
+| **经验** | 沉淀下来的、可复用的判断与踩坑记录；入库前先查相似（默认 ≥95% 视为重复，不重复存），极相似的存量条目可二次提炼合并（原件保留可还原） |
 
 会话详情不进导航，从任务列表点进去就是。会话页的状态标签里还有一个**模型下拉**：只给这一个会话指定首选模型（空 = 跟随「模型」页的优先级链），运行中改也立即生效。
 
@@ -320,6 +320,16 @@ shell / Python 沙箱需要 Linux + bubblewrap；Windows 与 macOS 原生控制�
 
 经验库是共享的，删会话只清会话工作区目录，库里的条目一条不少。老版本曾把条目写进会话目录里的 `experience.db`，所以删会话前会先把那份并回共享库再删目录；来源会话不在了，条目照样按原文展示（只是不再提供跳转回链）。
 
+**入库判重：重复的不进库**
+
+提炼（自动、手动都一样）把一条洞察写进库之前，先比一遍库里最近两千条**有效**经验：完全同文直接取消，相似度达到 `experience.duplicate_threshold`（默认 **95%**，去空白标点后的编辑相似度）也取消——只留一条 `experience.near_duplicate` 审计，记着它像哪一条、差多少。被二次提炼合并掉的条目不参与比较，所以同类的**新**经验不会被历史包袱挡住。想让同义句也进来就把阈值调到 `1.0`（只挡完全同文）。
+
+会话页「经验」页签会如实交代结果：`提炼完成，新增 1 条经验，跳过 2 条与库里高度重复的`；全是重复时结论是「与库里重复」而不是「失败」，也不算新增。
+
+**一本账：自动提炼、手动提炼、经验页、开工召回读的是同一个文件**
+
+落点统一由 `shared_db_path(cfg)` 给出（`experience.root`，空则跟随工作区根目录），**不按会话目录算**——老版本自动提炼曾写进 `sessions/<id>/experience.db`，结果「提炼成功但库里没有」。升级后启动时会先把这些散落的会话库并回共享库（幂等），旧的提炼成果不会丢。
+
 **二次提炼：把极相似的合并压缩**
 
 「经验」页右上角的「二次提炼」会列出**整组两两相似度都 ≥ 85%** 的条目（归一化后的编辑相似度，中文同义改写也认得出来），每组给出合并预览，点一下才合并；也可以自己勾选几条强行合——服务端会再复检一次，不够相似直接拒绝并说明最低相似度。合并是确定性的：取信息量最大的那条当底稿，其余条目里底稿没有的句子按「另：…」并入，**不调模型改写**，所以差异细节不会被润色掉。
@@ -378,7 +388,7 @@ Docker 用 `python deploy.py migrate`；手工迁移时停服 → 拷 `.spiritsc
 
 ## 文档与贡献
 
-当前代码版本 **v0.34.0**。版本唯一来源、递增规则与历史说明见 [版本管理](CONTRIBUTING.md#版本管理)。
+当前代码版本 **v0.35.0**。版本唯一来源、递增规则与历史说明见 [版本管理](CONTRIBUTING.md#版本管理)。
 
 | 我想了解 | 阅读入口 |
 | --- | --- |

@@ -243,6 +243,10 @@ class ExperienceConfig(ValidatedConfig):
     distill_timeout_seconds: int = Field(
         default=45, gt=0, description="收尾提炼单次 LLM 调用硬顶（秒），仅终态路径使用")
     recall_limit: int = Field(default=6, gt=0, le=20, description="会话开工注入的经验条数上限")
+    duplicate_threshold: float = Field(
+        default=0.95, ge=0.5, le=1.0,
+        description="入库判重阈值：与库里任一有效经验相似度达到该比例就不再存一条新的"
+                    "（0.95 只放过标点/虚词的差异；二次提炼合并用的是更宽松的 0.85）")
 
 
 class SearchConfig(ValidatedConfig):

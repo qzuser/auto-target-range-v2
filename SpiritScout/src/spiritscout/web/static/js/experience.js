@@ -354,6 +354,7 @@ const SessionExperience = (() => {
   }
 
   const badge = {ok: ["成功", "ok"], empty: ["无新增经验", "empty"],
+                 duplicate: ["与库里重复", "skipped"],
                  unparsed: ["没按格式返回", "skip"], error: ["失败", "error"],
                  skipped: ["跳过", "skipped"]};
   const triggerName = h => (String(h.trigger || "auto") === "manual" ? "手动" : "自动");
@@ -396,6 +397,7 @@ const SessionExperience = (() => {
     el.querySelector("[data-hist]").innerHTML = history.map(h => {
       const [text, cls] = badge[h.result] || [h.result || "未知", ""];
       const extra = [h.insights ? `新增 ${h.insights} 条` : "",
+                     Number(h.duplicates || 0) ? `跳过 ${h.duplicates} 条重复` : "",
                      h.error ? esc(h.error) : ""].filter(Boolean).join(" · ");
       return `<article class="exp-hist-row ${cls}">
         <header><span class="exp-hist-badge">${esc(text)}</span>
@@ -440,7 +442,10 @@ const SessionExperience = (() => {
       state.busy = false;
       apply({...data, state: (state.view?.state || {})});
       const added = Number(data.insights || 0);
-      if (data.result === "ok") toast(`提炼完成，新增 ${added} 条经验`);
+      const dup = Number(data.duplicates || 0);          // 与库里高度重复、已取消的条数
+      const skipNote = dup ? `，跳过 ${dup} 条与库里高度重复的` : "";
+      if (data.result === "ok") toast(`提炼完成，新增 ${added} 条经验${skipNote}`);
+      else if (data.result === "duplicate") toast(`这次提炼出的 ${dup} 条都与库里高度重复，未重复存储`);
       else if (data.result === "empty") toast("这次没有值得沉淀的新经验");
       else if (data.result === "unparsed") toast("模型没按格式返回，本次没有新增经验", true);
       else toast(data.error || "提炼失败，原因已记在提炼记录里", true);

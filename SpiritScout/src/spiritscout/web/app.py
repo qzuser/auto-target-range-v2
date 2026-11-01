@@ -118,11 +118,11 @@ def create_app(cfg: SystemConfig, models: list[ModelEntry], *,
         with suppress(OSError, sqlite3.Error):
             from spiritscout.knowledge.experience import (
                 absorb_session_dbs,
-                experience_db_path,
+                shared_db_path,
             )
 
             absorb_session_dbs(
-                experience_db_path(cfg.experience.root, cfg.workspace.root),
+                shared_db_path(cfg),
                 Path(cfg.workspace.root) / "sessions")
         # 读取已存在的资产，不启动旧会话或发起网络探测。
         for path in (Path(cfg.workspace.root)/"sessions").glob("sess-*"):
@@ -169,11 +169,11 @@ def create_app(cfg: SystemConfig, models: list[ModelEntry], *,
     @app.get("/api/dashboard")
     def dashboard_data(period: str = Query("today", pattern="^(hour|today|7d|30d|all)$")) -> dict[str, Any]:
         """北京时间的执行、成果、费用与缓存总览；只读，不干预调度。"""
-        from spiritscout.knowledge.experience import experience_db_path, read_recent
+        from spiritscout.knowledge.experience import read_recent, shared_db_path
 
         data = dashboard_reader.build(manager.list(), period=period)
         data["experience"] = read_recent(
-            experience_db_path(cfg.experience.root, cfg.workspace.root), limit=8)
+            shared_db_path(cfg), limit=8)
         return data
 
     @app.get("/api/experience")
@@ -187,10 +187,10 @@ def create_app(cfg: SystemConfig, models: list[ModelEntry], *,
         跳过，让「学没学到、为什么没学到」对用户完全可见。
         include_merged=true 时连「已被二次提炼合并掉」的原件一起给出（可还原）。
         """
-        from spiritscout.knowledge.experience import experience_db_path, read_page
+        from spiritscout.knowledge.experience import read_page, shared_db_path
 
         data = read_page(
-            experience_db_path(cfg.experience.root, cfg.workspace.root),
+            shared_db_path(cfg),
             q=q, tag=tag, limit=limit, offset=offset,
             include_merged=include_merged)
         titles = {s.session_id: s.brief(include_summary=False)["title"]
@@ -207,23 +207,23 @@ def create_app(cfg: SystemConfig, models: list[ModelEntry], *,
                                     ) -> dict[str, Any]:
         """二次提炼候选：只给「整组两两都极相似」的组，供用户复核后再合并。"""
         from spiritscout.knowledge.experience import (
-            experience_db_path,
             merge_candidates,
+            shared_db_path,
         )
 
         groups = merge_candidates(
-            experience_db_path(cfg.experience.root, cfg.workspace.root),
+            shared_db_path(cfg),
             threshold=threshold, limit=limit)
         return {"threshold": threshold, "groups": groups, "count": len(groups)}
 
     @app.post("/api/experience/merge")
     def experience_merge(payload: MergePayload) -> dict[str, Any]:
         """合并压缩选定经验：原件只标记不删除，随时可还原。"""
-        from spiritscout.knowledge.experience import experience_db_path, merge_insights
+        from spiritscout.knowledge.experience import merge_insights, shared_db_path
 
         try:
             return merge_insights(
-                experience_db_path(cfg.experience.root, cfg.workspace.root),
+                shared_db_path(cfg),
                 payload.ids, threshold=payload.threshold,
                 audit=AuditLogger(cfg.audit_log_path))
         except SpiritScoutError as exc:
@@ -233,13 +233,13 @@ def create_app(cfg: SystemConfig, models: list[ModelEntry], *,
     def experience_merge_restore(payload: MergeRestorePayload) -> dict[str, Any]:
         """还原一次合并：原件解封，派生的合并条目移除。"""
         from spiritscout.knowledge.experience import (
-            experience_db_path,
             restore_merge,
+            shared_db_path,
         )
 
         try:
             result = restore_merge(
-                experience_db_path(cfg.experience.root, cfg.workspace.root),
+                shared_db_path(cfg),
                 payload.merged_id, audit=AuditLogger(cfg.audit_log_path))
         except SpiritScoutError as exc:
             raise HTTPException(500, str(exc)) from exc
@@ -254,11 +254,11 @@ def create_app(cfg: SystemConfig, models: list[ModelEntry], *,
         经验库是模型产出、用户可审可清；删除在系统审计留痕（actor=user），
         被删内容不参与后续会话召回。
         """
-        from spiritscout.knowledge.experience import delete_insight, experience_db_path
+        from spiritscout.knowledge.experience import delete_insight, shared_db_path
 
         try:
             item = delete_insight(
-                experience_db_path(cfg.experience.root, cfg.workspace.root),
+                shared_db_path(cfg),
                 insight_id, audit=AuditLogger(cfg.audit_log_path))
         except SpiritScoutError as exc:
             raise HTTPException(500, str(exc)) from exc
@@ -308,9 +308,10 @@ def create_app(cfg: SystemConfig, models: list[ModelEntry], *,
         events: list[dict[str, Any]] = [e for rows in audited.values() for e in rows]
 
         try:
-            from spiritscout.knowledge.experience import experience_db_path
+            from spiritscout.knowledge.experience import shared_db_path
+
             conn = sqlite3.connect(
-                str(experience_db_path(cfg.experience.root, cfg.workspace.root)))
+                str(shared_db_path(cfg)))
             try:
                 rows = conn.execute(
                     "SELECT source_session, COUNT(*), MAX(ts) FROM insights "

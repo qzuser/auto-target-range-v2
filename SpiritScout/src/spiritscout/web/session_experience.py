@@ -20,7 +20,11 @@ from typing import Any
 from spiritscout.blackboard import Blackboard
 from spiritscout.core.audit import AuditLogger
 from spiritscout.core.models import BlackboardLayer
-from spiritscout.knowledge.experience import ExperienceStore, experience_db_path
+from spiritscout.knowledge.experience import (
+    DEFAULT_DUPLICATE_THRESHOLD,
+    ExperienceStore,
+    shared_db_path,
+)
 
 SESSION_INSIGHTS_LIMIT = 100
 DISTILL_EVENTS_LIMIT = 8
@@ -219,9 +223,7 @@ def experience_library(cfg: Any) -> Path:
     会话工作区：手动提炼曾经按 ``session.workspace`` 算路径，条目写进
     ``sessions/<id>/experience.db``，经验库页读共享库，于是「提炼了却查不到」。
     """
-    root = getattr(getattr(cfg, "experience", None), "root", "")
-    workspace = getattr(getattr(cfg, "workspace", None), "root", "")
-    return experience_db_path(str(root or ""), str(workspace or ""))
+    return shared_db_path(cfg)
 
 
 def session_page(cfg: Any, session: Any) -> dict[str, Any]:
@@ -321,7 +323,10 @@ async def distill_now(cfg: Any, session: Any, *, models: list[Any]) -> dict[str,
         audit = AuditLogger(session.audit_path)
         digest = session_digest(session)
         started = time.monotonic()
-        store = ExperienceStore(experience_library(cfg), audit=audit)
+        store = ExperienceStore(
+            experience_library(cfg), audit=audit,
+            duplicate_threshold=getattr(cfg.experience, "duplicate_threshold",
+                                        DEFAULT_DUPLICATE_THRESHOLD))
         try:
             try:
                 gateway = _conversation_gateway(cfg, models, audit)

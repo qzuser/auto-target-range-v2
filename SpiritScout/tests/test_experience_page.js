@@ -191,5 +191,35 @@ const distillBtn = () => tabEl.querySelector("[data-distill]");
   assert.match(tabState.toasts[0][0], /还在执行/);
   assert.equal(distillBtn().textContent, "手动提炼", "失败后按钮文案要还原");
 
+  // ⑥ 有重复被取消：成功文案要交代「新增几条、跳过几条重复」
+  tabState.toasts = [];
+  tabState.distill = {
+    result: "ok", insights: 1, duplicates: 2, trigger: "manual", total: 1,
+    items: [{insight_id: "exp-3", insight: "只有这条是新的", tags: ["web"], ts: 1762000200}],
+    history: [{ts: "2026-11-01T20:20:00", result: "ok", insights: 1, duplicates: 2,
+               outcome: "completed", trigger: "manual"}],
+  };
+  tabState.page = {...tabState.distill,
+                   state: {status: "completed", can_distill: true, distilling: false, reason: ""}};
+  await Tab.distill();
+  assert.match(tabState.toasts[0][0], /新增 1 条经验/);
+  assert.match(tabState.toasts[0][0], /跳过 2 条与库里高度重复的/, "取消了几条要说清楚");
+  assert.match(histOf().innerHTML, /跳过 2 条重复/, "提炼记录里也留痕");
+
+  // ⑦ 全都重复：不算失败，但也不谎报「新增」，记录标记「与库里重复」
+  tabState.toasts = [];
+  tabState.distill = {
+    result: "duplicate", insights: 0, duplicates: 3, trigger: "manual", total: 0,
+    items: [],
+    history: [{ts: "2026-11-01T20:30:00", result: "duplicate", insights: 0,
+               duplicates: 3, outcome: "completed", trigger: "manual"}],
+  };
+  tabState.page = {...tabState.distill,
+                   state: {status: "completed", can_distill: true, distilling: false, reason: ""}};
+  await Tab.distill();
+  assert.equal(tabState.toasts[0][1], false, "重复不是错误");
+  assert.match(tabState.toasts[0][0], /都与库里高度重复/);
+  assert.match(histOf().innerHTML, /与库里重复/);
+
   console.log("test_session_experience_tab: 全部通过");
 })().catch(err => { console.error(err); process.exit(1); });

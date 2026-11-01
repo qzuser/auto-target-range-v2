@@ -20,7 +20,12 @@ def _cfg(root: Path) -> SystemConfig:
 
 
 def _seed(root: Path) -> dict[str, str]:
-    store = ExperienceStore(root / "experience.db")
+    """造一组「极相似但都已经进库」的条目。
+
+    入库判重（0.95）会挡掉新写入的同义句，所以这里显式关掉那道闸门——二次提炼
+    面对的是**历史数据**（旧版本写进来的同义句、外部导入的库），两组能力各测各的。
+    """
+    store = ExperienceStore(root / "experience.db", duplicate_threshold=0)
     try:
         a = store.add("登录接口错误文案不一致说明存在用户名枚举",
                       context="登录接口", tags=["web"], source_session="sess-known")
