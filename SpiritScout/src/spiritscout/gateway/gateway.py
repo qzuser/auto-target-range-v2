@@ -227,6 +227,57 @@ class ModelGateway:
         )
         self._mock = mock_backend or MockBackend()
         self._rate_state: dict[str, list[float]] = {}
+        # 会话级模型选择：str = 固定；callable = 每次调用现取（会话页改选择即时生效）
+        self._session_model: Any = ""
+        # 失效的会话选择只记一次审计（每条调用都记会淹没审计流）
+        self._missing_logged: set[str] = set()
+
+    def set_session_model(self, model: Any) -> None:
+        """设置本会话优先使用的模型（空 = 跟随设置页的优先级链）。
+
+        传字符串就是快照，传 callable 则每次调用现取——Web 端传
+        `lambda: session.model`，用户在会话页换了模型，下一批调用立刻改道，
+        不用重启会话。取不到（会话已删）时按空处理，即回到全局优先级。
+        """
+        self._session_model = model or ""
+
+    def _preferred(self) -> str:
+        """本会话当前选的模型（callable 现取；异常/空值一律视为未选）。"""
+        source = self._session_model
+        if callable(source):
+            try:
+                source = source()
+            except Exception:  # noqa: BLE001 —— 取不到就是没选，不能让路由陪葬
+                return ""
+        return str(source or "").strip()
+
+    def session_model(self) -> str:
+        """当前会话选定的模型（空串 = 跟随设置页优先级链）。"""
+        return self._preferred()
+
+    def resolve_model(self, task_type: str = "execution", *,
+                      model: str | None = None) -> str:
+        """此刻这条调用会落到哪个模型（不改任何状态，供界面提示与自检）。"""
+        return self._route(task_type, model=model).model
+
+    def _route(self, task_type: str, *, model: str | None,
+               required_capability: str | None = None) -> ModelEntry:
+        """路由入口：显式绑定 > 会话选定 > 设置页优先级链。
+
+        会话选的模型若已被停用/改名（注册表里没了），退回优先级链而不是让
+        整轮调用报「未注册的模型」——用户已经把这个模型删了，会话不该因此停摆。
+        """
+        prefer = (model or "").strip() or self._preferred()
+        if prefer and not self.registry.has(prefer):
+            if prefer not in self._missing_logged:
+                self._missing_logged.add(prefer)
+                self.audit.log("model.override_missing", "gateway", {
+                    "model": prefer, "task_type": task_type})
+            prefer = ""
+        return self.registry.route(
+            task_type, prefer_model=prefer or None,
+            required_capability=required_capability,
+        )
 
     def set_mode(self, mode: str) -> None:
         """设置当前运行模式（src/ctf/competition）：按模式分开计量用量。"""
@@ -264,9 +315,8 @@ class ModelGateway:
         由模型档案声明（ModelEntry.max_output_tokens）或端点自定；上限只影响
         生成在哪停，设小了思考型模型会把额度耗在思考上、正文被截成半截。
         小通道（路由/连通性探测）可传定值收紧。"""
-        entry = self.registry.route(
-            task_type, prefer_model=model,
-            required_capability=required_capability,
+        entry = self._route(
+            task_type, model=model, required_capability=required_capability,
         )
         chain = [entry, *self.registry.fallback_of(entry.model)]
 
@@ -339,15 +389,15 @@ class ModelGateway:
         """和 chat 使用同一路由，向对话所有者暴露输入整理阈值。"""
         from spiritscout.gateway.context import input_window_budget
 
-        entry = self.registry.route(task_type, prefer_model=model,
-                                    required_capability=required_capability)
+        entry = self._route(task_type, model=model,
+                            required_capability=required_capability)
         return input_window_budget(entry.context_window, max_tokens or entry.max_output_tokens)
 
     # ------------------------------------------------------------ 内部
 
     def context_identity(self, *, model: str | None = None, task_type: str = "execution") -> dict[str, str]:
         """对话协议身份；不包含密钥，供显式接力核对模型与端点。"""
-        entry = self.registry.route(task_type, prefer_model=model)
+        entry = self._route(task_type, model=model)
         return {"model": entry.model, "provider": entry.provider,
                 "base_url": entry.base_url, "api_format": entry.api_format}
 
@@ -548,25 +598,45 @@ class AgentBoundGateway:
     chat 未显式给 model 时注入该 Agent 被指派的模型；模型为空 = 不干预
     （维持档位路由现状）。其余属性（budget/usage_report/...）全部透传内层网关，
     预算计量、限流、主备切换、降级语义不变——本包装只改「谁来答」，不改治理。
+
+    session_first=True 用于**主 Agent 车道**：会话页选的模型优先于编队里给
+    灵枢的指派（用户当场改的选择压过全局配置），每次调用现取，改造即生效。
     """
 
-    def __init__(self, inner: ModelGateway, model: str = "") -> None:
+    def __init__(self, inner: ModelGateway, model: str = "", *,
+                 session_first: bool = False) -> None:
         self._inner = inner
         self._model = model
+        self._session_first = session_first
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._inner, name)
 
+    def _bound(self) -> str:
+        if self._session_first:
+            current = self._inner.session_model()
+            if current:
+                return current
+        return self._model
+
     async def chat(self, messages: list[dict[str, str]], **kwargs: Any) -> ChatResponse:
-        if self._model and not kwargs.get("model"):
-            kwargs["model"] = self._model
+        bound = self._bound()
+        if bound and not kwargs.get("model"):
+            kwargs["model"] = bound
         return await self._inner.chat(messages, **kwargs)
 
     def context_budget(self, **kwargs: Any) -> int | None:
         """容量查询也必须遵从编队绑定，不能错用注册表第一个模型。"""
-        if self._model and not kwargs.get("model"):
-            kwargs["model"] = self._model
+        bound = self._bound()
+        if bound and not kwargs.get("model"):
+            kwargs["model"] = bound
         return self._inner.context_budget(**kwargs)
+
+    def resolve_model(self, task_type: str = "execution", *,
+                      model: str | None = None) -> str:
+        """预览时也要带上绑定：否则界面显示的模型与真正调用的不一致。"""
+        bound = self._bound()
+        return self._inner.resolve_model(task_type, model=model or bound or None)
 
     def context_identity(self, **kwargs: Any) -> dict[str, str]:
         if self._model and not kwargs.get("model"):

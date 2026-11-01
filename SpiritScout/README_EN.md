@@ -9,7 +9,7 @@ and progress, evidence, and artifacts stay in the same session.
 
 **English · [简体中文](README.md)**
 
-[![Version](https://img.shields.io/badge/version-v0.33.0-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
+[![Version](https://img.shields.io/badge/version-v0.34.0-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
 
 [Quick start](#quick-start) · [Three modes](#three-modes) · [Interface](#interface) · [How it works](#how-it-works) · [Configuration](#configuration) · [FAQ](#faq) · [Deployment guide (中文)](docs/部署与配置.md)
 
@@ -31,6 +31,8 @@ Where it differs from "a chat box with a pile of tools":
 | **It asks, sometimes** | SRC dangerous operations require per-action approval; CTF and competition runs are pre-authorized but fully audited |
 
 Models are not fixed: providers, model IDs, and per-role assignments are configured in the console and take effect immediately. Solution templates are not hardcoded — the knowledge base holds reference facts (platform behaviour, payloads, pitfalls), and the model decides the step sequence from what it sees.
+
+Routing order is explicit assignment > session pick > the priority chain from the **Models** page. That chain is re-read while the service runs (every `gateway.priority_refresh_seconds`, 30 s by default), so reordering it affects sessions already in flight. Each session also has its own model picker in the session header: pick one and only that session switches over (lead agent plus sub-agents without an explicit assignment); per-role assignments in **Team** still win, and clearing the pick returns the session to the global chain.
 
 ## Three modes
 
@@ -312,7 +314,7 @@ Use `python deploy.py migrate` for Docker. Manually: stop the service, copy `.sp
 
 ## Docs and contributing
 
-Current code version: **v0.33.0**. The single source of the version, the bump rules, and the history: see [version management (中文)](CONTRIBUTING.md#版本管理).
+Current code version: **v0.34.0**. The single source of the version, the bump rules, and the history: see [version management (中文)](CONTRIBUTING.md#版本管理).
 
 | I want to | Read |
 | --- | --- |
