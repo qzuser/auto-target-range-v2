@@ -972,6 +972,10 @@ dialog.panel { width: min(880px, 94vw); padding: 0; overflow: hidden; max-height
 .aw-agent strong { font-size: 13px; }
 .aw-agent small { margin-top: 5px; font-size: 11px; color: var(--accent-ink); }
 .aw-agent > span { font-family: var(--mono); font-size: 9px; color: var(--ink-2); margin-top: 5px; }
+/* 每个实例当前用的模型与渠道：字体比状态小一号，长名字省略不换行 */
+.aw-agent-model { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  margin-top: 5px; font-family: var(--mono); font-size: 9px; font-style: normal; color: var(--ink-2); }
+.aw-model { color: var(--accent-ink) !important; }
 .aw-pane { flex: 1 1 auto; min-height: 0; min-width: 0; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 0 12px 12px; overflow-wrap: anywhere; }
 .aw-columns { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 18px; }
 .aw-columns > section { min-width: 0; }
