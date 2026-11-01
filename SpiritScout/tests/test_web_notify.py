@@ -128,6 +128,34 @@ class SolvedFlagTests(unittest.TestCase):
         os.utime(path, (stamp, stamp))       # 明确的 mtime 变化，不赌文件系统精度
         self.assertEqual(len(notify.solved_items(session)), 2, "文件变了缓存要跟着失效")
 
+    def test_cache_stamp_includes_size_so_same_tick_rewrites_are_seen(self) -> None:
+        session = _session(self.root, flags=[_flag("flag{one}", accepted=True)])
+        self.assertEqual(len(notify.solved_items(session)), 1)
+        path = session.flags_path
+        stamp = path.stat().st_mtime
+        path.write_text(json.dumps([
+            _flag("flag{one}", accepted=True),
+            _flag("flag{two}", accepted=True, challenge="web-2"),
+        ]), encoding="utf-8")
+        os.utime(path, (stamp, stamp))       # mtime 故意压回原值，只剩大小能区分
+        self.assertEqual(len(notify.solved_items(session)), 2,
+                         "同一 mtime 下文件大小变了也要重读")
+
+    def test_cache_is_bounded_and_drops_the_oldest(self) -> None:
+        original = notify._CACHE_MAX
+        notify._CACHE_MAX = 3
+        try:
+            for index in range(6):
+                session = _session(self.root, session_id=f"sess-{index}",
+                                   flags=[_flag(f"flag{{{index}}}", accepted=True)])
+                self.assertEqual(len(notify.solved_items(session)), 1)
+            self.assertLessEqual(len(notify._CACHE), 3, "缓存必须有界")
+            self.assertIn(str(self.root / "sess-5" / "flags.json"), notify._CACHE,
+                          "最近用到的条目不能被淘汰")
+        finally:
+            notify._CACHE_MAX = original
+            notify._CACHE.clear()
+
     def test_broken_or_missing_files_are_ignored(self) -> None:
         broken = _session(self.root, session_id="sess-broken")
         broken.flags_path.write_text("{ not json", encoding="utf-8")
@@ -211,6 +239,12 @@ class SnapshotTests(unittest.TestCase):
         data = notify.snapshot([session])
         self.assertEqual(len(data["items"]), notify.MAX_ITEMS)
         self.assertEqual(data["counts"]["solved"], notify.MAX_ITEMS + 12)
+        self.assertTrue(data["truncated"], "被截断要明说，客户端才知道还有没列出来的")
+
+    def test_small_snapshot_is_not_truncated(self) -> None:
+        session = _session(self.root, flags=[_flag("flag{x}", accepted=True)])
+        self.assertFalse(notify.snapshot([session])["truncated"])
+        self.assertFalse(notify.snapshot([])["truncated"])
 
     def test_revision_changes_only_with_ids(self) -> None:
         session = _session(self.root, flags=[_flag("flag{x}", accepted=True)])
@@ -245,6 +279,7 @@ class RouteTests(unittest.TestCase):
             self.assertEqual(payload["counts"]["solved"], 1)
             self.assertEqual(payload["items"][0]["session_id"], "sess-a")
             self.assertIn("revision", payload)
+            self.assertIs(payload["truncated"], False, "字段一个都不能少，客户端按它判断要不要提示还有")
 
 
 class AppSmokeTests(unittest.TestCase):

@@ -9,7 +9,7 @@
 
 **简体中文 · [English](README_EN.md)**
 
-[![Version](https://img.shields.io/badge/version-v0.25.0-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
+[![Version](https://img.shields.io/badge/version-v0.25.1-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
 
 [快速开始](#快速开始) · [三种模式](#三种模式) · [界面](#界面) · [工作原理](#工作原理) · [配置参考](#配置参考) · [常见问题](#常见问题) · [部署指南](docs/部署与配置.md)
 
@@ -70,7 +70,7 @@
 | **通知** | 解出题、灵枢等你拍板时弹系统通知；开关、权限、已读都在这页 |
 | **关于** | 版本、主题切换、退出登录 |
 
-跑在后台的任务最怕「解出来了没人告诉你」。**解出一道题（平台判定正确），或者灵枢卡在需要你回答的问题上，控制台会弹一条系统通知**——切到别的窗口也收得到，点一下直接跳回那个会话。浏览器没给通知权限时退化成页面内提示加标签页标题计数，不会静默跳过；正看着那个会话、屏幕上已经有提问卡时不再重复弹。拉取的节奏跟着控制台原有的轮询（可见 15 秒、隐藏 30 秒），不另开定时器，也不在服务端记「已读」——多开几个标签页，各看各的屏。
+跑在后台的任务最怕「解出来了没人告诉你」。**解出一道题（平台判定正确），或者灵枢卡在需要你回答的问题上，控制台会弹一条系统通知**——切到别的窗口也收得到，点一下直接跳回那个会话。浏览器没给通知权限时退化成页面内提示加标签页标题计数，不会静默跳过；正看着那个会话、屏幕上已经有提问卡时不再重复弹；一轮积压太多只弹前三条，其余折成一条「另有 N 条提醒」，剩下的去「设置 → 通知」的「最近提醒」里看。拉取的节奏跟着控制台原有的轮询（可见 15 秒、隐藏 30 秒），不另开定时器，也不在服务端记「已读」——多开几个标签页，各看各的屏。
 
 会话内的页签：**题目** · **实况** · **事件** · **Flag** · **拓扑** · **漏洞** · **交付物** · **报告** · **解题思路**。
 「解题思路」只在 CTF 模式出现——生成前先确认团队信息与题目分章，可以留空，填过的会记住。
@@ -352,7 +352,7 @@ Docker 用 `python deploy.py migrate`；手工迁移时停服 → 拷 `.spiritsc
 
 ## 文档与贡献
 
-当前代码版本 **v0.25.0**。版本唯一来源、递增规则与历史说明见 [版本管理](CONTRIBUTING.md#版本管理)。
+当前代码版本 **v0.25.1**。版本唯一来源、递增规则与历史说明见 [版本管理](CONTRIBUTING.md#版本管理)。
 
 | 我想了解 | 阅读入口 |
 | --- | --- |

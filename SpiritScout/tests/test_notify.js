@@ -167,6 +167,33 @@ const asked = (id, at) => ({id: `ask:sess-b:${id}`, kind: "question", session_id
     assert.equal(blocked.toasts.length, 1);
   }
 
+  // 10) 一轮积压太多：只弹前三条，剩下的折成一条汇总，条目照样记已读
+  {
+    const items = Array.from({length: 5}, (_, i) => solved(`b${i}`, 10 + i));
+    const box = harness({fetchItems: async () => ({items})});
+    const raised = await box.engine.check();
+    assert.equal(FakeNotification.created.length, 4, "三条实体 + 一条汇总");
+    assert.equal(raised.length, 4);
+    const summary = raised[raised.length - 1];
+    assert.equal(summary.kind, "burst");
+    assert.equal(summary.overflow, 2);
+    assert.match(FakeNotification.created[3].options.body, /另有 2 条/,
+      "汇总要说出还剩几条");
+    assert.equal(JSON.parse(box.storage.getItem("ss.notify.seen")).length, 5,
+      "被折掉的也必须记已读，否则下一轮又弹");
+    assert.equal((await box.engine.check()).length, 0, "同一批不能再响一次");
+  }
+
+  // 11) 设置页的「最近提醒」一行：类别 + 正文 + 会话名
+  {
+    const api = loadModule();
+    assert.equal(api.brief(solved("a1")), "解出一道题：web-1 · flag{a1}（打一台 Web）");
+    assert.equal(api.brief(asked("q1")), "灵枢在等你回答：要加入 example.com 吗？（授权确认）");
+    assert.equal(api.brief({kind: "question", body: "", session_title: ""}),
+      "灵枢在等你回答：点击查看", "没正文没会话名也得有兜底文案");
+  }
+
   console.log('notify: system notification, dedupe, focus-click, fallback toast, '
-    + 'current-session quiet, switch, corrupt storage, bounded seen and self-test passed');
+    + 'current-session quiet, switch, corrupt storage, bounded seen, burst cap, '
+    + 'brief text and self-test passed');
 })().catch(error => { console.error(error); process.exitCode = 1; });

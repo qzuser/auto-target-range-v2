@@ -11,6 +11,9 @@
      再弹一次是骚扰。 */
 const ConsoleNotify = (() => {
   const ENABLED_KEY = "ss.notify.enabled", SEEN_KEY = "ss.notify.seen", SEEN_MAX = 400;
+  /* 一轮最多弹几条：隔一天回来可能有十几条积压，一次性糊一屏通知不如折成
+     三条加一句「还有 N 条」，剩下的在控制台里逐条看 */
+  const MAX_BURST = 3;
   const KIND_TITLE = {solved: "解出一道题", question: "灵枢在等你回答"};
   const PERM_CN = {granted: "已允许", denied: "已被浏览器拒绝", default: "尚未授权",
                    unsupported: "此浏览器不支持"};
@@ -91,10 +94,19 @@ const ConsoleNotify = (() => {
         && !seen.has(item.id));
       for (const item of fresh) seen.add(item.id);
       const raised = [];
+      let overflow = 0;
       for (const item of fresh) {
         if (!enabled()) continue;
         if (isCurrent(item.session_id) && doc.visibilityState === "visible") continue;
+        if (raised.length >= MAX_BURST) { overflow += 1; continue; }
         if (raise(item)) raised.push(item);
+      }
+      if (overflow) {
+        // 汇总条不进 seen：它只是个计数，条目本身各自已经记过了
+        const note = raise({id: "burst", kind: "burst", session_id: "",
+          title: "还有几条提醒",
+          body: `另有 ${overflow} 条提醒，点开控制台逐条看`});
+        if (note) raised.push({kind: "burst", overflow});
       }
       /* 无论有没有真弹出来都记已读：开关关着、页面正看着的时候也不该攒着，
          等打开了再一股脑补一遍历史提醒。 */
@@ -143,6 +155,15 @@ const ConsoleNotify = (() => {
 
   function permissionText(state) { return PERM_CN[state] || state; }
 
+  /* 「最近提醒」那一行：把快照里最新几条压成一句话，设置页才看得出真有什么 */
+  function briefOf(item) {
+    const body = String((item && item.body) || "").trim();
+    const name = String((item && item.session_title) || "").trim();
+    const text = body && name ? `${body}（${name}）` : (body || name || "点击查看");
+    const kind = (item && (KIND_TITLE[item.kind] || item.title)) || "提醒";
+    return `${kind}：${text}`;
+  }
+
   function render(root, ctl) {
     root.innerHTML = `<div class="set-card">
       <h2>通知</h2>
@@ -154,8 +175,8 @@ const ConsoleNotify = (() => {
         <div><dt>待提醒</dt><dd data-notify-pending>—</dd></div>
         <div><dt>已读记录</dt><dd data-notify-seen>—</dd></div>
       </dl>
-      <label class="set-check"><input type="checkbox" data-notify-toggle> 解出题目或需要我回答时提醒我</label>
-      <div class="set-about-actions">
+      <p class="set-note" data-notify-recent>—</p>
+      <label class="set-check"><input type="checkbox" data-notify-toggle> 解出题目或需要我回答时提醒我</label>      <div class="set-about-actions">
         <button class="btn primary" type="button" data-notify-allow>允许系统通知</button>
         <button class="btn" type="button" data-notify-test>发一条测试通知</button>
         <button class="btn" type="button" data-notify-clear>清空已读记录</button>
@@ -195,6 +216,9 @@ const ConsoleNotify = (() => {
       root.querySelector("[data-notify-pending]").textContent =
         `解出 ${solved} 条 · 待答 ${asked} 条`;
       root.querySelector("[data-notify-seen]").textContent = `${ctl.seenCount()} 条已提醒`;
+      const recent = ctl.items().slice(0, 3).map(briefOf);
+      root.querySelector("[data-notify-recent]").textContent = recent.length
+        ? `最近：${recent.join("；")}` : "最近还没有需要提醒的事。";
       root.querySelector("[data-notify-note]").textContent = perm === "granted"
         ? "系统通知已可用。点「发一条测试通知」看效果；正看着某个会话时不会重复弹。"
         : "浏览器没给通知权限时会退化成页面内提示 + 标签页标题计数，不会漏掉。";
@@ -214,5 +238,5 @@ const ConsoleNotify = (() => {
     engine.check().then(() => { if (painter) painter(); }).catch(() => {});
   }
 
-  return {create, init, check, open, clearFlash};
+  return {create, init, check, open, clearFlash, brief: briefOf};
 })();

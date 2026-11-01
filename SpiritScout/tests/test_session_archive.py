@@ -6,6 +6,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
@@ -14,7 +15,7 @@ from spiritscout.config.settings import SystemConfig, WorkspaceConfig
 from spiritscout.core.models import BlackboardLayer
 from spiritscout.web.app import create_app
 from spiritscout.web.deliverables import open_artifact, read_deliverables
-from spiritscout.web.sessions import Session
+from spiritscout.web.sessions import Session, replace_with_retry
 
 
 class SessionArchiveTests(unittest.TestCase):
@@ -104,3 +105,33 @@ class SessionArchiveTests(unittest.TestCase):
         empty.mkdir()
         self.assertEqual(read_deliverables(empty)["total"], 0)
         self.assertFalse((empty / "bb.db").exists())
+
+class AtomicReplaceTests(unittest.TestCase):
+    """meta.json 的原子替换要扛得住 Windows 上被杀软/索引短暂占用的那一下。"""
+
+    def test_retries_through_transient_lock(self) -> None:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            source, target = Path(tmp) / "meta.json.tmp", Path(tmp) / "meta.json"
+            source.write_text("{}", encoding="utf-8")
+            real, calls = Path.replace, {"count": 0}
+
+            def flaky(self, destination):
+                calls["count"] += 1
+                if calls["count"] < 3:
+                    raise PermissionError(13, "拒绝访问")
+                return real(self, destination)
+
+            with patch.object(Path, "replace", flaky):
+                replace_with_retry(source, target, delay=0)
+            self.assertEqual(calls["count"], 3, "前两次被占用，第三次应当成功")
+            self.assertEqual(target.read_text(encoding="utf-8"), "{}")
+
+    def test_gives_up_after_last_attempt(self) -> None:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            source, target = Path(tmp) / "a", Path(tmp) / "b"
+            source.write_text("x", encoding="utf-8")
+            with patch.object(Path, "replace",
+                              side_effect=PermissionError(13, "拒绝访问")) as mocked:
+                with self.assertRaises(PermissionError):
+                    replace_with_retry(source, target, attempts=3, delay=0)
+            self.assertEqual(mocked.call_count, 3, "重试有上限，不能死循环")

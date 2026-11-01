@@ -21,7 +21,7 @@ from spiritscout.web.sessions import DIALOGUE_HISTORY_MAX, Session, SessionManag
 
 class UserContextIngressTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
-        temp = tempfile.TemporaryDirectory()
+        temp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
         self.addCleanup(temp.cleanup)
         root = Path(temp.name)
         self.cfg = SystemConfig(workspace=WorkspaceConfig(root=str(root)),
