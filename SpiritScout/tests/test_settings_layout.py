@@ -26,7 +26,7 @@ STATIC = ROOT / "src" / "spiritscout" / "web" / "static"
 INDEX = STATIC / "index.html"
 CORE = STATIC / "js" / "core.js"
 
-MAIN_NAV = ["home", "dash", "agents", "projects", "exp"]
+MAIN_NAV = ["home", "dash", "usage", "agents", "projects", "exp"]
 SET_TABS = ["models", "mcp", "skill", "notify", "about"]
 SET_PANEL_IDS = ["view-models", "view-mcp", "view-skill", "view-notify", "view-about"]
 VOID = {
@@ -74,7 +74,7 @@ def _parse() -> tuple[_Tree, str]:
 
 
 class MainNavigationTests(unittest.TestCase):
-    def test_sidebar_has_exactly_the_four_primary_entries(self) -> None:
+    def test_sidebar_has_the_expected_primary_entries(self) -> None:
         _, html = _parse()
         nav_block = re.search(r"<nav>(.*?)</nav>", html, re.S)
         self.assertIsNotNone(nav_block, "侧栏 <nav> 不见了")

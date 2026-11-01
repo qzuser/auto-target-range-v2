@@ -1443,3 +1443,41 @@ dialog.panel { width: min(880px, 94vw); padding: 0; overflow: hidden; max-height
 .cache-error { margin: 0 0 12px; font-size: 12.5px; color: #c0392b; }
 .cache-actions { display: flex; align-items: center; gap: 12px; }
 .cache-actions small { color: var(--ink-3); }
+
+/* ================= 用量统计：按模型看 token ================= */
+.usage-head { display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+.usage-head h2 { margin: 0 0 6px; font-size: 22px; font-weight: 700; letter-spacing: -.01em; }
+.u-sub { font-size: 12.5px; color: var(--ink-3); }
+.u-ops { display: flex; align-items: center; gap: 8px; }
+.u-ops select { padding: 5px 10px; border-radius: 8px; border: 1px solid var(--line, #d8d8e0);
+  background: var(--card, #fff); color: inherit; font-size: 13px; }
+.u-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px; margin-bottom: 18px; }
+.u-card { border: 1px solid var(--line, #e2e2ea); border-radius: 12px;
+  background: var(--surface, #fff); padding: 12px 14px; display: flex;
+  flex-direction: column; gap: 6px; }
+.u-card span { font-size: 12px; color: var(--ink-3); }
+.u-card b { font-size: 19px; font-weight: 700; letter-spacing: -.01em; }
+.u-table { width: 100%; border-collapse: collapse; font-size: 13px;
+  border: 1px solid var(--line, #e2e2ea); border-radius: 12px; overflow: hidden; }
+.u-table thead th { text-align: right; font-weight: 600; font-size: 12px;
+  color: var(--ink-3); padding: 10px 12px; border-bottom: 1px solid var(--line, #e6e6ee);
+  background: var(--surface-2, #fafafc); white-space: nowrap; }
+.u-table thead th:first-child { text-align: left; }
+.u-table td { padding: 9px 12px; border-bottom: 1px solid var(--line, #f0f0f5);
+  white-space: nowrap; }
+.u-table tr:last-child td { border-bottom: 0; }
+.u-model { max-width: 260px; overflow: hidden; text-overflow: ellipsis;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; }
+.u-num { text-align: right; font-variant-numeric: tabular-nums; }
+.u-total { font-weight: 700; }
+.u-share { min-width: 130px; }
+.u-bar { display: inline-block; width: 82px; height: 6px; border-radius: 3px;
+  background: var(--line, #ececf2); overflow: hidden; vertical-align: middle; }
+.u-bar i { display: block; height: 100%; background: var(--accent, #4f6ef7); }
+.u-pct { margin-left: 6px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.u-time { color: var(--ink-3); font-size: 12px; }
+.usage-empty { margin: 18px 0; font-size: 13px; color: var(--ink-3); }
+.usage-error { margin: 0 0 14px; font-size: 13px; color: #c0392b; }
+.u-note { margin: 12px 0 0; font-size: 12px; color: var(--ink-3); }

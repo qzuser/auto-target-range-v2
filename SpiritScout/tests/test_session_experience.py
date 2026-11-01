@@ -24,7 +24,7 @@ from fastapi.testclient import TestClient
 from spiritscout.blackboard import Blackboard
 from spiritscout.config.settings import SystemConfig, WorkspaceConfig
 from spiritscout.core.models import BlackboardLayer
-from spiritscout.knowledge.experience import ExperienceStore, experience_db_path
+from spiritscout.knowledge.experience import ExperienceStore
 from spiritscout.web import session_experience as sx
 from spiritscout.web.routes.session_detail import mount_session_detail
 
@@ -95,7 +95,8 @@ class Case(unittest.TestCase):
                                 models_config_path=str(self.root / "models.yaml"))
 
     def db_path(self, session: Any) -> Path:
-        return experience_db_path(self.cfg.experience.root, str(session.workspace))
+        """共享经验库：会话页与经验库页读的是同一本。"""
+        return sx.experience_library(self.cfg)
 
 
 class ReadInsightTests(Case):

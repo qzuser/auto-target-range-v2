@@ -28,6 +28,56 @@ def experience_db_path(root: str, workspace: str) -> Path:
     return base / "experience.db"
 
 
+def absorb_session_dbs(target: str | Path, sessions_dir: str | Path) -> int:
+    """把旧版本落在各会话目录里的经验并进共享库，返回并入条数。
+
+    0.30.0 及以前，手动提炼读的是会话级配置，``experience.root`` 为空时
+    ``experience_db_path`` 会退化成 ``<会话目录>/experience.db``——条目写进了
+    会话自己的库，而「经验库」页和开工召回读的是共享库，于是「提炼了却查不到」。
+    这里做一次性并库：目标库已有的同文洞察按重复跳过（``ExperienceStore.add``
+    自带去重），所以重复执行无副作用。
+    """
+    target_path = Path(target)
+    source_dir = Path(sessions_dir)
+    if not source_dir.is_dir():
+        return 0
+    merged = 0
+    store: ExperienceStore | None = None
+    try:
+        for legacy in sorted(source_dir.glob("*/experience.db")):
+            if not legacy.is_file() or legacy.resolve() == target_path.resolve():
+                continue
+            rows = _read_all(legacy)
+            if not rows:
+                continue
+            if store is None:
+                store = ExperienceStore(target_path)
+            for row in rows:
+                if store.add(str(row.get("insight") or ""),
+                             context=str(row.get("context") or ""),
+                             tags=[str(tag) for tag in (row.get("tags") or [])],
+                             source_session=str(row.get("source_session") or ""),
+                             source_model=str(row.get("source_model") or "")):
+                    merged += 1
+    finally:
+        if store is not None:
+            store.close()
+    return merged
+
+
+def _read_all(db_path: Path) -> list[dict[str, Any]]:
+    """全量读取一个经验库文件；损坏或没有表一律当空库。"""
+    try:
+        conn = sqlite3.connect(db_path.resolve().as_uri() + "?mode=ro", uri=True)
+        try:
+            rows = conn.execute("SELECT * FROM insights").fetchall()
+        finally:
+            conn.close()
+    except (sqlite3.Error, OSError):
+        return []
+    return [_normalize(tuple(row)) for row in rows]
+
+
 def _normalize(row: tuple[Any, ...]) -> dict[str, Any]:
     """行 → 字典；tags 从 JSON 串还原为列表（坏数据按空列表处理）。"""
     item = dict(zip(_COLUMNS, row, strict=True))

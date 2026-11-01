@@ -111,10 +111,11 @@ async function logout() {
 $("#btn-logout").onclick = logout;
 
 /* ================= 视图切换 =================
-   主界面放五项：任务 / 仪表盘 / 编队 / 项目 / 经验。
+   主界面放六项：任务 / 仪表盘 / 用量 / 编队 / 项目 / 经验。
    模型、MCP 接入、Skill 知识、关于收进「设置」——设置是占满主区的独立界面，
    靠左侧分类栏切换而不是弹窗；S.view 仍记分类名，各页原有判断不受影响。 */
 const VIEWS = { home: "#view-home", session: "#view-session", dash: "#view-dash",
+                usage: "#view-usage",
                 agents: "#view-agents", projects: "#view-projects", exp: "#view-exp",
                 settings: "#view-settings" };
 const SET_TABS = { models: "#view-models", mcp: "#view-mcp", skill: "#view-skill",
@@ -139,6 +140,7 @@ function show(view) {
   if (view === "about") { renderAbout();
     if (typeof Maintenance !== "undefined") Maintenance.open(); }
   if (view === "dash") renderDash();
+  if (view === "usage" && typeof UsagePage !== "undefined") UsagePage.open();
   if (typeof ProjectsPage !== "undefined") {
     if (view === "projects") ProjectsPage.open(); else ProjectsPage.close();
   }
