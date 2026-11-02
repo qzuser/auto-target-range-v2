@@ -1,12 +1,14 @@
 """``python -m spiritscout --set-admin-password`` 的行为测试。
 
 这条命令是首次启动唯一的设密入口：启动脚本把 stdin 交给它，用户输入的明文
-只在这一个进程里存在，落盘的是 scrypt 哈希。所以这里盯四件事——写进去了、
-写的是哈希、第二次不覆盖、被拒绝时不留残骸。
+只在这一个进程里存在，落盘的是 scrypt 哈希。所以这里盯五件事——写进去了、
+写的是哈希、第二次不覆盖、被拒绝时不留残骸，以及「密码不设长度限制、明文只在
+交互终端里显示一次」这两条当前口径。
 """
 
 from __future__ import annotations
 
+import contextlib
 import io
 import shutil
 import sqlite3
@@ -100,14 +102,48 @@ class SetAdminPasswordCliTests(unittest.TestCase):
         self.assertTrue(
             auth.AdminStore(self.root / "ws").verify("spiritscout", "Typed-Secret"))
 
-    def test_mismatch_and_short_password_leave_no_database(self) -> None:
+    def test_mismatch_leaves_no_database(self) -> None:
         with patch("builtins.input", return_value=""), patch(
                 "getpass.getpass", side_effect=["One-Pass-1", "Two-Pass-2"]):
             self.assertEqual(self._run(tty=True), EXIT_PASSWORD_REJECTED)
         self.assertFalse(self.db.exists())
-        self.assertEqual(self._run("--password-stdin", stdin="short\n"),
-                         EXIT_PASSWORD_REJECTED)
+
+    def test_any_password_length_is_accepted(self) -> None:
+        """字符限制已经拆掉：一位的口令也照设，几千字的也照设。"""
+        self.assertEqual(self._run("--password-stdin", stdin="1\n"), 0)
+        self.assertTrue(auth.AdminStore(self.root / "ws").verify("spiritscout", "1"))
+        long_secret = "p" * 4096
+        self.assertEqual(self._run("--password-stdin", stdin=long_secret + "\n"), 0)
+        self.assertTrue(
+            auth.AdminStore(self.root / "ws").verify("spiritscout", long_secret))
+
+    def test_empty_password_sets_no_account(self) -> None:
+        self.assertEqual(self._run("--password-stdin", stdin="\n"), 0)
         self.assertFalse(self.db.exists())
+
+    def test_password_shown_once_in_interactive_terminal(self) -> None:
+        """交互终端设完把明文显示一次；之后的运行不再显示。"""
+        secret = "Shown-Once-1"
+        first = io.StringIO()
+        with patch("builtins.input", return_value=""), patch(
+                "getpass.getpass", side_effect=[secret, secret]), \
+                contextlib.redirect_stdout(first):
+            self.assertEqual(self._run(tty=True), 0)
+        self.assertIn(secret, first.getvalue())
+        self.assertIn("只在这里显示一次", first.getvalue())
+        second = io.StringIO()
+        with contextlib.redirect_stdout(second):
+            self.assertEqual(self._run("--password-stdin", "--if-missing",
+                                       stdin=secret + "\n"), 0)
+        self.assertNotIn(secret, second.getvalue())
+
+    def test_password_from_stdin_is_not_echoed(self) -> None:
+        """管道/自动化这条路不回显：明文不该跟着 stdout 进日志。"""
+        secret = "Piped-Secret-1"
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(self._run("--password-stdin", stdin=secret + "\n"), 0)
+        self.assertNotIn(secret, out.getvalue())
 
     def test_non_interactive_without_stdin_flag_is_rejected(self) -> None:
         self.assertEqual(self._run(), EXIT_PASSWORD_REJECTED)

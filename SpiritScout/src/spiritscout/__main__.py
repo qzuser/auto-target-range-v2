@@ -7,7 +7,9 @@
 
 会话创建、拓扑观测、编队与模型管理、报告与审计导出均在浏览器内完成。
 ``--set-admin-password`` 不启动服务，只把管理员密码以 scrypt 哈希写进工作区的
-``admin.db``——首次启动时由启动脚本调用，命令行里从不出现明文。
+``admin.db``——首次启动时由启动脚本调用，命令行里从不出现明文。密码长度不限；
+在交互终端里设完，明文只在终端显示这一次，之后（重启、状态接口、日志、界面）
+都不再显示。
 """
 
 from __future__ import annotations
@@ -91,9 +93,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 #: 默认管理员用户名，与 ``AdminStore.sync_from_env`` 的兜底一致。
 DEFAULT_ADMIN_USERNAME = "spiritscout"
-#: 首次设密的最短长度；更低的值等于把控制台敞开给局域网。
-MIN_ADMIN_PASSWORD_LENGTH = 8
-#: ``--set-admin-password`` 的「密码不合规/输入不一致」退出码。
+#: ``--set-admin-password`` 的「输入不一致/读不到输入」退出码。
 EXIT_PASSWORD_REJECTED = 3
 
 
@@ -103,6 +103,10 @@ def set_admin_password(cfg, args: argparse.Namespace) -> int:
     三种取密码的方式，按上下文自动选：``--password-stdin`` 读一行标准输入
     （自动化/测试）；交互终端走两次不回显的提示；既不是终端也没给 stdin 时
     只跳过——启动脚本首次拉起服务时 stdin 可能是管道，不该因此卡住启动。
+
+    密码不设长度限制（只有「空密码 = 不设密码」这一条）。交互终端里设完，
+    明文在终端显示一次方便当场记下来；之后重启、状态接口、日志都不再显示，
+    库里始终只有哈希。
     """
     from spiritscout.web import auth as web_auth
 
@@ -123,8 +127,9 @@ def set_admin_password(cfg, args: argparse.Namespace) -> int:
         if args.password_stdin:
             password = confirm = sys.stdin.readline().rstrip("\r\n")
         elif interactive:
-            print("设置控制台管理员密码：只保存 scrypt 哈希，明文不写入任何文件。")
-            password = getpass.getpass("密码（输入不回显）: ")
+            print("设置控制台管理员密码：只保存 scrypt 哈希；密码长度不限，"
+                  "明文只在设完后于本终端显示一次，不写入任何文件。")
+            password = getpass.getpass("密码（输入不回显，长度不限）: ")
             confirm = getpass.getpass("再输一次: ")
         elif args.if_missing:
             print("[跳过] 当前不是交互终端，未设置管理员密码；"
@@ -145,9 +150,10 @@ def set_admin_password(cfg, args: argparse.Namespace) -> int:
     if password != confirm:
         print("[错误] 两次输入不一致，未写入", file=sys.stderr)
         return EXIT_PASSWORD_REJECTED
-    if len(password) < MIN_ADMIN_PASSWORD_LENGTH:
-        print(f"[错误] 密码至少 {MIN_ADMIN_PASSWORD_LENGTH} 个字符", file=sys.stderr)
-        return EXIT_PASSWORD_REJECTED
+    if not password:
+        # 空密码不写账号：那等于把控制台敞开，不如明确地「不开启登录」。
+        print("[跳过] 密码为空，未设置管理员密码（等于不开启登录）")
+        return 0
     try:
         web_auth.validate_credentials(username, password)
     except SpiritScoutError as exc:
@@ -155,6 +161,9 @@ def set_admin_password(cfg, args: argparse.Namespace) -> int:
         return EXIT_PASSWORD_REJECTED
     store.upsert(username, password)
     print(f"[完成] 管理员 {username} 已写入 {store.db_path}")
+    if interactive:
+        # 只在亲手设密的这个终端里露一次，方便当场记下来；后续任何入口都不显示。
+        print(f"       本次设置的密码（只在这里显示一次，之后不再显示）：{password}")
     print("       文件里只有 scrypt 加盐哈希；忘记密码删掉 admin.db 再设一次即可。")
     return 0
 

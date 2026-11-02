@@ -43,7 +43,8 @@ class LoginPayload(BaseModel):
     """登录请求体。
 
     不在这里声明长度上限：Pydantic 的 422 会把原始输入回显给客户端，
-    超长密码不该出现在响应里；长度在路由内手工校验。
+    超长密码不该出现在响应里；用户名长度在路由内手工校验。密码不设长度
+    限制（设密时也不限），只做空值判断。
     """
 
     username: str
@@ -132,8 +133,10 @@ def mount_auth(app: FastAPI, *, admin_store: web_auth.AdminStore,
                 {"detail": "登录尝试过于频繁，请稍后再试"},
                 status_code=429, headers={"Retry-After": str(retry)})
         username = payload.username.strip()
+        # 密码不设长度限制：设密时允许任意长度，登录这边就不能在这里截断，
+        # 否则用户设了长口令反而登不进来。
         if (not username or len(username) > web_auth.MAX_USERNAME_LENGTH
-                or len(payload.password) > web_auth.MAX_PASSWORD_LENGTH
+                or not payload.password
                 or not admin_store.verify(username, payload.password)):
             limiter.failure(client)
             return JSONResponse({"detail": "用户名或密码错误"},
