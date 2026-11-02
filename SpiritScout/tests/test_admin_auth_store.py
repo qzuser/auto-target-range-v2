@@ -149,9 +149,19 @@ class AdminStoreTests(unittest.TestCase):
             for username in ("", "bad:name", "x" * (auth.MAX_USERNAME_LENGTH + 1)):
                 with self.assertRaises(ConfigurationError, msg=username[:20]):
                     store.upsert(username, "secret")
+            # 密码只挡空值：不设长度限制，一位和一大段都算合法口令。
             with self.assertRaises(ConfigurationError):
-                store.upsert("admin", "p" * (auth.MAX_PASSWORD_LENGTH + 1))
+                store.upsert("admin", "")
             self.assertFalse(store.has_admins())
+
+    def test_any_password_length_is_accepted(self) -> None:
+        """用户要的「删掉字符限制」：一位的口令和几千字的口令都能设、都能验。"""
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            store = auth.AdminStore(tmp)
+            for password in ("1", "a", "p" * 4096, "一整句话当口令也行"):
+                store.upsert("admin", password)
+                self.assertTrue(store.verify("admin", password), password[:8])
+                self.assertFalse(store.verify("admin", password + "x"))
 
     def test_env_override_of_local_password_is_logged(self) -> None:
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:

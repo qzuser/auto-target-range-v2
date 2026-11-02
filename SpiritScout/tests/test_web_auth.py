@@ -194,6 +194,16 @@ class WebAuthTests(unittest.TestCase):
                                      "用户名或密码错误")
                     self.assertNotIn("set-cookie", response.headers)
 
+    def test_any_password_length_can_log_in(self) -> None:
+        """删掉字符限制之后，登录侧不能还按旧上限把口令截断。"""
+        for secret in ("1", "一整句话当口令也行", "p" * 3000):
+            with self.subTest(length=len(secret)), tempfile.TemporaryDirectory(
+                    ignore_cleanup_errors=True) as tmp, env_only(
+                    SPIRITSCOUT_ADMIN_PASSWORD=secret):
+                with TestClient(_app(tmp), follow_redirects=False) as client:
+                    self.assertEqual(
+                        _login(client, password=secret).status_code, 200)
+
     def test_tampered_cookie_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp, env_only(
                 SPIRITSCOUT_ADMIN_PASSWORD="test-secret"):

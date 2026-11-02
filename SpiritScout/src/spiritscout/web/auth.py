@@ -36,7 +36,6 @@ _MAX_N = 2 ** 18
 _SALT_BYTES = 16
 _HASH_BYTES = 32
 MAX_USERNAME_LENGTH = 128
-MAX_PASSWORD_LENGTH = 1024
 _DEFAULT_USERNAME = "spiritscout"
 _ENV_ADMIN_SYNC = "SPIRITSCOUT_ADMIN_SYNC"
 
@@ -87,15 +86,19 @@ _DUMMY_HASH = hash_password(secrets.token_hex(16))
 
 
 def validate_credentials(username: str, password: str) -> None:
-    """用户名/密码的基本约束；命令行设密与 .env 导入共用这一份规则。"""
+    """用户名/密码的基本约束；命令行设密与 .env 导入共用这一份规则。
+
+    密码只校验「非空」：不设最短、最长长度限制，用户想用几位就用几位，
+    想用一整句话当口令也行——scrypt 的开销由参数决定，与口令长度无关。
+    空口令不能算「设了密码」，调用方按「不开启登录」处理。
+    """
     if not username or len(username) > MAX_USERNAME_LENGTH:
         raise ConfigurationError(
             f"管理员用户名必须为 1-{MAX_USERNAME_LENGTH} 个字符")
     if any(ord(ch) < 0x20 or ch == ":" for ch in username):
         raise ConfigurationError("管理员用户名不能包含冒号或控制字符")
-    if len(password) > MAX_PASSWORD_LENGTH:
-        raise ConfigurationError(
-            f"管理员密码不能超过 {MAX_PASSWORD_LENGTH} 个字符")
+    if not password:
+        raise ConfigurationError("管理员密码不能为空")
 
 
 def _chmod_quiet(path: Path, mode: int = 0o600) -> None:
