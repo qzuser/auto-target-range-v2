@@ -1,11 +1,35 @@
 /* 经验列表、来源会话和提炼记录。
-   二次提炼：把「极度相似」的条目合并压缩——原件只标记不删除，随时可还原。 */
+   二次提炼：先把「极相似」的条目提炼成一条稿子，用户确认保留后才把稿子写入经验库、
+   并删除被提炼的原件。相似度阈值页面上可改，默认 90%。 */
 const ExperiencePage = (() => {
-  const MERGE_THRESHOLD = 0.85;   // 与后端默认值一致：八成半以上相同才允许合并
+  const THRESHOLD_KEY = "ss.exp.mergeThreshold";   // 记住上次用的相似度
+  const THRESHOLD_DEFAULT = 90;                    // 与后端默认值一致：九成相似
+  const THRESHOLD_MIN = 50;
+  const THRESHOLD_MAX = 100;
+  const PICK_LIMIT = 20;      // 与后端 MergePayload.ids 的上限一致
+
+  function readThreshold() {
+    try {
+      const raw = Number(window.localStorage.getItem(THRESHOLD_KEY));
+      if (Number.isFinite(raw) && raw >= THRESHOLD_MIN && raw <= THRESHOLD_MAX)
+        return Math.round(raw);
+    } catch (e) { /* 隐私模式下没有 localStorage：用默认值，不影响功能 */ }
+    return THRESHOLD_DEFAULT;
+  }
+
   const state = {items: [], offset: 0, q: "", tag: "", generation: 0, more: false,
-                 total: 0, merged: false, mergeOn: false, picks: new Set(), groups: []};
+                 total: 0, merged: false, mergeOn: false, picks: new Set(), groups: [],
+                 threshold: readThreshold(), preview: null};
   const root = () => $("#view-exp");
   const time = t => t ? new Date(t * 1000).toLocaleString("zh-CN", {hour12: false}) : "未记录";
+
+  /* 阈值按百分比存，发给后端时换成 0.5–1.0 的比例 */
+  const clampPercent = value => {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return THRESHOLD_DEFAULT;
+    return Math.min(THRESHOLD_MAX, Math.max(THRESHOLD_MIN, Math.round(n)));
+  };
+  const thresholdRatio = () => clampPercent(state.threshold) / 100;
 
   function shell() {
     const el = root();
@@ -15,10 +39,10 @@ const ExperiencePage = (() => {
       <header class="resource-head">
         <div>
           <h2>经验提炼</h2>
-          <p>查看会话提炼的经验、适用场景和来源；极其相似的可以二次提炼合并，不合适的条目可以删除。</p>
+          <p>查看会话提炼的经验、适用场景和来源；极其相似的可以二次提炼成一条，不合适的条目可以删除。</p>
         </div>
         <div class="resource-head-actions">
-          <button class="btn" data-merge-toggle title="合并极其相似的经验">二次提炼</button>
+          <button class="btn" data-merge-toggle title="把极其相似的经验提炼成一条">二次提炼</button>
           <button class="btn" data-merged-toggle hidden title="显示被合并的原件">显示已合并</button>
           <button class="btn" data-refresh>刷新</button>
         </div>
@@ -85,26 +109,50 @@ const ExperiencePage = (() => {
     }
   }
 
-  /* ---- 二次提炼：只合并极度相似的条目，原件保留可还原 ---- */
+  /* ---- 二次提炼：候选 → 提炼稿 → 用户确认保留才入库并删原件 ---- */
 
   function toggleMerge() {
     state.mergeOn = !state.mergeOn;
     state.picks.clear();
+    state.preview = null;
     if (!state.mergeOn) state.groups = [];
     renderMergePanel();
     renderList();
     if (state.mergeOn) loadGroups();
   }
 
+  function setThreshold(value) {
+    state.threshold = clampPercent(value);
+    try { window.localStorage.setItem(THRESHOLD_KEY, String(state.threshold)); }
+    catch (e) { /* 存不了就只在本次记住 */ }
+    state.preview = null;
+    return loadGroups();
+  }
+
   async function loadGroups() {
     try {
-      const data = await api(`/api/experience/merge/candidates?threshold=${MERGE_THRESHOLD}`);
+      const data = await api(
+        `/api/experience/merge/candidates?threshold=${thresholdRatio()}`);
       state.groups = data.groups || [];
+      state.groupsError = "";
     } catch (e) {
       state.groups = [];
       state.groupsError = e.message;
     }
     renderMergePanel();
+  }
+
+  /* 可提炼的条目：库里有 id、且不是「已合并」的历史原件 */
+  function mergeable() {
+    return (state.items || []).filter(it => String(it.insight_id || "") && !it.merged);
+  }
+
+  /* 全选 / 取消全选：一次勾上当前列表里所有可提炼的条目 */
+  function togglePickAll(checked) {
+    const ids = mergeable().map(it => String(it.insight_id));
+    state.picks = checked ? new Set(ids) : new Set();
+    renderMergePanel();
+    renderList();
   }
 
   function renderMergePanel() {
@@ -118,9 +166,9 @@ const ExperiencePage = (() => {
     box.hidden = !state.mergeOn;
     if (!state.mergeOn) { box.innerHTML = ""; return; }
     const groups = state.groups || [];
+    const percent = clampPercent(state.threshold);
     const rows = groups.map(group => {
       const ids = (group.ids || []).join(",");
-      const preview = (group.preview && group.preview.insight) || "";
       const items = (group.items || []).map(item =>
         `<li>${esc(item.insight || "")}</li>`).join("");
       return `<article class="exp-merge-group">
@@ -129,43 +177,117 @@ const ExperiencePage = (() => {
           <span class="muted">${(group.items || []).length} 条</span>
         </header>
         <ul class="exp-merge-items">${items}</ul>
-        <p class="exp-merge-preview">合并后：${esc(preview)}</p>
-        <button class="btn" data-merge-ids="${esc(ids)}" title="合并这一组（原件保留，可还原）">合并这 ${(group.items || []).length} 条</button>
+        <button class="btn" data-merge-ids="${esc(ids)}" title="把这 ${(group.items || []).length} 条提炼成一条，先看结果再决定要不要保留">提炼这 ${(group.items || []).length} 条</button>
       </article>`;
     }).join("");
-    const picks = [...state.picks];
+    const all = mergeable();
+    const picks = [...state.picks].filter(id => all.some(it => String(it.insight_id) === id));
+    const preview = state.preview;
+    const previewCard = preview ? `
+      <section class="exp-merge-draft" data-preview>
+        <header>
+          <h4>提炼结果（还没入库）</h4>
+          <span class="exp-merge-score">相似度 ${Math.round((preview.score || 0) * 100)}%</span>
+        </header>
+        <p class="exp-merge-draft-insight">${esc(preview.insight || "")}</p>
+        ${preview.context ? `<p class="exp-merge-preview">适用：${esc(preview.context)}</p>` : ""}
+        <p class="muted">保留后这条会写进经验库，被提炼的 ${(preview.ids || []).length} 条原件随即删除；不保留就什么都不动。</p>
+        <div class="exp-merge-draft-ops">
+          <button class="btn primary" data-preview-keep>保留并删除 ${(preview.ids || []).length} 条原件</button>
+          <button class="btn" data-preview-cancel>放弃</button>
+        </div>
+      </section>` : "";
     box.innerHTML = `
       <header class="exp-merge-head">
         <h3>二次提炼</h3>
-        <p>只合并<span class="exp-merge-th">极度相似（≥ ${Math.round(MERGE_THRESHOLD * 100)}%）</span>的经验；
-           被合并的原件不会删除，可在「显示已合并」里还原。</p>
+        <p>只提炼<span class="exp-merge-th">极度相似（≥ ${percent}%）</span>的经验：
+           先出提炼稿，<b>你确认保留</b>后才写进经验库并删除被提炼的原件。</p>
+        <div class="exp-merge-threshold">
+          <label>相似度
+            <input type="number" data-threshold min="${THRESHOLD_MIN}" max="${THRESHOLD_MAX}"
+                   step="1" value="${percent}" inputmode="numeric"> %
+          </label>
+          <button class="btn sm" data-threshold-apply>重新查询</button>
+          <span class="muted">默认 90%，调低会捞到更多候选，调高只留几乎一样的。</span>
+        </div>
       </header>
-      <div class="exp-merge-groups" data-groups>${rows || `<p class="muted">${state.groupsError ? `读取失败：${esc(state.groupsError)}` : "没有达到相似度阈值的条目——宁可少合，也不合并相似度不够的经验。"}</p>`}</div>
+      ${previewCard}
+      <div class="exp-merge-groups" data-groups>${rows || `<p class="muted">${state.groupsError ? `读取失败：${esc(state.groupsError)}` : `没有达到 ${percent}% 相似度的条目——宁可少合，也不合并相似度不够的经验。`}</p>`}</div>
       <footer class="exp-merge-batch">
+        <label class="exp-pick exp-pick-all"><input type="checkbox" data-pick-all>全选（${all.length} 条可提炼${all.length > PICK_LIMIT ? `，一次最多 ${PICK_LIMIT} 条` : ""}）</label>
         <span>已选 ${picks.length} 条</span>
-        <button class="btn" data-merge-picks ${picks.length < 2 ? "disabled" : ""}>合并选中</button>
+        <button class="btn" data-merge-picks ${picks.length < 2 || picks.length > PICK_LIMIT ? "disabled" : ""} title="${picks.length > PICK_LIMIT ? `一次最多提炼 ${PICK_LIMIT} 条，请分批` : "把勾选的条目提炼成一条"}">提炼选中</button>
         <button class="btn" data-clear-picks ${picks.length ? "" : "disabled"}>清空勾选</button>
       </footer>`;
     box.querySelectorAll("[data-merge-ids]").forEach(b => {
-      b.onclick = () => armConfirm(b, () => applyMerge(String(b.dataset.mergeIds || "").split(",")));
+      b.onclick = () => previewMerge(String(b.dataset.mergeIds || "").split(","));
     });
+    const thresholdInput = box.querySelector("[data-threshold]");
+    if (thresholdInput) {
+      const apply = () => setThreshold(thresholdInput.value);
+      thresholdInput.onchange = apply;
+      thresholdInput.onkeydown = e => { if (e.key === "Enter") apply(); };
+    }
+    const thresholdBtn = box.querySelector("[data-threshold-apply]");
+    if (thresholdBtn) thresholdBtn.onclick = () =>
+      setThreshold(box.querySelector("[data-threshold]")?.value);
+    const keepBtn = box.querySelector("[data-preview-keep]");
+    if (keepBtn) keepBtn.onclick = () => keepPreview();
+    const cancelBtn = box.querySelector("[data-preview-cancel]");
+    if (cancelBtn) cancelBtn.onclick = () => discardPreview();
+    const pickAll = box.querySelector("[data-pick-all]");
+    if (pickAll) {
+      pickAll.checked = all.length > 0 && picks.length === all.length;
+      pickAll.onchange = () => togglePickAll(!!pickAll.checked);
+    }
     const pickBtn = box.querySelector("[data-merge-picks]");
-    if (pickBtn) pickBtn.onclick = () => armConfirm(pickBtn, () => applyMerge(picks));
+    if (pickBtn) pickBtn.onclick = () => previewMerge(picks);
     const clearBtn = box.querySelector("[data-clear-picks]");
     if (clearBtn) clearBtn.onclick = () => { state.picks.clear(); renderMergePanel(); renderList(); };
   }
 
+  /* 第一步：只提炼，不动库。让用户先看提炼稿 */
+  async function previewMerge(ids) {
+    const list = (ids || []).map(id => String(id || "")).filter(Boolean);
+    if (list.length < 2) { toast("二次提炼至少要选两条经验", true); return; }
+    if (list.length > PICK_LIMIT) {
+      toast(`一次最多提炼 ${PICK_LIMIT} 条，请分批勾选（当前 ${list.length} 条）`, true);
+      return;
+    }
+    try {
+      const res = await api("/api/experience/merge/preview", {
+        method: "POST", body: JSON.stringify({ids: list, threshold: thresholdRatio()})});
+      state.preview = {...res, ids: list};
+      renderMergePanel();
+    } catch (e) {
+      toast(e.message, true);
+    }
+  }
+
+  function discardPreview() {
+    state.preview = null;
+    renderMergePanel();
+    toast("已放弃这次提炼，经验库没动");
+  }
+
+  async function keepPreview() {
+    const preview = state.preview;
+    if (!preview) return;
+    await applyMerge(preview.ids || []);
+  }
+
+  /* 第二步：用户确认保留之后才真正入库（写结果 + 删原件） */
   async function applyMerge(ids) {
-    const list = ids.filter(Boolean);
+    const list = (ids || []).map(id => String(id || "")).filter(Boolean);
     if (list.length < 2) return;
     try {
-      const res = await api("/api/experience/merge", {
-        method: "POST", body: JSON.stringify({ids: list, threshold: MERGE_THRESHOLD})});
-      toast(`已合并 ${list.length} 条经验，原件仍可还原`);
+      await api("/api/experience/merge", {
+        method: "POST", body: JSON.stringify({ids: list, threshold: thresholdRatio()})});
+      state.preview = null;
       state.picks.clear();
+      toast(`已保留提炼结果，删除这 ${list.length} 条原经验`);
       await load();
-      await loadGroups();
-      return res;
+      if (state.mergeOn) await loadGroups();
     } catch (e) {
       toast(e.message, true);
     }
@@ -230,8 +352,8 @@ const ExperiencePage = (() => {
         : "";
       const parent = (item.merged_from || []).length > 0;
       const badge = item.merged
-        ? `<span class="exp-badge exp-badge-merged" title="已被二次提炼合并，原件仍在库里">已合并</span>`
-        : (parent ? `<span class="exp-badge exp-badge-merge" title="由多条极相似经验合并而来">二次提炼 · ${(item.merged_from || []).length} 条</span>` : "");
+        ? `<span class="exp-badge exp-badge-merged" title="旧口径合并留下的原件（仍在库里，可还原）">已合并</span>`
+        : (parent ? `<span class="exp-badge exp-badge-merge" title="由多条极相似经验提炼而来">二次提炼 · ${(item.merged_from || []).length} 条</span>` : "");
       const restore = item.merged && item.merged_into
         ? `<button class="btn exp-restore" data-restore="${esc(String(item.merged_into))}" title="把这次合并还原，原件全部恢复">还原</button>`
         : "";
@@ -311,6 +433,7 @@ const ExperiencePage = (() => {
   }
 
   return {open, load, toggleMerge, loadGroups, applyMerge, restoreMerge,
+          previewMerge, keepPreview, discardPreview, setThreshold, togglePickAll,
           renderMergePanel, state};
 })();
 

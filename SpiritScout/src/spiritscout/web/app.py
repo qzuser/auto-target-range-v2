@@ -46,10 +46,15 @@ _LOGIN = _STATIC_DIR / "login.html"
 
 
 class MergePayload(BaseModel):
-    """二次提炼：选定条目 + 相似度阈值（服务端会再复检一次）。"""
+    """二次提炼：选定条目 + 相似度阈值（服务端会再复检一次）。
 
-    ids: list[str] = Field(min_length=2, max_length=6)
-    threshold: float = Field(default=0.85, ge=0.5, le=1.0)
+    阈值默认 0.90（九成相似），页面上可改；越界的值由库层按 0.5–1.0 收口。
+    ids 上限 20：页面上「全选」一次勾上整页可提炼条目，分组候选每组件最多 6 条，
+    手工勾选允许更多，但不能无限——一次提炼太多会让两两复检失去意义。
+    """
+
+    ids: list[str] = Field(min_length=2, max_length=20)
+    threshold: float = Field(default=0.90, ge=0.5, le=1.0)
 
 
 class MergeRestorePayload(BaseModel):
@@ -185,7 +190,8 @@ def create_app(cfg: SystemConfig, models: list[ModelEntry], *,
 
         history 从各会话审计尾段提取 experience.distill 事件——含失败与
         跳过，让「学没学到、为什么没学到」对用户完全可见。
-        include_merged=true 时连「已被二次提炼合并掉」的原件一起给出（可还原）。
+        include_merged=true 时连「旧口径只标记不删除」的原件一起给出（可还原）；
+        新口径确认保留后原件已删除，不会再出现在这里。
         """
         from spiritscout.knowledge.experience import read_page, shared_db_path
 
@@ -202,10 +208,13 @@ def create_app(cfg: SystemConfig, models: list[ModelEntry], *,
         return data
 
     @app.get("/api/experience/merge/candidates")
-    def experience_merge_candidates(threshold: float = Query(0.85, ge=0.5, le=1.0),
+    def experience_merge_candidates(threshold: float = Query(0.90, ge=0.5, le=1.0),
                                     limit: int = Query(20, ge=1, le=100)
                                     ) -> dict[str, Any]:
-        """二次提炼候选：只给「整组两两都极相似」的组，供用户复核后再合并。"""
+        """二次提炼候选：只给「整组两两都极相似」的组，供用户复核后再提炼。
+
+        threshold 是页面上的相似度（默认 90%，可自定义），服务端不做取舍。
+        """
         from spiritscout.knowledge.experience import (
             merge_candidates,
             shared_db_path,
@@ -216,22 +225,39 @@ def create_app(cfg: SystemConfig, models: list[ModelEntry], *,
             threshold=threshold, limit=limit)
         return {"threshold": threshold, "groups": groups, "count": len(groups)}
 
+    @app.post("/api/experience/merge/preview")
+    def experience_merge_preview(payload: MergePayload) -> dict[str, Any]:
+        """只算提炼结果，不动库：页面先给用户看这份稿子，确认保留才落库。"""
+        from spiritscout.knowledge.experience import (
+            merge_preview,
+            shared_db_path,
+        )
+
+        try:
+            return merge_preview(
+                shared_db_path(cfg), payload.ids, threshold=payload.threshold)
+        except SpiritScoutError as exc:
+            raise HTTPException(400, str(exc)) from exc
+
     @app.post("/api/experience/merge")
     def experience_merge(payload: MergePayload) -> dict[str, Any]:
-        """合并压缩选定经验：原件只标记不删除，随时可还原。"""
+        """确认保留：提炼结果写入经验库，被提炼的原件在同一事务里删除。"""
         from spiritscout.knowledge.experience import merge_insights, shared_db_path
 
         try:
             return merge_insights(
                 shared_db_path(cfg),
-                payload.ids, threshold=payload.threshold,
+                payload.ids, threshold=payload.threshold, confirm=True,
                 audit=AuditLogger(cfg.audit_log_path))
         except SpiritScoutError as exc:
             raise HTTPException(400, str(exc)) from exc
 
     @app.post("/api/experience/merge/restore")
     def experience_merge_restore(payload: MergeRestorePayload) -> dict[str, Any]:
-        """还原一次合并：原件解封，派生的合并条目移除。"""
+        """还原一次旧口径的「标记式」合并：原件解封，派生的合并条目移除。
+
+        新口径（确认保留后原件已删）没有可还原的东西，库里查不到原件就回 404。
+        """
         from spiritscout.knowledge.experience import (
             restore_merge,
             shared_db_path,

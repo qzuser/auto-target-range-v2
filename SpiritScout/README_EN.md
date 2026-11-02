@@ -9,7 +9,7 @@ and progress, evidence, and artifacts stay in the same session.
 
 **English · [简体中文](README.md)**
 
-[![Version](https://img.shields.io/badge/version-v0.35.2-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
+[![Version](https://img.shields.io/badge/version-v0.36.0-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
 
 [Quick start](#quick-start) · [Three modes](#three-modes) · [Interface](#interface) · [How it works](#how-it-works) · [Configuration](#configuration) · [FAQ](#faq) · [Deployment guide (中文)](docs/部署与配置.md)
 
@@ -57,7 +57,7 @@ A single-page console. The sidebar keeps six primary sections (Tasks, Dashboard,
 | **Usage** | Token spend by model: call count, input/output, cache reads, share and cost (last hour / today / 7 days / 30 days / all) |
 | **Team** | Assign models and prompts to the lead agent and each sub-agent |
 | **Projects** | Group assets and sessions; vulnerability candidates are independently reproduced by the verifier agent, Jianzhen |
-| **Experience** | Reusable judgements and pitfalls learned from earlier runs; writes are de-duplicated (≥95% similar is treated as a repeat and dropped), and stored near-identical entries can be merged (originals are kept and restorable) |
+| **Experience** | Reusable judgements and pitfalls learned from earlier runs; writes are de-duplicated (≥95% similar is treated as a repeat and dropped), and stored near-identical entries can be distilled (similarity defaults to 90% and is adjustable; you see the draft first and the originals are deleted only after you keep it) |
 
 Session detail is not a nav entry — open it from the task list.
 
@@ -320,7 +320,7 @@ Use `python deploy.py migrate` for Docker. Manually: stop the service, copy `.sp
 
 ## Docs and contributing
 
-Current code version: **v0.35.2**. The single source of the version, the bump rules, and the history: see [version management (中文)](CONTRIBUTING.md#版本管理).
+Current code version: **v0.36.0**. The single source of the version, the bump rules, and the history: see [version management (中文)](CONTRIBUTING.md#版本管理).
 
 | I want to | Read |
 | --- | --- |

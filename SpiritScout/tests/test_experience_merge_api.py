@@ -1,7 +1,8 @@
-"""二次提炼的接口层回归：合并 / 拒绝 / 还原，以及删会话不删经验。
+"""二次提炼的接口层回归：候选 / 预览 / 确认保留 / 拒绝 / 还原，以及删会话不删经验。
 
 为什么单独一段：库层函数（knowledge/experience.py）自己已经测过，这里验证的是
-「页面真正调的那三个接口」——参数校验、状态码、默认过滤和 include_merged 开关。
+「页面真正调的那几个接口」——参数校验、状态码、默认阈值、预览不写库、
+确认后原件被删除，以及 include_merged 开关还留给旧数据。
 """
 from __future__ import annotations
 
@@ -53,57 +54,87 @@ class ExperienceMergeApiTests(unittest.TestCase):
         self.client.__enter__()
         self.addCleanup(self.client.__exit__, None, None, None)
 
+    def _total(self, **params) -> int:
+        return self.client.get("/api/experience", params=params).json()["total"]
+
     def test_candidates_only_offer_very_similar(self) -> None:
         data = self.client.get("/api/experience/merge/candidates").json()
+        self.assertEqual(data["threshold"], 0.90, "默认阈值就是 90%")
         self.assertEqual(data["count"], 1)
         group = data["groups"][0]
         self.assertEqual(sorted(group["ids"]), sorted([self.ids["a"], self.ids["b"]]))
         self.assertNotIn(self.ids["c"], group["ids"])
-        self.assertGreaterEqual(group["score"], 0.85)
-        self.assertIn("insight", group["preview"])
+        self.assertGreaterEqual(group["score"], 0.90)
 
-    def test_merge_hides_originals_but_keeps_them(self) -> None:
-        resp = self.client.post("/api/experience/merge", json={
+    def test_candidates_threshold_is_customizable(self) -> None:
+        """页面把相似度改成别的值，后端就得按那个值筛。"""
+        strict = self.client.get("/api/experience/merge/candidates",
+                                 params={"threshold": 0.99}).json()
+        loose = self.client.get("/api/experience/merge/candidates",
+                                params={"threshold": 0.6}).json()
+        self.assertEqual(strict["threshold"], 0.99)
+        self.assertEqual(strict["count"], 0, "0.97 的相似度过不了 0.99")
+        self.assertGreaterEqual(loose["count"], 1)
+
+    def test_preview_does_not_touch_the_library(self) -> None:
+        resp = self.client.post("/api/experience/merge/preview", json={
             "ids": [self.ids["a"], self.ids["b"]]})
         self.assertEqual(resp.status_code, 200, resp.text)
-        merged_id = resp.json()["merged_id"]
+        body = resp.json()
+        self.assertFalse(body["applied"], "预览不是落库")
+        self.assertIn("insight", body)
+        self.assertEqual(sorted(body["absorbed"]), sorted([self.ids["a"], self.ids["b"]]))
+        self.assertEqual(self._total(), 3, "预览之后一条都不能少")
+
+    def test_confirm_writes_result_and_deletes_originals(self) -> None:
+        preview = self.client.post("/api/experience/merge/preview", json={
+            "ids": [self.ids["a"], self.ids["b"]]}).json()
+        resp = self.client.post("/api/experience/merge", json={
+            "ids": [self.ids["a"], self.ids["b"]], "threshold": 0.9})
+        self.assertEqual(resp.status_code, 200, resp.text)
+        body = resp.json()
+        self.assertTrue(body["applied"])
+        merged_id = body["merged_id"]
+        self.assertEqual(sorted(body["removed"]), sorted([self.ids["a"], self.ids["b"]]))
+        self.assertEqual(body["insight"], preview["insight"], "确认的是看过的那份稿子")
 
         page = self.client.get("/api/experience").json()
         ids = [item["insight_id"] for item in page["items"]]
         self.assertIn(merged_id, ids)
-        self.assertNotIn(self.ids["a"], ids, "被合并的原件默认不再列出")
+        self.assertNotIn(self.ids["a"], ids, "确认保留后原件应当被删除")
+        self.assertNotIn(self.ids["b"], ids)
         self.assertEqual(page["total"], 2)
-        self.assertEqual(page["merged_total"], 2, "但要在统计里如实报告条数")
+        self.assertEqual(page["merged_total"], 0, "新口径不在库里留「已合并」原件")
 
         full = self.client.get("/api/experience",
                                params={"include_merged": "true"}).json()
         full_ids = [item["insight_id"] for item in full["items"]]
-        self.assertIn(self.ids["a"], full_ids, "原件必须还能查回来")
-        self.assertIn(self.ids["b"], full_ids)
+        self.assertNotIn(self.ids["a"], full_ids, "include_merged 也找不回已删的原件")
 
-    def test_merge_refuses_dissimilar(self) -> None:
+    def test_confirm_refuses_dissimilar(self) -> None:
         resp = self.client.post("/api/experience/merge", json={
             "ids": [self.ids["a"], self.ids["c"]]})
         self.assertEqual(resp.status_code, 400)
         self.assertIn("相似", resp.json()["detail"])
-        self.assertEqual(self.client.get("/api/experience").json()["total"], 3,
-                         "被拒绝时不能动库")
+        self.assertEqual(self._total(), 3, "被拒绝时不能动库")
 
     def test_merge_requires_two_ids(self) -> None:
         resp = self.client.post("/api/experience/merge", json={"ids": [self.ids["a"]]})
         self.assertEqual(resp.status_code, 422, "单条不该被接受")
 
-    def test_restore_returns_originals(self) -> None:
+    def test_too_many_ids_are_rejected(self) -> None:
+        """「全选」一次勾太多也不行：上限 20 条，前端同一口径。"""
+        resp = self.client.post("/api/experience/merge/preview",
+                                json={"ids": [f"exp-{i}" for i in range(21)]})
+        self.assertEqual(resp.status_code, 422)
+
+    def test_restore_keeps_new_style_result(self) -> None:
         merged = self.client.post("/api/experience/merge", json={
             "ids": [self.ids["a"], self.ids["b"]]}).json()
         resp = self.client.post("/api/experience/merge/restore",
                                 json={"merged_id": merged["merged_id"]})
-        self.assertEqual(resp.status_code, 200, resp.text)
-        self.assertEqual(sorted(resp.json()["restored"]),
-                         sorted([self.ids["a"], self.ids["b"]]))
-        page = self.client.get("/api/experience").json()
-        self.assertEqual(page["total"], 3, "还原后三条都在")
-        self.assertEqual(page["merged_total"], 0)
+        self.assertEqual(resp.status_code, 404, "原件已删，没有可还原的东西")
+        self.assertEqual(self._total(), 2, "合并结果不能被还原误删")
 
     def test_restore_unknown_is_404(self) -> None:
         resp = self.client.post("/api/experience/merge/restore",

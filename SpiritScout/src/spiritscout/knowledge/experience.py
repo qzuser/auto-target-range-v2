@@ -20,8 +20,8 @@ _INSIGHT_CAP = 600
 _CONTEXT_CAP = 300
 # 入库判重：与库里任一有效条目相似度达到这个比例就不再存一条新的。
 # 0.95 意味着只允许标点、语气词、个别虚词的差异——那属于同一句话。
-# 二次提炼（合并）用的 0.85 更宽松，因为它有「原件保留、可还原」托底；
-# 入库这一层是新增条目，闸门要更紧，宁可少存也不要让库被同义句灌满。
+# 二次提炼用的默认阈值是 0.90（页面上可改），比这里松：提炼要用户看过稿子、
+# 亲手点「保留」才落库，多一层人眼复核；新增走的是无人复核的自动通道，宁可少存。
 DEFAULT_DUPLICATE_THRESHOLD = 0.95
 # 判重时的扫描上限：只跟最近的这些条比。库再大也不至于为一条新经验全表比对。
 _DEDUPE_SCAN = 2000
@@ -30,8 +30,9 @@ _CACHE_TTL = 30.0
 
 _COLUMNS = ["insight_id", "insight", "context", "tags",
             "source_session", "source_model", "ts",
-            # 二次提炼（合并压缩）的溯源：merged_into 指向合并后的条目，
-            # merged_from 记着被吸收的原件 id。原件不删，只隐藏，可还原。
+            # 二次提炼的溯源：merged_from 记着提炼吸收了哪些条目（原件随确认删除，
+            # 溯源留在这里）；merged_into 只服务旧数据——老版本「只标记不删除」的
+            # 原件靠它隐藏，仍可 restore_merge 还原。
             "merged_into", "merged_from"]
 _MERGE_COLUMNS = {"merged_into": "TEXT DEFAULT ''", "merged_from": "TEXT DEFAULT '[]'"}
 
@@ -203,8 +204,9 @@ def read_page(db_path: str | Path, *, q: str = "", tag: str = "",
 
     q 关键词命中 insight/context/tags 任意字段；tag 精确匹配一个标签
     （标签以 JSON 数组存储，LIKE 匹配带引号串避免前缀误命中）。
-    include_merged=True 才把「已被二次提炼合并」的原件也列出来（默认只看有效
-    经验）；merged_total 恒报被合并的条数，页面据此显示「已合并 N 条」。
+    include_merged=True 才把「旧口径只标记不删除」的原件也列出来（默认只看有效
+    经验）；merged_total 恒报这类旧条目的数量，页面据此显示「已合并 N 条」。
+    新口径（确认保留后删原件）不会产生这种条目，但老库里的还在，别让它们消失。
     """
     empty: dict[str, Any] = {"total": 0, "items": [], "has_more": False,
                              "tags": [], "sources": 0, "last_ts": None,
@@ -313,7 +315,7 @@ class ExperienceStore:
     """全局经验库：写入（灵枢提炼）+ 检索（智能体查询）。
 
     ``duplicate_threshold``：入库判重阈值（0 = 只挡完全同文，并库时用）。
-    默认 0.95，比二次提炼的 0.85 更严——合并有原件托底，新增没有。
+    默认 0.95，比二次提炼的默认 0.90 更严——提炼要用户确认保留才落库，新增没有。
     """
 
     def __init__(self, db_path: str | Path, *, audit=None,
@@ -493,13 +495,25 @@ def merge_candidates(db_path: str | Path, *,
     return out
 
 
+def merge_preview(db_path: str | Path, ids: list[str], *, audit: Any = None,
+                  threshold: float = merge_mod.DEFAULT_THRESHOLD
+                  ) -> dict[str, Any]:
+    """只算二次提炼的结果，一个字都不写库：给用户看完、确认保留才落库。"""
+    return merge_insights(db_path, ids, audit=audit, threshold=threshold,
+                          confirm=False)
+
+
 def merge_insights(db_path: str | Path, ids: list[str], *, audit: Any = None,
-                   threshold: float = merge_mod.DEFAULT_THRESHOLD
-                   ) -> dict[str, Any]:
-    """把 ids 合并成一条新经验，并把原件标记为「已合并」——原件不删。
+                   threshold: float = merge_mod.DEFAULT_THRESHOLD,
+                   confirm: bool = False) -> dict[str, Any]:
+    """二次提炼：先出合并稿；``confirm=True`` 才把结果入库并删掉被提炼的原件。
 
     服务端自己再比一次相似度：前端传什么都要复检，避免把不相干的条目压掉。
     冲突（条目不存在 / 已被合并 / 相似度不足）一律显式报错，不动库。
+
+    ``confirm=False`` 是默认值：只返回合并稿（``applied=False``），页面上先展示
+    给用户看。用户点「保留」后带 ``confirm=True`` 再来一次——这一步在同一个事务
+    里写入合并稿、删除被提炼的那几条，并审计留痕（删除的 id 全部记下）。
     """
     wanted: list[str] = []
     for raw in ids or []:
@@ -510,8 +524,10 @@ def merge_insights(db_path: str | Path, ids: list[str], *, audit: Any = None,
         raise SpiritScoutError("二次提炼至少要选两条经验")
     path = Path(db_path)
     if not path.exists():
-        raise SpiritScoutError("经验库还不存在，没有可合并的条目")
+        raise SpiritScoutError("经验库还不存在，没有可提炼的条目")
+    threshold = merge_mod.clamp_threshold(threshold)
     conn = _load_conn(path)
+    merged_id = ""
     try:
         rows: list[dict[str, Any]] = []
         for key in wanted:
@@ -524,41 +540,56 @@ def merge_insights(db_path: str | Path, ids: list[str], *, audit: Any = None,
         low = min(merge_mod.similarity(str(a.get("insight") or ""),
                                        str(b.get("insight") or ""))
                   for index, a in enumerate(rows) for b in rows[index + 1:])
-        if low < float(threshold):
+        if low < threshold:
             raise SpiritScoutError(
-                f"这几条不够相似（最低 {low:.2f} < 阈值 {float(threshold):.2f}），"
+                f"这几条不够相似（最低 {low:.2f} < 阈值 {threshold:.2f}），"
                 "为免丢掉有用信息，不合并")
         composed = merge_mod.compose(rows)
-        merged_id = new_id("exp")
-        with conn:
-            conn.execute(
-                "INSERT INTO insights (insight_id, insight, context, tags,"
-                " source_session, source_model, ts, merged_from)"
-                " VALUES (?,?,?,?,?,?,?,?)",
-                (merged_id, composed["insight"], composed["context"],
-                 json.dumps(composed["tags"], ensure_ascii=False),
-                 composed["source_session"], "merge", time.time(),
-                 json.dumps(composed["merged_from"], ensure_ascii=False)))
-            conn.executemany(
-                "UPDATE insights SET merged_into = ? WHERE insight_id = ?",
-                [(merged_id, key) for key in wanted])
+        if not confirm:
+            preview = {
+                "applied": False, "absorbed": wanted, "removed": [],
+                "score": round(low, 4), "insight": composed["insight"],
+                "context": composed["context"], "tags": composed["tags"],
+                "merged_from": composed["merged_from"],
+            }
+        else:
+            merged_id = new_id("exp")
+            with conn:
+                conn.execute(
+                    "INSERT INTO insights (insight_id, insight, context, tags,"
+                    " source_session, source_model, ts, merged_from)"
+                    " VALUES (?,?,?,?,?,?,?,?)",
+                    (merged_id, composed["insight"], composed["context"],
+                     json.dumps(composed["tags"], ensure_ascii=False),
+                     composed["source_session"], "merge", time.time(),
+                     json.dumps(composed["merged_from"], ensure_ascii=False)))
+                # 用户确认保留后，被提炼的原件就没必要占库了：同一个事务里删掉。
+                conn.executemany("DELETE FROM insights WHERE insight_id = ?",
+                                 [(key,) for key in wanted])
     except sqlite3.Error as exc:
         raise SpiritScoutError(
             f"经验库操作失败（{type(exc).__name__}）: {str(exc)[:200]}") from exc
     finally:
         conn.close()
+    if not confirm:
+        return preview
     if audit is not None:
         audit.log("experience.merged", "user", {
-            "merged_id": merged_id, "absorbed": len(wanted),
-            "insight": composed["insight"][:200]})
-    return {"merged_id": merged_id, "absorbed": wanted,
+            "merged_id": merged_id, "removed": wanted,
+            "absorbed": len(wanted), "insight": composed["insight"][:200]})
+    return {"applied": True, "merged_id": merged_id, "absorbed": wanted,
+            "removed": wanted, "score": round(low, 4),
             "insight": composed["insight"], "context": composed["context"],
             "tags": composed["tags"]}
 
 
 def restore_merge(db_path: str | Path, merged_id: str, *,
                   audit: Any = None) -> dict[str, Any] | None:
-    """还原一次合并：原件全部解封，派生的合并条目移除（它随时可再生）。"""
+    """还原一次「标记式」合并（老数据）：原件解封，派生的合并条目移除。
+
+    新口径（确认保留后原件直接删除）没有可还原的东西，所以这里先看原件还在不在：
+    一条都找不到就返回 None，绝不能把合并稿本身删掉。
+    """
     path = Path(db_path)
     if not path.exists() or not str(merged_id or "").strip():
         return None
@@ -568,10 +599,14 @@ def restore_merge(db_path: str | Path, merged_id: str, *,
         if parent is None or not parent.get("merged_from"):
             return None
         children = [str(key) for key in parent["merged_from"]]
+        alive = [key for key in children if _row(conn, key) is not None]
+        if not alive:
+            # 原件已被「确认保留」删掉：没有可还原的内容，别动合并稿。
+            return None
         with conn:
             conn.executemany(
                 "UPDATE insights SET merged_into = '' WHERE insight_id = ?",
-                [(key,) for key in children])
+                [(key,) for key in alive])
             conn.execute("DELETE FROM insights WHERE insight_id = ?", (str(merged_id),))
     except sqlite3.Error as exc:
         raise SpiritScoutError(
@@ -580,5 +615,5 @@ def restore_merge(db_path: str | Path, merged_id: str, *,
         conn.close()
     if audit is not None:
         audit.log("experience.merge_restored", "user", {
-            "merged_id": str(merged_id), "restored": len(children)})
-    return {"merged_id": str(merged_id), "restored": children}
+            "merged_id": str(merged_id), "restored": len(alive)})
+    return {"merged_id": str(merged_id), "restored": alive}
