@@ -260,6 +260,16 @@ def _watch_console(server, app, host: str, port: int, timeout: float = 90.0) -> 
         print(_status_line(app, time.monotonic() - begun))
 
 
+def _banner(host: str, port: int, auth_note: str, max_concurrent: int) -> str:
+    """启动横幅：版本号写在最前面，一眼就能核对接的是不是当前源码。
+
+    启动脚本、Docker、便携包里跑的可能不是同一份代码，或者 editable 元数据落后
+    于源码；横幅照 `__version__` 念，与 `--version`、OpenAPI、控制台角标同源。
+    """
+    return (f"灵枢 Web 控制台 v{__version__}: http://{host}:{port}  "
+            f"({auth_note}，并发上限 {max_concurrent}，Ctrl+C 停止)")
+
+
 def main(argv: list[str] | None = None) -> int:
     # 英文 Windows 的重定向输出可能默认 cp1252，中文帮助/错误信息也须能输出。
     force_utf8_streams()
@@ -311,9 +321,7 @@ def main(argv: list[str] | None = None) -> int:
                  else "登录已关闭，本机直接进入（auth_mode=none）"
                  if cfg.web.auth_mode == "none"
                  else "还没有管理员账号，暂按开放模式运行")
-    print(f"灵枢 Web 控制台: http://{host}:{port}  "
-          f"({auth_note}，并发上限 {cfg.web.max_concurrent_sessions}，"
-          "Ctrl+C 停止)")
+    print(_banner(host, port, auth_note, cfg.web.max_concurrent_sessions))
     # 用可控的 Server 顶掉 uvicorn.run()：后者一进去就阻塞，窗口从此哑着，
     # 只留上面这行「控制台: http://…」——可打出时监听还没建起来，照着点会连不上。
     # 这里另开守护线程，等端口真能收连接再喊一次，之后定时报状态。
