@@ -5,11 +5,11 @@
 - **不调模型**。合并是压缩同一件事的多种说法，模型改写可能悄悄丢掉差异细节；
   这里用确定性规则：取信息量最大的一条当底稿，其余条目里**底稿没有的句子**按
   「另：…」并入——压缩的是重复表述，不是事实。
-- **原件不删**。被合并的条目只标记 ``merged_into``，默认列表与召回不再展示，
-  但仍在库里，可一键还原（``restore_merge``）。
+- **先提炼、后确认**。``compose`` 只算出合并稿；要不要真入库由调用方决定
+  （``ExperienceStore`` 那边对应「预览 → 确认保留 → 删原件、写入结果」两步）。
 - **只合并极相似的**。相似度用归一化后的编辑相似度（``difflib`` 比例），且要求
   **整组两两都达标**（完整连接）：A≈B、B≈C 但 A≁C 时不成组，避免「链式合并」把
-  不相干经验卷进来。阈值 0.85 ≈ 两句话最多一成字符不同。
+  不相干经验卷进来。默认阈值 0.90 ≈ 两句话只有一成以内的字符不同；页面上可改。
 """
 from __future__ import annotations
 
@@ -17,8 +17,8 @@ import re
 from difflib import SequenceMatcher
 from typing import Any
 
-# 默认阈值：0.85 相当于两句话只差个别词、语序或虚词
-DEFAULT_THRESHOLD = 0.85
+# 默认阈值：0.90 相当于两句话只差个别词、语序或虚词；页面可改（50%–100%）
+DEFAULT_THRESHOLD = 0.90
 MAX_GROUP = 6
 _INSIGHT_CAP = 600
 _CONTEXT_CAP = 300
@@ -30,6 +30,17 @@ _SPLIT = re.compile(r"[。；！？;!?\n]+")
 def normalize(text: str) -> str:
     """比对用归一化：去空白与标点、统一小写；不改原文。"""
     return _STRIP.sub("", str(text or "")).lower()
+
+
+def clamp_threshold(value: Any) -> float:
+    """把页面送来的阈值收进 0.5–1.0：越界的值按边界算，不让它把组算飞。"""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return DEFAULT_THRESHOLD
+    if number != number:            # NaN
+        return DEFAULT_THRESHOLD
+    return max(0.5, min(1.0, number))
 
 
 def similarity(left: str, right: str) -> float:
@@ -103,7 +114,7 @@ def build_groups(rows: list[dict[str, Any]], *, threshold: float = DEFAULT_THRES
                  min_size: int = 2, max_size: int = MAX_GROUP,
                  limit: int = 20) -> list[dict[str, Any]]:
     """找出可以合并的组：整组两两相似度都 ≥ 阈值才算数。"""
-    threshold = max(0.5, min(1.0, float(threshold)))
+    threshold = clamp_threshold(threshold)
     remaining = [row for row in rows
                  if str(row.get("insight") or "").strip()
                  and not str(row.get("merged_into") or "")]
