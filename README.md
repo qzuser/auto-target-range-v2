@@ -29,9 +29,13 @@ py -3.11 -m venv SpiritScout\.venv
 手动跑 `powershell -ExecutionPolicy Bypass -File .\start-local.ps1 -NoInstall`，只报命令。
 
 浏览器打开 <http://127.0.0.1:8010>。关闭那个窗口即停止服务。
+端口来自双击入口里的 `-Port 8010`（它转成 `--port` 覆盖 `configs/system.yaml` 的 `web.port`；
+那份配置里写的是 8000，只是给 `launch.cmd` / `launch.sh` 这类不带参启动用的，两个数字不一样是正常的）。
 
-第一次启动会先问管理员密码：输两遍（不回显），库里只留 scrypt 加盐哈希，明文不进命令行、
-不写日志、不落盘。回车两次就是不设——控制台只绑 `127.0.0.1`，别的机器进不来。想改密码：
+第一次启动会先问管理员密码：用户名直接回车就是 `master`，密码输两遍（不回显）；**长度不限**，
+一位和整句话都收。设完明文会在**这个终端显示一次**方便当场记下来，之后重启、日志、界面都不再
+显示，库里只有 scrypt 加盐哈希（明文不进命令行、不落盘）。回车两次就是不设——控制台只绑
+`127.0.0.1`，别的机器进不来，`auth_mode: none` 下不设也能直接进。想改密码：
 `SpiritScout\.venv\Scripts\python.exe -m spiritscout --set-admin-password`，或删掉
 `SpiritScout/.spiritscout/admin.db` 再启动一次。
 

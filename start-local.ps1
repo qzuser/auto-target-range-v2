@@ -9,6 +9,10 @@
 #   powershell -ExecutionPolicy Bypass -File .\start-local.ps1 -Port 8010
 #   powershell -ExecutionPolicy Bypass -File .\start-local.ps1 -NoInstall   # 只报告，不自动装
 #
+# -Port 以 `--port` 传给 CLI，**覆盖** SpiritScout\configs\system.yaml 里的 web.port
+# （配置里写的是 8000）；双击入口「启动服务.cmd」固定 8010，两个数字不一样是正常的。
+# 跑的是 SpiritScout\src 下的当前代码（editable 安装），下面的版本号与
+# `python -m spiritscout --version`、控制台横幅同源。
 param(
     [int]$Port = 8010,
     [switch]$Debug,
@@ -113,8 +117,12 @@ if (-not $deps) {
     $missing = @($deps.runtime_missing)
     $missingToolkit = @($deps.toolkit_missing)
 
-    # editable 装的 .dist-info 是当初 pip 打的快照，源码升了版本它还可能写着旧的
-    # 0.12.9。跑的是 src/ 下的当前代码，不影响启动，但横幅照元数据念会误导人。
+    # 先报源码版本：跑的是 src/ 下的当前代码，与 --version 同源。editable 装的
+    # .dist-info 是当初 pip 打的快照，源码升版本后它还写着旧号，所以两者不一致时
+    # 再单独提一句（只提示，不拦启动；重装一次即可对齐）。
+    if ($deps.source_version) {
+        Write-Host "[i] 源码版本：灵枢 v$($deps.source_version)（SpiritScout\src 当前代码）" -ForegroundColor DarkGray
+    }
     if ($deps.self_version -and $deps.source_version -and
         ($deps.self_version -ne $deps.source_version)) {
         Write-Host "[i] 安装元数据 $($deps.self_version) 落后于源码 $($deps.source_version)" -ForegroundColor DarkGray
@@ -240,7 +248,8 @@ Write-Host "[+] 执行后端 host（工作目录锁定 + 运行期 ACL 收口 + 
 Push-Location (Join-Path $root 'SpiritScout')
 # 3) 管理员账号：首次启动让本人当场设密码，只把 scrypt 哈希写进工作区 admin.db。
 #    已有账号就跳过；不是交互终端（脚本/CI 调用）时同样跳过，绝不卡住启动。
-Write-Host "[>] 管理员账号：首次启动在这里设置密码（明文不落盘，只存哈希）"
+Write-Host "[>] 管理员账号：首次启动在这里设置密码（明文只在设完后显示一次，不落盘，只存哈希）"
+Write-Host "    长度不限；不想设就回车两次跳过（auth_mode=none 下不设也能直接进，随时可补）" -ForegroundColor DarkGray
 & $venvPy -X utf8 -m spiritscout --set-admin-password --if-missing --config configs\system.yaml
 if ($LASTEXITCODE -ne 0) {
     Write-Host "    [!] 没设置管理员密码：控制台仍只在回环地址可用；" -ForegroundColor Yellow
