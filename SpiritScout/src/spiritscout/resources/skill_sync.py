@@ -39,6 +39,54 @@ _HEADER = """\
 _FIELDS = ("skill_id", "domain", "description", "body", "severity", "cwe",
            "tools", "source", "path", "enabled")
 
+#: 打包来的技能是平铺目录，没有 domain 字段；按 id 前缀给个粗粒度分类。
+#: 只影响「技能」页的分组展示，不影响检索——检索用 description 与正文。
+_DOMAIN_RULES: tuple[tuple[str, str], ...] = (
+    ("competition-", "competition"),
+    ("ctf-", "ctf"),
+    ("api-", "web"),
+    ("apk-", "mobile"),
+    ("mobile-", "mobile"),
+    ("js-", "web"),
+    ("llm-", "ai"),
+    ("malware-", "malware"),
+    ("firmware-", "iot"),
+    ("game-", "game"),
+    ("pentest-", "pentest"),
+    ("src-", "src"),
+    ("supply-chain", "supply-chain"),
+    ("edr-", "evasion"),
+    ("asm-", "reverse"),
+    ("binary-", "reverse"),
+    ("patch-", "reverse"),
+    ("linker-", "reverse"),
+    ("radare2", "reverse"),
+    ("ida-", "reverse"),
+    ("x-ida", "reverse"),
+    ("zzy-", "reverse"),
+    ("reverse-", "reverse"),
+    ("elf-", "reverse"),
+    ("ash12-", "reverse"),
+    ("xigong-", "reverse"),
+    ("yingan-", "reverse"),
+    ("helloctf-", "ctf"),
+    ("solve-", "ctf"),
+    ("attack-chain", "pentest"),
+    ("browser-automation", "automation"),
+    ("diagram-", "utility"),
+    ("docs-", "utility"),
+)
+
+
+def _guess_domain(skill_id: str) -> str:
+    """按 id 前缀猜一个分组；认不出来的落到 ``custom``。"""
+    low = str(skill_id).lower()
+    for prefix, domain in _DOMAIN_RULES:
+        if low.startswith(prefix):
+            return domain
+    return "custom"
+
+
 
 def _clean(item: dict[str, Any]) -> dict[str, Any]:
     """只留认识的字段，并把列表型字段压成字符串（与内置条目的形态一致）。"""
@@ -115,8 +163,12 @@ def export_skills(store: Any) -> list[dict[str, Any]]:
             for row in store.settings("skill")]
 
 
-def parse_markdown(path: Path) -> dict[str, Any] | None:
-    """解析一份 ``SKILL.md``：``---`` frontmatter + 正文。"""
+def parse_markdown(path: Path, *, root: Path | None = None) -> dict[str, Any] | None:
+    """解析一份 ``SKILL.md``：``---`` frontmatter + 正文。
+
+    ``root`` 给定时 ``path`` 记成相对路径——清单要进版本库，不能把本机绝对
+    路径写进去。
+    """
     try:
         text = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
@@ -146,15 +198,33 @@ def parse_markdown(path: Path) -> dict[str, Any] | None:
         skill_id = path.stem
     item = {**meta, "skill_id": skill_id, "body": body.strip()}
     item.setdefault("source", str(path.parent.name))
-    item.setdefault("path", str(path.as_posix()))
+    shown = path
+    if root is not None:
+        try:
+            shown = path.relative_to(root)
+        except ValueError:
+            shown = path
+    item.setdefault("path", str(shown.as_posix()))
+    item.setdefault("domain", _guess_domain(skill_id))
     return _clean(item)
 
 
-def import_markdown(source: str | Path, target: str | Path = DEFAULT_PATH) -> dict[str, int]:
-    """把目录（或单个文件）里的 markdown 技能收进清单；同 id 以新文件为准。"""
+def import_markdown(source: str | Path, target: str | Path = DEFAULT_PATH,
+                    *, only: tuple[str, ...] | None = None) -> dict[str, int]:
+    """把目录（或单个文件）里的 markdown 技能收进清单；同 id 以新文件为准。
+
+    ``only`` 限定文件名（例如 ``("SKILL.md",)``）：技能包里每个 skill 目录都
+    带一堆 ``references/*.md``，全收进来会变成几百条碎片技能。
+    """
     src = Path(source)
-    files = sorted(src.rglob("*.md")) if src.is_dir() else ([src] if src.is_file() else [])
-    items = [i for i in (parse_markdown(f) for f in files) if i]
+    if src.is_dir():
+        root = src
+        files = sorted(f for f in src.rglob("*.md")
+                       if not only or f.name in only)
+    else:
+        root = src.parent
+        files = [src] if src.is_file() and (not only or src.name in only) else []
+    items = [i for i in (parse_markdown(f, root=root) for f in files) if i]
     merged: dict[str, dict[str, Any]] = {i["skill_id"]: i for i in read_skills(target)}
     added = 0
     for item in items:
@@ -184,13 +254,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("source", nargs="?", default="", help="import：目录或 SKILL.md")
     parser.add_argument("--target", default=DEFAULT_PATH, help="清单路径")
     parser.add_argument("--config", default="", help="system.yaml 路径（读资源库用）")
+    parser.add_argument("--only", action="append", default=[],
+                        help="import：只收这个文件名的 markdown（可重复，如 --only SKILL.md）")
     args = parser.parse_args(argv)
 
     if args.action == "import":
         if not args.source:
             print("需要给一个目录或 SKILL.md 路径", file=sys.stderr)
             return 2
-        print(import_markdown(args.source, args.target))
+        print(import_markdown(args.source, args.target,
+                              only=tuple(args.only) or None))
         return 0
     if args.action == "export":
         store = _store(args.config or None)

@@ -1,6 +1,6 @@
 # 更新日志
 
-项目采用 `主版本.次版本.修订号`。当前版本为 **0.38.0**，版本唯一来源是
+项目采用 `主版本.次版本.修订号`。当前版本为 **0.39.0**，版本唯一来源是
 `src/spiritscout/__init__.py`；包构建、命令行、控制台及 MCP 握手共用该值。
 
 **历史版本说明**：0.1.0 是仓库早期已有的代码版本；0.2.0—0.11.1 根据现有
@@ -9,6 +9,46 @@ Git 历史与日期日志回溯整理，用于标识功能演进，**并非当�
 行为，部分规则后来已有调整，请以当前代码和最新条目为准。
 
 版本递增和发布记录规则见 [贡献指南](CONTRIBUTING.md#版本管理)。
+
+## [0.39.0] - 2026-11-08
+
+85 个 CTF / 逆向技能入库并导入清单，「技能」页从 202 条变 287 条。
+
+### 新增
+
+- **技能内容进版本库**：`skills/pack/` 放打包好的 85 个 skill（每个目录一个
+  `SKILL.md` + 自带 references / scripts / payloads，另带 `install.ps1` 与
+  `清单.md`，78.9 MB），`skills/sources/` 放原料 —— Hello-CTF、
+  Des-CTF-Knowledge-2026、CTF-md 文档大全、无敌逆向渗透 skills 等（125.8 MB）。
+- **`configs/skills.yaml` 导入 85 条**：正文内联（0.75 MB），不依赖 `skills/`
+  是否存在；导入后「技能」页读到 287 条（内置 202 + 自定义 85）。
+
+### 修复
+
+- **`import_markdown` 加了 `--only`**：原来递归收所有 `*.md`，技能包里每个
+  skill 目录都带一堆 `references/*.md`，直接导会变成几百条碎片技能。现在
+  `--only SKILL.md` 只收真正的技能入口（`scanned` 从 859 变成 87）。
+- **清单里的 `path` 记相对路径**：原先写本机绝对路径，进版本库既泄露目录结构，
+  换机器也失效。
+- **`domain` 按 id 前缀推断**：打包来的 skill 没有 `domain` 字段，全落成
+  `custom`；现在按前缀分到 `ctf` / `competition` / `reverse` / `pentest` 等
+  16 组，frontmatter 里写了 `domain` 的仍以文件为准。
+
+### 保留与取舍
+
+- 两个重复的 `SKILL.md`（`ash12-elf-complete-flow`、`src-hunter`）各有一份
+  顶层副本与子目录副本，逐字节相同，合并成一条。
+- 不入库：`skills/` 下的 `.git`（Hello-CTF 196 MB、Des-CTF-Knowledge 30 MB
+  的上游对象库）、`__pycache__`、`*.pyc`。单个 pack 文件 195.86 MB，已超过
+  GitHub 100 MB 的单文件上限，硬塞会让推送直接失败。
+- 一个被上游 `.gitignore` 挡住的报告
+  （`zzy-reverse-skill/reports/2026-05-26_new-hahacc-ctf-pentest-report.md`）
+  用 `git add -f` 强制入库，避免"保留内容"时被忽略规则悄悄吃掉。
+
+### 测试
+
+- `tests/test_skill_sync.py` 加 4 项：`--only` 跳过 references、`path` 是
+  相对路径、`domain` 按前缀推断、frontmatter 的 `domain` 优先于推断。
 
 ## [0.38.0] - 2026-11-08
 

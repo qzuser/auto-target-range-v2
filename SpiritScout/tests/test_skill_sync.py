@@ -146,6 +146,50 @@ class MarkdownImportTests(unittest.TestCase):
         ids = {i["skill_id"] for i in skill_sync.read_skills(self.target)}
         self.assertEqual(ids, {"custom-redis-unauth", "second-one"})
 
+    def test_only_keeps_skill_files_and_skips_references(self) -> None:
+        """技能包里每个 skill 目录都带一堆 references/*.md，全收进来会变碎片。"""
+        good = self.root / "pack" / "ctf-web"
+        (good / "references").mkdir(parents=True)
+        (good / "SKILL.md").write_text("---\nname: ctf-web\n---\n正文", encoding="utf-8")
+        (good / "references" / "sql-injection.md").write_text("细节", encoding="utf-8")
+        (good / "notes.md").write_text("随手记", encoding="utf-8")
+        stats = skill_sync.import_markdown(self.root / "pack", self.target,
+                                           only=("SKILL.md",))
+        self.assertEqual(stats["scanned"], 1)
+        self.assertEqual([i["skill_id"] for i in skill_sync.read_skills(self.target)],
+                         ["ctf-web"])
+
+    def test_path_is_relative_so_the_manifest_can_be_committed(self) -> None:
+        skill_dir = self.root / "pack" / "ida-reverse"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text("---\nname: ida-reverse\n---\n正文",
+                                            encoding="utf-8")
+        skill_sync.import_markdown(self.root / "pack", self.target, only=("SKILL.md",))
+        item = skill_sync.read_skills(self.target)[0]
+        self.assertEqual(item["path"], "ida-reverse/SKILL.md")
+        self.assertNotIn(self.tmp.name, item["path"])
+
+    def test_domain_comes_from_the_id_prefix(self) -> None:
+        """打包来的 skill 没有 domain 字段，按 id 前缀分组，认不出来才落 custom。"""
+        cases = {
+            "ctf-web": "ctf",
+            "competition-k8s-control-plane": "competition",
+            "ida-reverse": "reverse",
+            "pentest-tools": "pentest",
+            "src-hunter": "src",
+            "some-unknown-skill": "custom",
+        }
+        for skill_id, domain in cases.items():
+            self.assertEqual(skill_sync._guess_domain(skill_id), domain, skill_id)
+
+    def test_frontmatter_domain_wins_over_the_guess(self) -> None:
+        skill_dir = self.root / "pack" / "ctf-web"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text(
+            "---\nname: ctf-web\ndomain: web\n---\n正文", encoding="utf-8")
+        skill_sync.import_markdown(self.root / "pack", self.target, only=("SKILL.md",))
+        self.assertEqual(skill_sync.read_skills(self.target)[0]["domain"], "web")
+
 
 if __name__ == "__main__":
     unittest.main()
