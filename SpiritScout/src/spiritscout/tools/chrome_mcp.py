@@ -22,8 +22,8 @@ def default_host() -> str:
     if Path("/.dockerenv").exists():
         return "host.docker.internal"
     release = Path("/proc/sys/kernel/osrelease")
-    if release.exists() and "microsoft" in release.read_text().lower():
-        for line in Path("/proc/net/route").read_text().splitlines()[1:]:
+    if release.exists() and "microsoft" in release.read_text(encoding="utf-8", errors="replace").lower():
+        for line in Path("/proc/net/route").read_text(encoding="utf-8", errors="replace").splitlines()[1:]:
             fields = line.split()
             if len(fields) >= 4 and fields[1] == "00000000" and int(fields[3], 16) & 2:
                 return socket.inet_ntoa(bytes.fromhex(fields[2])[::-1])

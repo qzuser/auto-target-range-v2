@@ -470,7 +470,7 @@ class ContinuousCompetitionTests(unittest.IsolatedAsyncioTestCase):
                 self.assertFalse(dispatch.done())
                 self.assertLess(events.index('submit:c1'), events.index('close:c1'))
                 self.assertLess(events.index('close:c1'), events.index('start:c3'))
-                stored = json.loads(adapter.progress_path.read_text())
+                stored = json.loads(adapter.progress_path.read_text(encoding="utf-8"))
                 self.assertEqual(stored['solved_ids'], ['c1'])
                 slow.set()
                 result = await asyncio.wait_for(dispatch, 2)

@@ -795,13 +795,13 @@ class SessionNamingTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(store.history(row["id"])["items"][0]["project_id"],
                              beta_id)
             self.assertEqual(
-                json.loads((workspace / "meta.json").read_text())[
+                json.loads((workspace / "meta.json").read_text(encoding="utf-8"))[
                     "project_id"], beta_id)
 
             manager.set_project("sess-move", "")
             self.assertEqual(store.project_for_session("sess-move"), "")
             self.assertEqual(
-                json.loads((workspace / "meta.json").read_text())["project_id"],
+                json.loads((workspace / "meta.json").read_text(encoding="utf-8"))["project_id"],
                 "")
             self.assertEqual(moved.brief()["project_id"], "")
 
@@ -811,7 +811,7 @@ class SessionNamingTests(unittest.IsolatedAsyncioTestCase):
             reloaded = SessionManager(cfg, [], resources=store)
             self.assertEqual(reloaded.get("sess-move").project_id, "")
             self.assertEqual(
-                json.loads((workspace / "meta.json").read_text())["project_id"],
+                json.loads((workspace / "meta.json").read_text(encoding="utf-8"))["project_id"],
                 "")
             # 无成员行的旧会话才按 meta 补登记
             store.remove_session("sess-move")

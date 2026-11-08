@@ -206,5 +206,5 @@ class SideConversationPersistenceTests(unittest.TestCase):
                 self.assertNotIn('request',conversation.json())
                 session.request={}
                 self.assertEqual(client.get('/api/sessions/sess-side/conversation').status_code,422)
-                saved=__import__('json').loads(session.meta_path.read_text())
+                saved=__import__('json').loads(session.meta_path.read_text(encoding="utf-8"))
                 self.assertEqual(saved['dialogue_history'],session.dialogue_history)

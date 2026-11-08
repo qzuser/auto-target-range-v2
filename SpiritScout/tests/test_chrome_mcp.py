@@ -72,7 +72,8 @@ class ChromeEndpointTests(unittest.TestCase):
         def exists(path):
             return path.as_posix() != "/.dockerenv"
 
-        def read(path):
+        def read(path, encoding=None, errors=None):
+            # 生产代码显式指定 encoding（中文 Windows 下默认 GBK 会崩），替身要接住
             if "osrelease" in str(path):
                 return "6.6.87.2-microsoft-standard-WSL2"
             return "Iface Destination Gateway Flags\neth0 00000000 016012AC 0003\n"

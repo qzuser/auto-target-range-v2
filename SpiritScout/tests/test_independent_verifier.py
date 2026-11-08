@@ -177,7 +177,7 @@ class VerifierTests(unittest.IsolatedAsyncioTestCase):
 
             report = ReportAgent(self.bb).generate(Authorization(auth_id="fixture", mode=RunMode.SRC,
                 human_confirmed=True, scope=Scope(allowed_urls=[self.url])), self.url, Path(self.tmp.name) / "report.md")
-            text = report.read_text()
+            text = report.read_text(encoding="utf-8")
             self.assertIn("鉴真独立复测确认", text)
             self.assertIn(RULE, text)
             self.assertIn("other-user-record:fixture-only", text)

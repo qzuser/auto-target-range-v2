@@ -252,7 +252,7 @@ for name in ('bb.db', 'audit.jsonl', 'meta.json', 'execution.key', 'vault.key'):
         pass
     else:
         raise RuntimeError('control write permitted')
-assert (r / 'attachments/input').read_text() == 'attachment'
+assert (r / 'attachments/input').read_text(encoding="utf-8") == 'attachment'
 try:
     (r / 'attachments/input').write_text('changed')
 except OSError:
@@ -269,7 +269,7 @@ print('isolated')
             followup = await sandbox_exec("cat persistent ../artifacts/result",
                                            workspace_root=str(root))
             self.assertEqual(followup.stdout, "savedartifact")
-            self.assertEqual((root / "bb.db").read_text(), "host-control")
+            self.assertEqual((root / "bb.db").read_text(encoding="utf-8"), "host-control")
 
     async def test_sandbox_rejects_symlink_shared_directory(self) -> None:
         if sandbox_backend() != "bwrap":
@@ -297,8 +297,8 @@ print('isolated')
             self.assertTrue(second.parsed["workdir"].endswith("sandbox/e1-02"),
                             second.parsed)
             # 同名脚本产物与默认日志按题隔离，互不覆盖
-            self.assertEqual((root / "sandbox" / "e1-01" / "marker").read_text(), "A\n")
-            self.assertEqual((root / "sandbox" / "e1-02" / "marker").read_text(), "B\n")
+            self.assertEqual((root / "sandbox" / "e1-01" / "marker").read_text(encoding="utf-8"), "A\n")
+            self.assertEqual((root / "sandbox" / "e1-02" / "marker").read_text(encoding="utf-8"), "B\n")
             for result in (first, second):
                 output = Path(result.parsed["output_file"])
                 self.assertTrue(output.exists())
@@ -488,10 +488,10 @@ class AuditPlaintextTests(unittest.IsolatedAsyncioTestCase):
             log.log(record["type"], record["actor"], record["detail"])
             # 原文落盘：会话页实时监控 agent 的真实数据流，不做键值脱敏
             for secret in ("UNMARKED_SECRET_VALUE", "URL_SECRET", "HEADER_SECRET", "PASS_SECRET"):
-                self.assertIn(secret, path.read_text())
+                self.assertIn(secret, path.read_text(encoding="utf-8"))
             path.write_text(json.dumps(record) + "\n")
             frames = "".join([frame async for frame in stream_audit(path, max_frames=1)])
-            exported = log.export(Path(tmp) / "export.jsonl").read_text()
+            exported = log.export(Path(tmp) / "export.jsonl").read_text(encoding="utf-8")
             self.assertEqual(sanitize_record(sanitize_record(record)), sanitize_record(record))
             for secret in ("UNMARKED_SECRET_VALUE", "URL_SECRET", "HEADER_SECRET", "PASS_SECRET"):
                 self.assertIn(secret, frames + exported + json.dumps(log.read_all()))

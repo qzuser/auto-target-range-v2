@@ -33,7 +33,7 @@ class VersioningTests(unittest.TestCase):
         self.assertIn("[简体中文](README.md)", english)
 
     def test_package_metadata_reads_runtime_version(self) -> None:
-        config = tomllib.loads((ROOT / "pyproject.toml").read_text())
+        config = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
         self.assertRegex(__version__, r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
         self.assertIn("version", config["project"]["dynamic"])
         self.assertNotIn("version", config["project"])
@@ -52,13 +52,13 @@ class VersioningTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             app = create_app(SystemConfig(workspace=WorkspaceConfig(root=temporary)), [])
             self.assertEqual(app.openapi()["info"]["version"], __version__)
-            html = (ROOT / "src/spiritscout/web/static/index.html").read_text()
+            html = (ROOT / "src/spiritscout/web/static/index.html").read_text(encoding="utf-8")
             self.assertIn('id="ver"', html)
-            console = (ROOT / "src/spiritscout/web/static/js/console.js").read_text()
+            console = (ROOT / "src/spiritscout/web/static/js/console.js").read_text(encoding="utf-8")
             self.assertIn('fetch("/openapi.json")', console)
 
     def test_changelog_has_ordered_versions_and_explains_backfill(self) -> None:
-        log = (ROOT / "CHANGELOG.md").read_text()
+        log = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
         versions = re.findall(r"^## \[(\d+\.\d+\.\d+)\]", log, re.MULTILINE)
         self.assertTrue(versions)
         self.assertEqual(versions[0], __version__)

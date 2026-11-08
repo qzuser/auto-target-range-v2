@@ -12,7 +12,7 @@ from unittest.mock import patch
 class BrowserCredentialTests(unittest.TestCase):
     def credential(self, environment: dict[str, str]) -> str:
         entrypoint = Path(__file__).parents[1] / "deploy/browser/entrypoint.sh"
-        script = entrypoint.read_text().split("python3 - <<'PY'\n", 1)[1].split("\nPY\n", 1)[0]
+        script = entrypoint.read_text(encoding="utf-8").split("python3 - <<'PY'\n", 1)[1].split("\nPY\n", 1)[0]
         with patch.dict(os.environ, environment, clear=True), \
                 patch.object(Path, "write_text") as write, patch("os.chmod"):
             exec(compile(script, str(entrypoint), "exec"), {})

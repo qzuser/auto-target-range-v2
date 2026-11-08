@@ -370,7 +370,7 @@ asyncio.run(registry.call('write', {}))
                 self.assertEqual(record["effect_status"], "unknown")
                 self.assertEqual(record["replay_policy"], "never_automatic")
                 self.assertIsNone(journal.result(record["invocation_id"]))
-                self.assertEqual((root / "effect.txt").read_text(), "once")
+                self.assertEqual((root / "effect.txt").read_text(encoding="utf-8"), "once")
                 self.assertEqual(len(journal.list_recent()), 1)
             finally:
                 bb.close()

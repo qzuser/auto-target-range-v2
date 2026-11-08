@@ -356,6 +356,10 @@ class ModelEntry(ValidatedConfig):
     cost_input_per_mtok: float = Field(default=0.0, ge=0)
     cost_output_per_mtok: float = Field(default=0.0, ge=0)
     rate_limit_rpm: int = Field(default=60, gt=0)
+    # 端点并发上限（同时在飞的请求数）：0 = 不限。本地单槽端点（LM Studio 以
+    # parallel=1 加载、llama.cpp 单实例）写 1，网关就把并发请求排队，而不是同时
+    # 砸上去——排队不计入单次调用硬超时，慢模型不会因为挤在同一时刻而集体超时。
+    max_concurrency: int = Field(default=0, ge=0)
     quality_score: float = 1.0            # 基准评测动态更新
     is_fallback_for: list[str] = Field(default_factory=list, description="主备关系：作为哪些模型的备（模型 ID）")
 

@@ -50,7 +50,7 @@ class ToolParameterTests(unittest.TestCase):
         # 参数原文直达审计（会话页实时监控），SSE 出口剥掉加密副本
         self.assertEqual(call["arguments"]["command"], "printf archive-param-marker")
         self.assertNotIn("arguments_cipher", json.dumps(sanitize_record(record)))
-        self.assertIn("archive-param-marker", (self.root / "audit.jsonl").read_text())
+        self.assertIn("archive-param-marker", (self.root / "audit.jsonl").read_text(encoding="utf-8"))
 
     def test_resource_credentials_redacted_but_plain_fields_visible(self) -> None:
         result = redact_credentials({"code": "print('visible')", "body": {"page": 2, "password": "hidden-pass"},

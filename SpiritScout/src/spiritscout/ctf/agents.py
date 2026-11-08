@@ -51,7 +51,7 @@ def _load_sec_skills() -> list[dict[str, Any]]:
         f = Path(__file__).parent.parent / "knowledge" / "data" / "security_skills.json"
         try:
             import json as _json
-            _SEC_SKILLS = _json.loads(f.read_text())
+            _SEC_SKILLS = _json.loads(f.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             _SEC_SKILLS = []
     return _SEC_SKILLS

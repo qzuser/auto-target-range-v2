@@ -460,7 +460,7 @@ class ResourceAssistant:
             output_task.cancel()
             await asyncio.gather(output_task, return_exceptions=True)
         manifest = json.loads(
-            (destination / "node_modules" / package / "package.json").read_text()
+            (destination / "node_modules" / package / "package.json").read_text(encoding="utf-8")
         )
         bins = manifest.get("bin")
         if isinstance(bins, str):

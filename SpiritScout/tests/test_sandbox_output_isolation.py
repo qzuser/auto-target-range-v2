@@ -21,5 +21,5 @@ class SandboxOutputIsolationTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(len(set(paths)),4)
             for i,(result,path) in enumerate(zip(results,paths,strict=True)):
                 self.assertTrue(result.ok,result.error)
-                self.assertEqual(path.read_text(),f'proof-{i}\n')
+                self.assertEqual(path.read_text(encoding="utf-8"),f'proof-{i}\n')
                 self.assertEqual(path.parent,Path(temporary)/'sandbox/same-challenge')

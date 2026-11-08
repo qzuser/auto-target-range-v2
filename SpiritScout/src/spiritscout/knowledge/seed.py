@@ -24,7 +24,7 @@ def _agent_skills() -> list[dict[str, Any]]:
     data_file = Path(__file__).parent / "data" / "security_skills.json"
     if not data_file.exists():
         return []
-    return json.loads(data_file.read_text())
+    return json.loads(data_file.read_text(encoding="utf-8"))
 
 
 def seed_rows() -> dict[str, list[dict[str, Any]]]:

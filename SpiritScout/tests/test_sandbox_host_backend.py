@@ -82,8 +82,8 @@ class HostBackendTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(first.ok and second.ok, first.error + second.error)
         self.assertEqual(Path(first.parsed["workdir"]).parent.name, "sandbox")
         self.assertEqual(Path(first.parsed["workdir"]).name, "e1-01")
-        self.assertEqual((self.root / "sandbox" / "e1-01" / "marker").read_text().strip(), "A")
-        self.assertEqual((self.root / "sandbox" / "e1-02" / "marker").read_text().strip(), "B")
+        self.assertEqual((self.root / "sandbox" / "e1-01" / "marker").read_text(encoding="utf-8").strip(), "A")
+        self.assertEqual((self.root / "sandbox" / "e1-02" / "marker").read_text(encoding="utf-8").strip(), "B")
 
     async def test_timeout_kills_process_tree_without_hanging(self) -> None:
         started = time.perf_counter()

@@ -18,10 +18,10 @@ class DeploymentTests(unittest.TestCase):
             root = Path(temporary)
             (root / ".env.example").write_text("SPIRITSCOUT_ADMIN_PASSWORD=please-change-me\n", encoding="utf-8")
             self.assertTrue(deploy.init_environment(root))
-            content = (root / ".env").read_text()
+            content = (root / ".env").read_text(encoding="utf-8")
             self.assertNotIn("please-change-me", content)
             self.assertFalse(deploy.init_environment(root))
-            self.assertEqual((root / ".env").read_text(), content)
+            self.assertEqual((root / ".env").read_text(encoding="utf-8"), content)
 
     def test_blank_model_configuration_is_created_without_overwriting(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -29,7 +29,7 @@ class DeploymentTests(unittest.TestCase):
             initialize(root)
             (root / "models.yaml").write_text("models: [user-configuration]", encoding="utf-8")
             initialize(root)
-            self.assertEqual((root / "models.yaml").read_text(), "models: [user-configuration]")
+            self.assertEqual((root / "models.yaml").read_text(encoding="utf-8"), "models: [user-configuration]")
 
     def archive(self, name, content=b"fixture"):
         stream = io.BytesIO()

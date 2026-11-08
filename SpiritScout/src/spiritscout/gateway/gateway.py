@@ -250,6 +250,9 @@ class ModelGateway:
         self._session_model: Any = ""
         # 失效的会话选择只记一次审计（每条调用都记会淹没审计流）
         self._missing_logged: set[str] = set()
+        # 端点并发闸：按端点（base_url 优先）复用信号量，避免把十几个任务同时
+        # 砸到一个单槽本地模型上——那样每个请求都在排队里耗到硬超时。
+        self._gates: dict[str, asyncio.Semaphore] = {}
 
     def set_session_model(self, model: Any) -> None:
         """设置本会话优先使用的模型（空 = 跟随设置页的优先级链）。
@@ -425,6 +428,23 @@ class ModelGateway:
         return {"model": entry.model, "provider": entry.provider,
                 "base_url": entry.base_url, "api_format": entry.api_format}
 
+    def _gate(self, entry: ModelEntry) -> asyncio.Semaphore | None:
+        """端点并发闸（`max_concurrency`）：0/未声明 = 不限，返回 None。
+
+        同一端点上不同模型共享一把闸——限制来自端点本身的槽位，不是模型 ID。
+        信号量按需创建并复用，排队时间不计入单次调用硬超时（超时只管真正在飞的
+        那一次），所以慢端点只会变慢，不会因为并发而集体超时失败。
+        """
+        limit = int(getattr(entry, "max_concurrency", 0) or 0)
+        if limit <= 0:
+            return None
+        key = entry.base_url or entry.provider_ref or entry.model
+        gate = self._gates.get(key)
+        if gate is None:
+            gate = asyncio.Semaphore(limit)
+            self._gates[key] = gate
+        return gate
+
     def _resolve_effort(self, entry: ModelEntry, requested: str) -> str:
         """思考强度把关：只下发该模型自己声明过的取值。
 
@@ -506,6 +526,19 @@ class ModelGateway:
         attempts = AttemptTrace(self.audit, actor, call)
         attempt_token = current_attempt_trace.set(attempts)
         hard_timeout = timeout_seconds or self.config.request_timeout_seconds
+        # 端点并发闸：本地单槽端点（parallel=1）一次只能算一份请求，十几个任务
+        # 同时打上去的结果是每个都在队列里耗到硬超时。排队放在硬超时外面——
+        # 等得久只是慢，不会因为等太久被判失败。
+        gate = self._gate(entry)
+        gate_waited_ms = 0.0
+        if gate is not None:
+            gate_wait_started = time.perf_counter()
+            await gate.acquire()
+            gate_waited_ms = round((time.perf_counter() - gate_wait_started) * 1000, 1)
+            if gate_waited_ms >= 1000:
+                self.audit.log("model.queued", actor,
+                               {**call, "wait_ms": gate_waited_ms,
+                                "limit": int(entry.max_concurrency)})
         try:
             # 硬墙：交给 SDK 的 timeout 只管单次读写，流式响应可以长时间不吐字也不报错
             # （实测远端渠道挂 17 分钟才回 Connection error）。这里到点必断，让上层
@@ -539,6 +572,9 @@ class ModelGateway:
             raise
         finally:
             current_attempt_trace.reset(attempt_token)
+            # 无论成败都要还槽，否则一次超时就把端点永久占住。
+            if gate is not None:
+                gate.release()
         if stream is not None:
             # 不支持流式的端点至少回放实际返回正文，不能伪造生成中的分析。
             if not stream.emitted and not stream.parts:

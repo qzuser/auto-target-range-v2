@@ -113,7 +113,7 @@ def resource_root(cfg: Any) -> Path:
 @lru_cache(maxsize=1)
 def builtin_skills() -> dict[str, dict[str, Any]]:
     path = Path(__file__).parents[1] / "knowledge/data/security_skills.json"
-    return {item["skill_id"]: item for item in json.loads(path.read_text())}
+    return {item["skill_id"]: item for item in json.loads(path.read_text(encoding="utf-8"))}
 
 
 #: 检索时忽略的词。任务描述里满是「帮我」「这道」「要拿 flag」这类口水词，留着
