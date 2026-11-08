@@ -1,6 +1,6 @@
 # 更新日志
 
-项目采用 `主版本.次版本.修订号`。当前版本为 **0.36.3**，版本唯一来源是
+项目采用 `主版本.次版本.修订号`。当前版本为 **0.36.4**，版本唯一来源是
 `src/spiritscout/__init__.py`；包构建、命令行、控制台及 MCP 握手共用该值。
 
 **历史版本说明**：0.1.0 是仓库早期已有的代码版本；0.2.0—0.11.1 根据现有
@@ -9,6 +9,40 @@ Git 历史与日期日志回溯整理，用于标识功能演进，**并非当�
 行为，部分规则后来已有调整，请以当前代码和最新条目为准。
 
 版本递增和发布记录规则见 [贡献指南](CONTRIBUTING.md#版本管理)。
+
+## [0.36.4] - 2026-11-08
+
+双击启动不再显示"未知发布者"：新增可签名的 exe 启动器，`.cmd` 本身没有 Authenticode 容器，签不了。
+
+### 新增
+
+- **`SpiritScout/launcher/`**：`SpiritScoutLauncher.cs` + `build-launcher.ps1`。启动器复刻
+  `启动服务.cmd` 的全部行为（UTF-8 代码页、缺 key 提示、前台调 `start-local.ps1`、退出后停窗），
+  编译产物由脚本用本机自签名证书签名，输出到仓库根的 `启动服务.exe`。
+- **证书自动就位**：脚本首次运行生成 3072 位自签名代码签名证书（有效期 10 年），装进当前用户的
+  "受信任的根证书颁发机构"与"受信任的发布者"；pfx / cer / osslsigncode 落在
+  `%USERPROFILE%\.spiritscout\signing\`，不入库。
+- **签名工具按需下载**：没装 `osslsigncode` 时脚本自己取便携版（约 2.6 MB），不要求 Windows SDK。
+
+### 修复
+
+- **`build-launcher.ps1` 存成 UTF-8 with BOM**：Windows PowerShell 5.1 读无 BOM 的 `.ps1` 按 ANSI 解码，
+  中文注释会变成语法错误（`Unexpected token`）。仓库里 `start-local.ps1`、`deploy-spiritscout.ps1`
+  本来就带 BOM，新脚本跟同一约定。
+
+### 兼容优化
+
+- **`启动服务.cmd` 保留**：它仍是命令行入口，双击照常能用；签名与否不影响运行，只是属性页里没有签名。
+
+### 文档修订
+
+- `docs/部署与配置.md` 补「签名启动器」一节：为什么 `.cmd` 签不了、证书装在哪、换机怎么重新信任。
+
+### 测试
+
+- 实测链路：编译 → `osslsigncode` 签名 → `Get-AuthenticodeSignature` 返回 `Valid`，
+  签名者 `CN=SpiritScout Local, O=SpiritScout, C=CN`；启动器跑通全流程
+  （缺 key 提示 → 依赖自检 → 起控制台 → 前台等待），输出中文无乱码。
 
 ## [0.36.3] - 2026-11-08
 

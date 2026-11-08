@@ -41,6 +41,11 @@ _stage/
 _work/_probe_serve.log
 _work/probe_*.py
 
+# 签名启动器：由 SpiritScout/launcher/build-launcher.ps1 现场编译并签名。
+# exe 不入库；签名材料（pfx/cer/osslsigncode）在 %USERPROFILE%\.spiritscout\signing\ 下
+启动服务.exe
+SpiritScout/launcher/tools/
+
 # 本机执行残留
 artifacts/
 sandbox/
