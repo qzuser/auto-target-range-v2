@@ -1,6 +1,6 @@
 # 更新日志
 
-项目采用 `主版本.次版本.修订号`。当前版本为 **0.37.1**，版本唯一来源是
+项目采用 `主版本.次版本.修订号`。当前版本为 **0.38.0**，版本唯一来源是
 `src/spiritscout/__init__.py`；包构建、命令行、控制台及 MCP 握手共用该值。
 
 **历史版本说明**：0.1.0 是仓库早期已有的代码版本；0.2.0—0.11.1 根据现有
@@ -9,6 +9,35 @@ Git 历史与日期日志回溯整理，用于标识功能演进，**并非当�
 行为，部分规则后来已有调整，请以当前代码和最新条目为准。
 
 版本递增和发布记录规则见 [贡献指南](CONTRIBUTING.md#版本管理)。
+
+## [0.38.0] - 2026-11-08
+
+MCP 接入选「本地」模板：命令与参数直接填好，不用手写 stdio 启动行。
+
+### 新增
+
+- **本地 MCP 模板**：`GET /api/resources/mcp/presets` 返回九套 stdio 模板
+  （filesystem / memory / sequential-thinking / time / fetch / git / sqlite /
+  本项目 venv / 自定义），字段只有 `transport` / `command` / `args` /
+  `default_risk`，展示用的 `id`、`label`、`requires` 不写进配置。
+- **编辑框加了「本地 MCP 模板」下拉**（`index.html` + `resources.js`）：
+  选中后把命令、参数、风险等级填进 JSON，并自动补一个 `local-<模板>` 标识；
+  参数位置写成 `{ROOT}` / `{REPO}` / `{DB}` / `{PYTHON}` / `{MODULE}`，提示里
+  说明各自该填什么。
+- **本机没装 `npx` / `uvx` 的模板在下拉里置灰**并标出缺哪个（`available` /
+  `missing` 由 `shutil.which` 现算），避免填完才发现启动命令不存在。
+- 模板不预置任何密钥：要令牌的服务把值填在「环境变量」字段，走加密密钥库，
+  不进 `configs/system.yaml`。
+
+### 文档
+
+- `docs/部署与配置.md` 新增「本地 MCP 模板」小节，列出九套模板的启动方式与占位符。
+
+### 测试
+
+- 新增 `tests/test_mcp_presets.py` 7 项：模板字段完整、配置只带连接字段、
+  未知 id 回落自定义、占位符去重、模板里不含密钥字样、接口能取到模板、
+  `mcp/presets` 不被 `/api/resources/mcp/{name}` 抢占。
 
 ## [0.37.1] - 2026-11-08
 

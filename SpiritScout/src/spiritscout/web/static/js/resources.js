@@ -43,6 +43,26 @@ const ResourceConsole = (() => {
     list.querySelectorAll('[data-toggle]').forEach(b=>b.onclick=async()=>{const item=s.items[+b.dataset.toggle],d=kind==='mcp'?item.data:item;b.disabled=true;try{await api(`/api/resources/${kind==='mcp'?'mcp':'skills'}/${encodeURIComponent(kind==='mcp'?item.id:d.skill_id)}`,{method:'PUT',body:JSON.stringify({data:{enabled:!d.enabled},expected_version:item.version??d.version})});load(kind);}catch(e){toast(e.message,true);b.disabled=false;}});
     root(kind).querySelector('.resource-more').hidden=!s.more;
   }
+  let mcpPresets=null;
+  async function ensurePresets() {
+    if(mcpPresets)return mcpPresets;
+    try{const r=await api('/api/resources/mcp/presets');mcpPresets=r.items||[];}catch(e){mcpPresets=[];}
+    return mcpPresets;
+  }
+  function applyPreset(id) {
+    const item=(mcpPresets||[]).find(x=>x.id===id);
+    if(!item){$('#resource-preset-hint').textContent='';return;}
+    const hint=item.placeholder_hint||'';
+    const missing=item.missing||[];
+    $('#resource-preset-hint').textContent=missing.length?`${hint} 本机没有 ${missing.join(' / ')}，先装好再用。`:hint;
+    let data={};
+    try{data=JSON.parse($('#resource-json').value)||{};}catch(e){data={};}
+    data.transport=item.transport;data.command=item.command;data.args=[...(item.args||[])];
+    data.default_risk=item.default_risk;
+    if(!('enabled' in data))data.enabled=true;
+    $('#resource-json').value=JSON.stringify(data,null,2);
+    if(!$('#resource-key').value.trim())$('#resource-key').value=`local-${id==='custom'?'mcp':id}`;
+  }
   async function edit(kind,item) {
     let data=kind==='mcp'?item?.data:null;
     if(kind==='skill'&&item){try{data=await api('/api/resources/skills/'+encodeURIComponent(item.skill_id));}catch(e){toast(e.message,true);return;}}
@@ -50,6 +70,12 @@ const ResourceConsole = (() => {
     const clean=Object.fromEntries(Object.entries(data||{}).filter(([key])=>!['id','version','origin','env_keys','headers_keys','name','skill_id'].includes(key)));
     $('#resource-json').value=JSON.stringify(data?clean:kind==='mcp'?{transport:'stdio',command:'',args:[],enabled:true,default_risk:'intrusive',risk_by_action:false,allowed_agents:[]}:{description:'',domain:'custom',body:'适用条件：\n参考事实：\n证据与注意事项：',enabled:true},null,2);
     $('#resource-env').value='';$('#resource-headers').value='';$('#resource-secrets').hidden=kind!=='mcp';$('#resource-save-error').textContent='';$('#resource-editor').showModal();
+    if(kind==='mcp'){
+      const list=await ensurePresets(),sel=$('#resource-preset');
+      sel.innerHTML='<option value="">（选一个本地模板，或直接手填下面的 JSON）</option>'+list.map(i=>`<option value="${i.id}"${i.available?'':' disabled'}>${esc(i.label)}${i.available?'':'（本机缺 '+(i.missing||[]).join('/')+'）'}</option>`).join('');
+      sel.value='';sel.onchange=()=>applyPreset(sel.value);
+      $('#resource-preset-row').hidden=false;$('#resource-preset-hint').textContent='';
+    }else{$('#resource-preset-row').hidden=true;}
   }
   async function save() {if(!editor)return;const button=$('#resource-save');button.disabled=true;try{const data=JSON.parse($('#resource-json').value),key=$('#resource-key').value.trim();if(!key)throw new Error('请填写唯一标识');if(editor.kind==='mcp'){if($('#resource-env').value.trim())data.env=JSON.parse($('#resource-env').value);if($('#resource-headers').value.trim())data.headers=JSON.parse($('#resource-headers').value);}await api(`/api/resources/${editor.kind==='mcp'?'mcp':'skills'}/${encodeURIComponent(key)}`,{method:'PUT',body:JSON.stringify({data,expected_version:editor.version})});$('#resource-editor').close();toast('配置已保存');load(editor.kind);}catch(e){$('#resource-save-error').textContent=e.message;}finally{button.disabled=false;}}
   function renderChat(kind,data) {

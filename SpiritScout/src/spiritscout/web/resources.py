@@ -136,6 +136,21 @@ def mount_resources(
             "activation": "新启动会话生效；不会热替换正在执行的 MCP 连接",
         }
 
+    @app.get("/api/resources/mcp/presets")
+    def mcp_presets() -> dict[str, Any]:
+        """本地 MCP 的接入模板。
+
+        「添加」时先选一个模板，command/args 直接填好——本地服务器都是 stdio
+        子进程，少一个 ``-y`` 或者漏了根目录参数，只有真正调工具时才报错。
+        ``available`` 表示本机有没有对应的 ``npx``/``uvx``，没有就别让人白填。
+        """
+        from spiritscout.web.mcp_presets import list_presets
+
+        return {
+            "items": list_presets(),
+            "note": "本地 MCP 走 stdio 子进程；密钥请填在「环境变量」字段，不进配置文件。",
+        }
+
     @app.put("/api/resources/mcp/{name}")
     def mcp_save(name: str, payload: ResourceChange) -> dict[str, Any]:
         try:
