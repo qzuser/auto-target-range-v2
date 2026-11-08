@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 from spiritscout.blackboard import Blackboard
 from spiritscout.core.models import BlackboardLayer
 from spiritscout.gateway.cache import cache_summary
-from spiritscout.gateway.usage import file_version
+from spiritscout.gateway.usage import file_version, read_usage
 
 BJT = ZoneInfo("Asia/Shanghai")
 ACTIVE = {"running", "dispatched"}
@@ -208,11 +208,14 @@ class DashboardReader:
         self._snapshots[key] = version, data
         return data
 
-    def build(self, sessions: list[Any], *, period: str = "today", now: float | None = None) -> dict[str, Any]:
+    def build(self, sessions: list[Any], *, period: str = "today", now: float | None = None,
+              usage_root: Path | str | None = None) -> dict[str, Any]:
         with self._lock:
-            return self._build(sessions, period, time.time() if now is None else now)
+            return self._build(sessions, period, time.time() if now is None else now,
+                               usage_root=usage_root)
 
-    def _build(self, sessions: list[Any], period: str, now: float) -> dict[str, Any]:
+    def _build(self, sessions: list[Any], period: str, now: float,
+               usage_root: Path | str | None = None) -> dict[str, Any]:
         start = start_of_period(period, now)
         today_start = start_of_period("today", now)
         calls: list[dict[str, Any]] = []
@@ -329,6 +332,24 @@ class DashboardReader:
         valid_keys = {str(s.workspace) for s in sessions}
         self._snapshots = {k: v for k, v in self._snapshots.items() if k in valid_keys}
         self._audits = {k: v for k, v in self._audits.items() if str(Path(k).parent) in valid_keys}
+        # 工作区共享账本里还记着不属于任何在册会话的调用（控制台命名/提炼/对话，
+        # 以及会话工作区被清理后仍然留下的历史）。只按会话汇总的话，这些 token
+        # 在仪表盘上是隐形的——「用量」页有数字、仪表盘却是 0。
+        if usage_root is not None:
+            seen = {r.get("call_id") for r in calls}
+            shared = read_usage(Path(usage_root) / "usage.json") or {}
+            for row in shared.get("call_series", []):
+                if row.get("call_id") in seen:
+                    continue
+                ts = timestamp(row.get("ts"))
+                if not ts or not (start <= ts <= now):
+                    continue
+                calls.append({**row, "session_id": "", "ts": ts})
+                total_tokens += int(row.get("tokens") or 0)
+                total_cost += float(row.get("cost_usd") or 0)
+                model = row.get("model") or ""
+                per_model[model] += int(row.get("tokens") or 0)
+                daily[datetime.fromtimestamp(ts, BJT).strftime("%Y-%m-%d")] += int(row.get("tokens") or 0)
         selected_calls = [r for r in calls if start <= r["ts"] <= now]
         windows = {str(m): usage_metrics([r for r in calls if now - m * 60 <= r["ts"] <= now]) for m in (5, 30, 60)}
         groups = {}

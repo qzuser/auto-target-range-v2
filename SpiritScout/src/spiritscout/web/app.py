@@ -182,7 +182,8 @@ def create_app(cfg: SystemConfig, models: list[ModelEntry], *,
         """北京时间的执行、成果、费用与缓存总览；只读，不干预调度。"""
         from spiritscout.knowledge.experience import read_recent, shared_db_path
 
-        data = dashboard_reader.build(manager.list(), period=period)
+        data = dashboard_reader.build(manager.list(), period=period,
+                                      usage_root=Path(cfg.workspace.root))
         data["experience"] = read_recent(
             shared_db_path(cfg), limit=8)
         return data

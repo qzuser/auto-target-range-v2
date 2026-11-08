@@ -186,3 +186,33 @@ class DashboardMetricsTests(unittest.TestCase):
         self.assertEqual(len(data["sessions"]), 2)
         self.assertIn("部分记录暂不可读", data["sessions"][0]["data_note"])
         self.assertEqual(data["sessions"][1]["data_note"], "")
+
+    def test_workspace_ledger_counts_without_live_sessions(self) -> None:
+        """会话目录被清理后，工作区共享账本里的调用仍要进 summary。
+
+        「用量」页读的是共享账本，仪表盘原来只按在册会话汇总——同一次调用
+        一边有数字、一边是 0，看着像统计坏了。
+        """
+        shared = self.root / "workspace"
+        shared.mkdir()
+        (shared / "usage.json").write_text(json.dumps({
+            "used_tokens": 118, "calls": 1,
+            "call_series": [{"ts": self.now - 60, "tokens": 118, "model": "m",
+                             "call_id": "c1", "input_tokens": 60, "output_tokens": 58}],
+        }), encoding="utf-8")
+        data = self.reader.build([], now=self.now, usage_root=shared)
+        self.assertEqual(data["summary"]["calls"], 1)
+        self.assertEqual(data["summary"]["tokens"], 118)
+
+    def test_workspace_ledger_skips_rows_already_counted_from_sessions(self) -> None:
+        """同一条记录在会话账本和共享账本里都在时只算一次（按 call_id 去重）。"""
+        session = self.session()
+        row = {"ts": self.now - 60, "tokens": 30, "model": "m", "call_id": "dup"}
+        self.usage(session, [row])
+        shared = self.root / "workspace"
+        shared.mkdir()
+        (shared / "usage.json").write_text(json.dumps({
+            "used_tokens": 30, "calls": 1, "call_series": [row]}), encoding="utf-8")
+        data = self.reader.build([session], now=self.now, usage_root=shared)
+        self.assertEqual(data["summary"]["calls"], 1)
+        self.assertEqual(data["summary"]["tokens"], 30)
