@@ -42,6 +42,23 @@ class TransientClassificationTests(unittest.TestCase):
         self.assertFalse(_is_transient(RuntimeError(
             "model is not available in the current token plan")))
 
+    def test_context_overflow_is_not_retried(self) -> None:
+        """输入装不下窗口不是抖动：SDK 把它包进 APIConnectionError，按类名会误判成断流。
+
+        实测 LM Studio 以 4 路并行加载 16384 上下文（每槽 4096）时，灵枢 5.2k token
+        的请求连着失败 43 次、重试 22 次，整轮白耗二十多分钟。
+        """
+        self.assertFalse(_is_transient(RuntimeError(
+            'litellm.APIConnectionError: OpenAIException - Engine protocol predict request '
+            'returned 500: {"error":{"code":500,"message":"Context size has been exceeded."}}')))
+        self.assertFalse(_is_transient(RuntimeError(
+            "This model's maximum context length is 8192 tokens. However, your messages "
+            "resulted in 9000 tokens.")))
+        self.assertFalse(_is_transient(RuntimeError("error code: context_length_exceeded")))
+        self.assertFalse(_is_transient(RuntimeError("prompt is too long: 210000 tokens")))
+        # 真正的抖动仍然要能重试，别把这一整类顺手关掉
+        self.assertTrue(_is_transient(RuntimeError("OpenAIException - Connection error")))
+
 
 class HardTimeoutTests(unittest.IsolatedAsyncioTestCase):
     async def test_stream_that_stalls_is_cut_at_the_hard_limit(self) -> None:
@@ -150,6 +167,40 @@ class TransientRetryTests(unittest.IsolatedAsyncioTestCase):
             response = await gateway.chat([{"role": "user", "content": "fixture"}], max_tokens=16)
             self.assertEqual(response.content, "ok")
             self.assertEqual(len(seen), 2, "断流后应当重发一次")
+        finally:
+            server.close()
+            await server.wait_closed()
+
+
+class OverflowNotRetriedTests(unittest.IsolatedAsyncioTestCase):
+    async def test_overflow_fails_once_with_actionable_hint(self) -> None:
+        """超窗只打一次：不重发、不吞错，异常里要能看出「该换模型或调窗口」。"""
+        seen: list[int] = []
+        body = (b'{"error":{"code":500,"message":"Context size has been exceeded.",'
+                b'"type":"server_error"}}')
+
+        async def handle(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+            try:
+                await reader.readuntil(b"\r\n\r\n")
+                seen.append(1)
+                writer.write(b"HTTP/1.1 500 Internal Server Error\r\n"
+                             b"Content-Type: application/json\r\n"
+                             b"Content-Length: " + str(len(body)).encode()
+                             + b"\r\nConnection: close\r\n\r\n" + body)
+                await writer.drain()
+            finally:
+                writer.close()
+
+        server = await asyncio.start_server(handle, "127.0.0.1", 0)
+        port = server.sockets[0].getsockname()[1]
+        try:
+            gateway = _gateway(port, timeout=5)
+            with self.assertRaises(SpiritScoutError) as caught:
+                await gateway.chat([{"role": "user", "content": "fixture"}], max_tokens=16)
+            message = str(caught.exception)
+            self.assertIn("模型调用全链失败", message)
+            self.assertIn("窗口", message, "超窗失败要指向「换更大窗口的模型」这个动作")
+            self.assertEqual(len(seen), 1, "超窗不该重发同一份请求")
         finally:
             server.close()
             await server.wait_closed()

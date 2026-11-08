@@ -268,6 +268,10 @@ class LiteLLMBackend(ChatBackend):
             "messages": messages,
             "temperature": temperature,
             "timeout": timeout,
+            # 重发由网关自己判（见 gateway._is_transient）：SDK 内部重试不看错误类型，
+            # 会把「上下文装不下」这种必然失败的请求重复发两遍。实测本地端点一次
+            # 推理几十秒，一次超窗因此变成三次等待，整轮白耗。
+            "num_retries": 0,
         }
         if max_tokens is not None:
             kwargs["max_tokens"] = max_tokens

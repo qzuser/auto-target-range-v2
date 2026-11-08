@@ -43,9 +43,28 @@ _TRANSIENT_HINTS = ("connection error", "connection reset", "connection aborted"
                     "server disconnected", "incompletestream", "timed out", "timeout",
                     "apiconnectionerror", "remotedisconnected", "temporarily unavailable")
 
+# 「输入装不下窗口」不是抖动：端点已经明确说装不下，重发同一份请求必然再失败一次。
+# 本地端点一次推理常要几十秒，而槽位分片会让这条错误连着出现——实测 LM Studio 以
+# `--parallel 4` 加载 16384 上下文时，每槽只剩 4096，灵枢 5.2k token 的请求连续失败
+# 43 次、白白耗掉二十多分钟。这类错误一律交回上层，不在这里重试。
+_OVERFLOW_HINTS = ("context size has been exceeded", "context_length_exceeded",
+                   "maximum context length", "reduce the length of the messages",
+                   "prompt is too long", "too many tokens", "input is too long")
+
+
+def _is_context_overflow(exc: BaseException) -> bool:
+    """端点明确报「上下文装不下」：该换模型或调窗口，重试没有意义。"""
+    text = str(exc).lower()
+    return any(hint in text for hint in _OVERFLOW_HINTS)
+
 
 def _is_transient(exc: BaseException) -> bool:
-    """判断是否值得就地重试一次：只认连接/超时类，鉴权与额度错误不重试。"""
+    """判断是否值得就地重试一次：只认连接/超时类，鉴权、额度与超窗都不重试。
+
+    超窗判定放最前面：SDK 把它包进 `APIConnectionError`，按类名会误判成断流。
+    """
+    if _is_context_overflow(exc):
+        return False
     if isinstance(exc, (ConnectionError, TimeoutError)):
         return True
     name = type(exc).__name__.lower()
@@ -363,6 +382,11 @@ class ModelGateway:
         if last_exc is not None and "Missing credentials" in str(last_exc):
             hint = ("；这条渠道没有可用密钥：去「模型」页给对应供应商填 API Key，"
                     "或把它从优先级链里移掉（本机端点会自动用占位密钥，不需要填）")
+        elif last_exc is not None and _is_context_overflow(last_exc):
+            # 这句话要能直接指到动作上：换模型，或去端点把窗口调大。槽位分片是最常见
+            # 的坑——界面显示 16384，按 4 路并行就只有 4096 可用，看着够实际不够。
+            hint = ("；模型窗口装不下本轮输入：换上下文更大的模型，或把端点的窗口调大"
+                    "（并行槽数会把总窗口按槽平分，单槽只有 1/N）")
         raise SpiritScoutError(f"模型调用全链失败（主备均不可用）: {last_exc}{hint}")
 
     async def _invoke_with_retry(self, entry: ModelEntry, *args: Any, **kwargs: Any) -> ChatResponse:

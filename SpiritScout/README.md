@@ -9,7 +9,7 @@
 
 **简体中文 · [English](README_EN.md)**
 
-[![Version](https://img.shields.io/badge/version-v0.36.1-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
+[![Version](https://img.shields.io/badge/version-v0.36.2-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
 
 [快速开始](#快速开始) · [三种模式](#三种模式) · [界面](#界面) · [工作原理](#工作原理) · [配置参考](#配置参考) · [常见问题](#常见问题) · [部署指南](docs/部署与配置.md)
 
@@ -191,7 +191,7 @@ launch.cmd --auth password
 `[状态] 已运行 01:00 · 会话 2（运行中 0） · 内存 244 MB`，不开任务管理器也能知道它活着。
 
 ```
-灵枢 Web 控制台 v0.36.1: http://127.0.0.1:8010  (登录已关闭，本机直接进入（auth_mode=none），并发上限 4，Ctrl+C 停止)
+灵枢 Web 控制台 v0.36.2: http://127.0.0.1:8010  (登录已关闭，本机直接进入（auth_mode=none），并发上限 4，Ctrl+C 停止)
 
 [就绪] 浏览器可以打开了: http://127.0.0.1:8010
        每 60 秒报一次状态；Ctrl+C 停止
@@ -395,7 +395,7 @@ Docker 用 `python deploy.py migrate`；手工迁移时停服 → 拷 `.spiritsc
 
 ## 文档与贡献
 
-当前代码版本 **v0.36.1**。版本唯一来源、递增规则与历史说明见 [版本管理](CONTRIBUTING.md#版本管理)。
+当前代码版本 **v0.36.2**。版本唯一来源、递增规则与历史说明见 [版本管理](CONTRIBUTING.md#版本管理)。
 
 | 我想了解 | 阅读入口 |
 | --- | --- |
