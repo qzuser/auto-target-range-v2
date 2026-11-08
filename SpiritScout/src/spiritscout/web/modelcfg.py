@@ -5,7 +5,10 @@ YAML 只存接入配置；密钥由本机密钥库按供应商注入，API 不�
 from __future__ import annotations
 
 import os
+import shutil
 import tempfile
+from contextlib import suppress
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -144,10 +147,19 @@ def _validate(providers: list[dict[str, Any]],
 
 def write_config(path: str | Path, providers: list[dict[str, Any]],
                  models: list[dict[str, Any]]) -> None:
-    """校验后原子写回（tmp + replace，防半写损坏）。"""
+    """校验后原子写回（tmp + replace，防半写损坏）。
+
+    覆盖前先留一份 ``<文件名>.bak-<时间戳>``：手滑点掉一个供应商、或者某条
+    异常路径写进空清单时，模型注册表还能捡回来。备份失败不影响写入
+    （``.gitignore`` 已经忽略这些文件，不会进仓库）。
+    """
     _validate(providers, models)
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
+    if p.is_file():
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        with suppress(OSError):
+            shutil.copy2(p, p.with_name(f"{p.name}.bak-{stamp}"))
     body: dict[str, Any] = {"providers": providers, "models": models}
     text = _HEADER + yaml.safe_dump(body, allow_unicode=True, sort_keys=False,
                                     width=120)

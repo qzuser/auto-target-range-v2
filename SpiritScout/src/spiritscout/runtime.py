@@ -256,9 +256,11 @@ def _open_workspace(
     journal = ExecutionJournal(blackboard, workspace, new_id("run"))
     journal.activate_run(run_lock)
     registry = ToolRegistry(executor, policy=policy, audit=audit, journal=journal)
-    from spiritscout.gateway.usage import bind_usage
+    from spiritscout.gateway.usage import bind_usage, shared_ledger_path
 
-    bind_usage(gateway, workspace / "usage.json")
+    # 用量账本落在**基础工作区**：会话工作区随会话清理一起消失，账本跟着写进去
+    # 的话「用量」页读的共享库永远是 0（跑了题、花了 token，页面上什么都没有）。
+    bind_usage(gateway, shared_ledger_path(cfg))
     # 经验库默认跟随工作区；Web 会话在 _session_cfg 里把 root 指向共享目录，
     # 保证提炼出的经验跨会话可见（会话隔离不隔离经验）。
     # 经验库是**共享库**，不是会话目录里的那本：写进 sessions/<id>/experience.db

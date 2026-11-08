@@ -91,12 +91,14 @@ class UsageLedger:
             conn.commit()
         os.chmod(self.path, 0o600)
 
-    def append(self, entry: dict[str, Any]) -> None:
+    def append(self, entry: dict[str, Any]) -> bool:
+        """记一笔；返回是否真的新增（同 call_id 重复写返回 False，用于并库计数）。"""
         row = UsageCall.model_validate({**entry, "call_id": entry.get("call_id") or uuid.uuid4().hex}).model_dump()
         with closing(sqlite3.connect(self.path, timeout=10)) as conn, conn:
             conn.execute("PRAGMA synchronous=FULL")
-            conn.execute("INSERT OR IGNORE INTO calls(call_id,data) VALUES(?,?)",
-                         (row["call_id"], json.dumps(row, ensure_ascii=False, separators=(",", ":"))))
+            cur = conn.execute("INSERT OR IGNORE INTO calls(call_id,data) VALUES(?,?)",
+                               (row["call_id"], json.dumps(row, ensure_ascii=False, separators=(",", ":"))))
+        return cur.rowcount > 0
 
     def read(self) -> dict[str, Any]:
         return read_usage(self.path.with_suffix(".json"), ledger=self.path) or {"used_tokens": 0}
@@ -172,3 +174,56 @@ def bind_usage(gateway: Any, legacy: Path) -> UsageLedger:
             gateway.audit.log("usage.persist_failed", "gateway", {"error": str(exc)[:300]})
     gateway.budget.on_call = record
     return ledger
+
+
+def shared_ledger_path(cfg: Any) -> Path:
+    """用量账本落点：**基础工作区**，不是会话工作区。
+
+    会话工作区（``sessions/<id>/``）随会话归档与清理一起消失；账本落在里面，
+    「用量」页读的共享库就永远是 0——题型跑完、token 花掉，页面上什么都没有。
+    ``_session_cfg`` 已经把基础工作区写在 ``workspace.guard_root``（它本来就要
+    指控制面根，好让沙箱连 vault、兄弟会话、审计一起遮），这里直接用它；
+    单机 CLI 没有这层重定向时退回 ``workspace.root``。
+    """
+    ws = getattr(cfg, "workspace", None)
+    base = str(getattr(ws, "guard_root", "") or "").strip()
+    return Path(base or str(getattr(ws, "root", "") or ".")) / "usage.json"
+
+
+def absorb_session_ledgers(target: str | Path, sessions_dir: str | Path) -> int:
+    """把会话目录里遗留的账本并进共享库，返回并入笔数。
+
+    0.36.5 及以前 ``runtime`` 把账本绑在会话工作区，于是解题的调用记在
+    ``sessions/<id>/usage.db``，而页面读共享库——同一批 token 两处都看不到；
+    会话被清理后文件也没了。这里做一次性并库，``append`` 按 ``call_id``
+    去重（``INSERT OR IGNORE``），重复执行无副作用。
+    """
+    shared = UsageLedger(Path(target))
+    source_dir = Path(sessions_dir)
+    merged = 0
+    if not source_dir.is_dir():
+        return 0
+    for legacy in sorted(source_dir.glob("*/usage.db")):
+        if not legacy.is_file() or legacy.resolve() == shared.path.resolve():
+            continue
+        for row in _read_ledger_rows(legacy):
+            if shared.append(row):
+                merged += 1
+    return merged
+
+
+def _read_ledger_rows(path: Path) -> list[dict[str, Any]]:
+    """读一本旧账本里的逐笔记录；读不动就当没有（不拖累启动）。"""
+    rows: list[dict[str, Any]] = []
+    try:
+        with closing(sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True)) as conn:
+            for (data,) in conn.execute("SELECT data FROM calls ORDER BY seq"):
+                try:
+                    entry = json.loads(data)
+                except (TypeError, ValueError):
+                    continue
+                if isinstance(entry, dict):
+                    rows.append(entry)
+    except (OSError, sqlite3.Error):
+        return []
+    return rows

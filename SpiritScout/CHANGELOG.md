@@ -1,6 +1,6 @@
 # 更新日志
 
-项目采用 `主版本.次版本.修订号`。当前版本为 **0.36.5**，版本唯一来源是
+项目采用 `主版本.次版本.修订号`。当前版本为 **0.36.6**，版本唯一来源是
 `src/spiritscout/__init__.py`；包构建、命令行、控制台及 MCP 握手共用该值。
 
 **历史版本说明**：0.1.0 是仓库早期已有的代码版本；0.2.0—0.11.1 根据现有
@@ -9,6 +9,33 @@ Git 历史与日期日志回溯整理，用于标识功能演进，**并非当�
 行为，部分规则后来已有调整，请以当前代码和最新条目为准。
 
 版本递增和发布记录规则见 [贡献指南](CONTRIBUTING.md#版本管理)。
+
+## [0.36.6] - 2026-11-08
+
+用量页长年是 0：账本绑在会话工作区，页面读的却是共享库，跑过的每道题都不作数。
+
+### 修复
+
+- **用量账本改落基础工作区**：`runtime.py` 原来 `bind_usage(gateway, workspace /
+  "usage.json")`，`workspace` 是会话目录。token 记进 `sessions/<id>/usage.db`，
+  会话一清理连文件都没了；而「用量」页读的是基础工作区的共享库，于是「跑了一晚上，
+  页面还是 0」。经验库在 0.30.0 修过同一个坑（`absorb_session_dbs` 的注释写着
+  「提炼成功但库里没有」），用量当时漏了。新增 `gateway/usage.py:shared_ledger_path`，
+  用 `workspace.guard_root`（`_session_cfg` 已经把它指向控制面根）取基础工作区，
+  单机 CLI 没有这层重定向时退回 `workspace.root`。
+- **并库补历史**：新增 `absorb_session_ledgers`，把会话目录里遗留的账本并回共享库，
+  按 `call_id` 去重（`UsageLedger.append` 改为返回是否真的新增）。
+  `SessionManager.start()` 与删会话前各跑一次，重复执行无副作用。
+- **`write_config` 写前留备份**：覆盖 `models.yaml` 之前先存一份
+  `.bak-<时间戳>`。今天有现场：该文件被写成 `providers: [] / models: []`，
+  八条渠道全没了，服务起得来但一个模型都调不动。
+
+### 测试
+
+- 新增 `tests/test_usage_shared_ledger.py` 6 项：落点选择（`guard_root` 优先 /
+  回退 `workspace.root`）、并库计数、幂等、缺失目录、`append` 的去重返回值。
+- 新增 `tests/test_modelcfg_backup.py` 2 项：覆盖前留备份且内容为上一版、
+  首次写入不产生空备份。
 
 ## [0.36.5] - 2026-11-08
 

@@ -1371,6 +1371,18 @@ class SessionManager:
         if self._supervisor is None or self._supervisor.done():
             self._supervisor = asyncio.create_task(
                 self._supervise(), name="spiritscout-supervisor")
+        # 老版本把用量账本绑在会话工作区（sessions/<id>/usage.db）：开工前先并回
+        # 共享库，否则「用量」页读不到这些 token。按 call_id 去重，多次执行不重复计。
+        try:
+            from spiritscout.gateway.usage import (
+                absorb_session_ledgers,
+                shared_ledger_path,
+            )
+
+            absorb_session_ledgers(shared_ledger_path(self._cfg),
+                                   Path(self._cfg.workspace.root) / "sessions")
+        except (OSError, sqlite3.Error):
+            pass
         # 每进程只扫描一次遗留快照。start() 也会在每次新建会话时调用；
         # 若任务结束后重扫，会把当前进程仍在跑的 snapshot 重复提炼。
         if self._distill_resume_task is None:
@@ -2619,6 +2631,18 @@ class SessionManager:
 
             absorb_session_dbs(shared_db_path(self._cfg),
                                Path(session.workspace).parent)
+        except (OSError, sqlite3.Error):
+            pass
+        # 用量账本同理：0.36.5 及以前 runtime 把它绑在会话目录里，删目录前先并回
+        # 共享库，否则这几万 token 连点痕迹都留不下（并库按 call_id 去重，幂等）。
+        try:
+            from spiritscout.gateway.usage import (
+                absorb_session_ledgers,
+                shared_ledger_path,
+            )
+
+            absorb_session_ledgers(shared_ledger_path(self._cfg),
+                                   Path(session.workspace).parent)
         except (OSError, sqlite3.Error):
             pass
         shutil.rmtree(session.workspace, ignore_errors=True)
