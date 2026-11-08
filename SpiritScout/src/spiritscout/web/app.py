@@ -118,6 +118,12 @@ def create_app(cfg: SystemConfig, models: list[ModelEntry], *,
         # 关停时停掉所有未终态会话，避免孤儿任务
         manager.start()
         resource_assistant.start()
+        # 自定义技能的真源在版本库（configs/skills.yaml）：启动时同步进资源库。
+        # 工作区重建会带走 catalog.db，技能不能只活在里面（仓库里没有第二份）。
+        with suppress(OSError, ValueError, sqlite3.Error):
+            from spiritscout.resources.skill_sync import sync_skills
+
+            sync_skills(resource_store, cfg.resources.skills_config)
         # 旧版本把手动提炼写进了会话目录里的 experience.db：启动时并回共享库，
         # 否则「经验库」页永远看不到那次提炼（并库幂等，目标库已有同文即跳过）
         with suppress(OSError, sqlite3.Error):

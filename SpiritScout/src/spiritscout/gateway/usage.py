@@ -197,8 +197,13 @@ def absorb_session_ledgers(target: str | Path, sessions_dir: str | Path) -> int:
     ``sessions/<id>/usage.db``，而页面读共享库——同一批 token 两处都看不到；
     会话被清理后文件也没了。这里做一次性并库，``append`` 按 ``call_id``
     去重（``INSERT OR IGNORE``），重复执行无副作用。
+
+    ``target`` 是**旧式 json 路径**（和 ``bind_usage`` 同口径），真正的库是
+    同名 ``.db``。0.36.6 曾直接拿 ``target`` 当库路径，于是在工作区里多出一个
+    名叫 ``usage.json`` 的 SQLite 文件——读取侧优先认 ``.db``，那两个库谁都
+    看不到对方，合并结果等于白做。
     """
-    shared = UsageLedger(Path(target))
+    shared = UsageLedger(Path(target).with_suffix(".db"))
     source_dir = Path(sessions_dir)
     merged = 0
     if not source_dir.is_dir():

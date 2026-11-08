@@ -234,10 +234,15 @@ models: []
         "# 模型要先在 configs/models.yaml 注册并启用，这里才指派得上。\n"
         "assignments: {}\nnaming: []\n", encoding="utf-8")
 
-    for name in ("system.example.yaml", "models.example.yaml", "models.mock.yaml"):
+    # 自定义技能随包走：skills.yaml 是仓库里的真源，控制台启动时同步进资源库，
+    # 换机器或重建工作区都还在（不放进包里，装好第一天技能页就是空的）。
+    for name in ("system.example.yaml", "models.example.yaml", "models.mock.yaml",
+                 "skills.yaml"):
         src = PROJ / "configs" / name
         if src.exists():
             cp(src, cfg / name)
+        elif name == "skills.yaml":
+            print("    ! 缺 configs/skills.yaml（自定义技能不会随包发布）")
     print(f"  configs {nfiles(cfg)} 文件")
 
 

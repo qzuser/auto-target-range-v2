@@ -234,6 +234,9 @@ class ResourcesConfig(ValidatedConfig):
     root: str = ""
     freshness_hours: float = Field(default=24, gt=0)
     npm_registry: str = Field(default="https://registry.npmjs.org", pattern=r"^https?://")
+    #: 自定义技能清单（版本库里的真源）：启动时同步进资源库的 settings 表，
+    #: 工作区重建后技能还在。内置 206 条不在这里，见 knowledge/data。
+    skills_config: str = "configs/skills.yaml"
 
 
 class ExperienceConfig(ValidatedConfig):

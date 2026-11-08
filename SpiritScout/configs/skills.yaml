@@ -1,0 +1,8 @@
+# 自定义技能库（版本库里的真源；启动时同步进资源库，不随工作区重建丢失）。
+# 每条字段与「技能」页一致：skill_id / domain / description / body /
+# severity / cwe / tools / source / path / enabled。
+# 批量导入：python -m spiritscout.resources.skill_sync import <目录>
+# 反向导出：python -m spiritscout.resources.skill_sync export
+# 内置的 206 条安全技能在 src/spiritscout/knowledge/data/security_skills.json，
+# 不写在这里——这里只放你自己加的。
+skills: []

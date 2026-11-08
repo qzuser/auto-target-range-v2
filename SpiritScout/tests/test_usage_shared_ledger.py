@@ -62,9 +62,11 @@ class AbsorbSessionLedgerTests(unittest.TestCase):
         return path
 
     def _count(self) -> int:
-        if not self.shared.exists():
+        """库文件是 target 的同名 .db（target 本身是旧式 json 路径）。"""
+        db = self.shared.with_suffix(".db")
+        if not db.exists():
             return 0
-        conn = sqlite3.connect(str(self.shared))
+        conn = sqlite3.connect(str(db))
         try:
             return int(conn.execute("SELECT COUNT(*) FROM calls").fetchone()[0])
         finally:
@@ -76,6 +78,8 @@ class AbsorbSessionLedgerTests(unittest.TestCase):
         self._ledger("s2", [("c3", 300), ("c4", 400)])
         self.assertEqual(absorb_session_ledgers(self.shared, self.sessions), 4)
         self.assertEqual(self._count(), 4)
+        # 不能把 SQLite 直接建成 usage.json：读取侧优先认 .db，两个库谁也看不见谁
+        self.assertFalse(self.shared.exists(), "并库不该占用 target 的 json 文件名")
 
     def test_absorb_is_idempotent(self) -> None:
         """重复并库不重复计——启动时每次 start 都会扫一遍。"""
