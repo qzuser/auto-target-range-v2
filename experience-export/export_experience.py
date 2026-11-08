@@ -235,9 +235,118 @@ def comparable(payload: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in payload.items() if k != "generated_at"}
 
 
+# ---- 回灌：把留档快照写回运行库 ---------------------------------------------
+# 快照是脱敏留档，运行时读的是 experience.db 的 insights 表，两者不会自动同步：
+# 换机器、重建工作区、或者库被清空之后，「经验库」页就是空的——明明仓库里躺着条目。
+# --import 负责把留档灌回运行库。去重看两条：insight_id 主键、以及 insight 原文，
+# 所以同一句话即使换了 id 也不会进第二行；重复执行无副作用。
+_INSIGHT_CAP = 600
+_CONTEXT_CAP = 300
+
+_TABLE_DDL = """CREATE TABLE IF NOT EXISTS insights (
+    insight_id TEXT PRIMARY KEY,
+    insight TEXT NOT NULL,
+    context TEXT DEFAULT '',
+    tags TEXT DEFAULT '[]',
+    source_session TEXT DEFAULT '',
+    source_model TEXT DEFAULT '',
+    ts REAL NOT NULL
+)"""
+
+
+def _iso_to_ts(value: Any) -> float:
+    """ISO 时间串转 epoch 秒；解析不了就退成现在，不让一条脏数据挡住整批。"""
+    text = str(value or "").strip()
+    if not text:
+        return time.time()
+    try:
+        return datetime.fromisoformat(text.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return time.time()
+
+
+def _ensure_schema(conn: sqlite3.Connection) -> None:
+    """按 knowledge/experience.py 的口径建表，并补齐合并溯源两列。"""
+    conn.execute(_TABLE_DDL)
+    have = {row[1] for row in conn.execute("PRAGMA table_info(insights)")}
+    for name, ddl in (("merged_into", "TEXT DEFAULT ''"),
+                      ("merged_from", "TEXT DEFAULT '[]'")):
+        if name not in have:
+            conn.execute(f"ALTER TABLE insights ADD COLUMN {name} {ddl}")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_insights_ts ON insights(ts DESC)")
+    conn.commit()
+
+
+def import_snapshot(db_path: Path, out_path: Path, *, dry_run: bool = False) -> int:
+    """把快照写回运行库，返回退出码。只增不改：库里已有的条目原样保留。"""
+    snapshot = load_snapshot(out_path)
+    if snapshot.get("kind") != KIND:
+        raise ExportError(f"快照类型不符：{snapshot.get('kind')!r}")
+    entries = snapshot.get("insights") or []
+    if not entries:
+        print(f"[跳过] 快照里没有条目：{out_path}")
+        return 0
+
+    # 预演不落盘：库还不存在时连上去会顺手建一个空文件，那就不是「只看一眼」了
+    if dry_run and not db_path.exists():
+        print(f"[回灌]（预演，未写入） 快照 {len(entries)} 条：新增 {len(entries)}、"
+              f"跳过 0；库还不存在 —— {db_path}")
+        return 0
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    # timeout：控制台可能正持有写锁，等一会儿比直接报 locked 好
+    conn = sqlite3.connect(str(db_path), timeout=20)
+    try:
+        _ensure_schema(conn)
+        have_ids = {str(row[0]) for row in conn.execute("SELECT insight_id FROM insights")}
+        have_text = {str(row[0] or "").strip()
+                     for row in conn.execute("SELECT insight FROM insights")}
+        added = skipped = 0
+        for entry in entries:
+            text = str(entry.get("insight") or "").strip()[:_INSIGHT_CAP]
+            insight_id = str(entry.get("id") or "")
+            if not text or (insight_id and insight_id in have_ids) or text in have_text:
+                skipped += 1
+                continue
+            if dry_run:
+                added += 1
+                continue
+            conn.execute(
+                "INSERT OR IGNORE INTO insights"
+                " (insight_id, insight, context, tags, source_session,"
+                "  source_model, ts) VALUES (?,?,?,?,?,?,?)",
+                (insight_id or f"exp-import-{int(time.time() * 1000)}-{added}",
+                 text,
+                 str(entry.get("context") or "").strip()[:_CONTEXT_CAP],
+                 json.dumps([str(tag) for tag in (entry.get("tags") or [])][:8],
+                            ensure_ascii=False),
+                 str(entry.get("source_session") or ""),
+                 str(entry.get("source_model") or ""),
+                 _iso_to_ts(entry.get("captured_at"))))
+            have_ids.add(insight_id)
+            have_text.add(text)
+            added += 1
+        if not dry_run:
+            conn.commit()
+        total = conn.execute("SELECT COUNT(*) FROM insights").fetchone()[0]
+    finally:
+        conn.close()
+
+    mark = "（预演，未写入）" if dry_run else ""
+    try:
+        where = db_path.relative_to(REPO_ROOT)
+    except ValueError:
+        where = db_path
+    print(f"[回灌]{mark} 快照 {len(entries)} 条：新增 {added}、跳过 {skipped}；"
+          f"库内现有 {total} 条 —— {where}")
+    return 0
+
+
 def run(args: argparse.Namespace) -> int:
     db_path = Path(args.db).resolve() if args.db else DEFAULT_DB
     out_path = Path(args.out).resolve() if args.out else DEFAULT_OUT
+
+    if getattr(args, "do_import", False):
+        return import_snapshot(db_path, out_path, dry_run=getattr(args, "dry_run", False))
 
     if args.self_test:
         # 1) 对已提交内容再脱敏一次必须原样不动（幂等 = 没有规则会误伤正文）
@@ -316,6 +425,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--check", action="store_true", help="只检查快照是否落后，不改文件")
     parser.add_argument("--strict", action="store_true", help="运行库缺失/读不了时按失败处理")
     parser.add_argument("--self-test", action="store_true", help="用现有快照自检导出管线")
+    parser.add_argument("--import", dest="do_import", action="store_true",
+                        help="反向：把快照写回运行库（换机器/库被清空后补回经验）")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="配合 --import：只报会新增多少条，不写库")
     return parser
 
 

@@ -80,10 +80,22 @@ python experience-export/export_experience.py --self-test # 自检：脱敏幂�
   **随代码发布的内置技能库**，是静态知识。
 - 本目录——**运行后沉淀的经验**，随会话增长，属于数据而非代码。
 
-## 重新导入
+## 重新导入（回灌）
 
-写回位置由 `SpiritScout/configs/system.yaml:65-68` 的 `experience` 段决定：
+写回位置由 `SpiritScout/configs/system.yaml` 的 `experience` 段决定：
 `experience.root` 留空时经验库跟随当前工作区（`<工作区>/experience.db`），Web 控制台则
 指向共享目录。会话开工按 `recall_limit`（默认 6 条）召回注入提示词。
 
-本快照仅用于留档与人工检索，不会被运行时自动读取；要生效需按上表字段写回 `insights` 表。
+运行时**不会**自动读这份快照，所以要让它生效得显式灌回去：
+
+```bash
+python experience-export/export_experience.py --import --dry-run   # 先看会新增多少条
+python experience-export/export_experience.py --import             # 真写回 insights 表
+```
+
+什么时候需要它：换机器、重建 `.spiritscout`、或者库被清空过——那时快照里躺着一百多条，
+而「经验库」页是空的，就是这个原因造成的。判重同时看 `insight_id` 与 `insight` 原文，
+所以重复执行没有副作用；库里已有的条目不会被覆盖或删除（只增不减），
+原始 `captured_at` 会转成 `ts` 保留，时间线不乱。
+
+快照与运行库脱节时先跑一次 `--check`：它说 `[最新]` 就说明两边一致，说 `[过期]` 才需要同步。
