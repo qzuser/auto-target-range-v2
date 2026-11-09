@@ -29,7 +29,10 @@ function sliceFn(name) {
 
 const asyncNames = ["loadSessionModels", "saveSessionModel"];
 const body = ["sessionModelOptions", "sessionModelChip", ...asyncNames]
-  .map(n => sliceFn(n) + "\n").join("");
+  .map(n => sliceFn(n) + "\n").join("")
+  + sliceFn("modelIdsOf") + "\n"
+  + sliceFn("refreshSessionModels") + "\n"
+  + "const SESSION_MODELS_DEDUPE_MS = 400;\n";
 
 const state = {list: [], calls: [], fetchCount: 0, failNext: false};
 const context = vm.createContext({
@@ -52,6 +55,7 @@ const options = vm.runInContext("sessionModelOptions", context);
 const chip = vm.runInContext("sessionModelChip", context);
 const load = vm.runInContext("loadSessionModels", context);
 const save = vm.runInContext("saveSessionModel", context);
+const refresh = vm.runInContext("refreshSessionModels", context);
 
 const models = [{model: "m-a", provider_ref: "local"}, {model: "m-b", provider_ref: "local"}];
 
@@ -112,6 +116,41 @@ const models = [{model: "m-a", provider_ref: "local"}, {model: "m-b", provider_r
   const fallback = await load();
   assert.equal(fallback.length, 0, "接口挂了就当没有可选模型");
   assert.match(options({model: ""}, fallback), /自动 · 跟随全局优先级/);
+
+  // ⑩ 显式 fresh：绕过缓存重查（模型页增删改之后要能立刻看到新列表）
+  context.S.sessionModels = null;
+  state.failNext = false;
+  state.list = models;
+  await load();
+  const cached = state.fetchCount;
+  await load({fresh: true});
+  assert.equal(state.fetchCount, cached + 1, "fresh 必须真的再打一次接口");
+
+  // ⑪ 点开下拉：pointerdown 与 focus 挨着触发，只发一次查询
+  const picker = {value: "m-b", innerHTML: "", isConnected: true};
+  state.list = [...models, {model: "m-c", provider_ref: "local"}];
+  context.S.sessionModelsAskedAt = 0;
+  context.S.sessionModelsInFlight = null;
+  const before11 = state.fetchCount;
+  const p1 = refresh(picker);
+  const p2 = refresh(picker);
+  await Promise.all([p1, p2]);
+  assert.equal(state.fetchCount, before11 + 1, "同一次点击只能查一次");
+  assert.ok(picker.innerHTML.includes('value="m-c"'), "新模型要出现在选项里");
+  assert.ok(picker.innerHTML.includes('value="m-b" selected'), "重绘后仍保住当前选择");
+
+  // ⑫ 列表没变化时不重绘 DOM，免得把正在展开的下拉顶掉
+  picker.innerHTML = "已渲染";
+  context.S.sessionModelsAskedAt = 0;
+  await refresh(picker);
+  assert.equal(picker.innerHTML, "已渲染", "列表没变就不该动 DOM");
+
+  // ⑬ 下线的模型不再出现：列表刷新后只留当前的「已下线」标记
+  state.list = [{model: "m-a", provider_ref: "local"}];
+  context.S.sessionModelsAskedAt = 0;
+  await refresh(picker);
+  assert.ok(picker.innerHTML.includes("m-b（已下线）"), "当前选中的下线模型要如实标出");
+  assert.doesNotMatch(picker.innerHTML, /value="m-c"/, "已删除的模型不能残留在选项里");
 
   console.log("test_session_model.js 通过");
 })().catch(err => { console.error(err); process.exit(1); });

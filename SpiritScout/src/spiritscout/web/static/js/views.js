@@ -428,13 +428,47 @@ function sessionModelChip(session, models) {
       ${sessionModelOptions(session, models)}</select>`;
 }
 
-async function loadSessionModels() {
-  if (S.sessionModels && S.sessionModels.length) return S.sessionModels;
+async function loadSessionModels(opts) {
+  const fresh = !!(opts && opts.fresh);
+  if (!fresh && S.sessionModels && S.sessionModels.length) return S.sessionModels;
   try {
     const data = await api("/api/models");
     S.sessionModels = (data && data.models) || [];
   } catch { S.sessionModels = S.sessionModels || []; }
   return S.sessionModels;
+}
+
+/* 模型列表不能"拉一次管一辈子"：在「模型」页改完供应商、停用或删掉某个模型，
+   会话页的下拉还列着它，选下去只会被后端退回优先级链。所以每次点开下拉都重查
+   一次。同一次点击会连发 pointerdown 与 focus，用 in-flight + 短窗口合并成一次
+   请求，浏览器里看到的仍然是"点一下、查一次"。 */
+const SESSION_MODELS_DEDUPE_MS = 400;
+
+function modelIdsOf(models) {
+  return (models || [])
+    .map(m => (typeof m === "string" ? m : (m && m.model)))
+    .filter(Boolean)
+    .join("|");
+}
+
+function refreshSessionModels(select) {
+  const now = Date.now();
+  // 同一次点击会连发 pointerdown + focus（键盘还有 keydown），400ms 内并成一次查询
+  if (now - (S.sessionModelsAskedAt || 0) < SESSION_MODELS_DEDUPE_MS) {
+    return S.sessionModelsInFlight || Promise.resolve(S.sessionModels);
+  }
+  S.sessionModelsAskedAt = now;
+  const before = modelIdsOf(S.sessionModels);
+  S.sessionModelsInFlight = loadSessionModels({fresh: true}).then(list => {
+    // 列表变了才重绘：没变就别动 DOM，免得把正在展开的下拉顶掉
+    if (select && select.isConnected && modelIdsOf(list) !== before) {
+      const keep = select.value;
+      select.innerHTML = sessionModelOptions({model: keep}, list);
+      if (keep) select.value = keep;
+    }
+    return list;
+  }).finally(() => { S.sessionModelsInFlight = null; });
+  return S.sessionModelsInFlight;
 }
 
 async function saveSessionModel(sessionId, model) {
@@ -475,8 +509,14 @@ function renderSessionHead() {
       } catch (e) { toast(e.message, true); }
       renderSessionHead();
     };
-    if (!S.sessionModels || !S.sessionModels.length) {
-      loadSessionModels().then(list => {
+    // 每次点开下拉都重查模型列表（键盘打开也算），别让已经下线的模型留在选项里
+    const refresh = () => refreshSessionModels(modelSelect);
+    modelSelect.addEventListener("pointerdown", refresh);
+    modelSelect.addEventListener("focus", refresh);
+    modelSelect.addEventListener("keydown", refresh);
+    if (!S.sessionModels || !S.sessionModels.length || S.sessionModelsFor !== s.session_id) {
+      S.sessionModelsFor = s.session_id;
+      loadSessionModels({fresh: true}).then(list => {
         // 拉回来才有真选项：只为当前这个会话补渲染，别把别的视图顶掉
         if (list.length && S.state && S.state.session
             && S.state.session.session_id === s.session_id) renderSessionHead();
