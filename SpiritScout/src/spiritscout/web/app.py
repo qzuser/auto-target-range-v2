@@ -49,12 +49,24 @@ class MergePayload(BaseModel):
     """二次提炼：选定条目 + 相似度阈值（服务端会再复检一次）。
 
     阈值默认 0.90（九成相似），页面上可改；越界的值由库层按 0.5–1.0 收口。
-    ids 上限 20：页面上「全选」一次勾上整页可提炼条目，分组候选每组件最多 6 条，
-    手工勾选允许更多，但不能无限——一次提炼太多会让两两复检失去意义。
+    ids 不再设「一次 20 条」的上限：页面上「全选」勾的是整库可提炼条目，
+    分批的活由用户自己决定，后端只在复检时按两两相似度判合不合法。
     """
 
-    ids: list[str] = Field(min_length=2, max_length=20)
+    ids: list[str] = Field(min_length=2, max_length=2000)
     threshold: float = Field(default=0.90, ge=0.5, le=1.0)
+
+
+class AbsorbPlanPayload(BaseModel):
+    """合并（交给模型）：勾选的条数没有上限，模型自己决定有没有可并入的分组。"""
+
+    ids: list[str] = Field(min_length=1, max_length=2000)
+
+
+class AbsorbApplyPayload(BaseModel):
+    """合并落库：只带用户确认过的分组；落库层保证只更新、不删除。"""
+
+    groups: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class MergeRestorePayload(BaseModel):
@@ -190,7 +202,7 @@ def create_app(cfg: SystemConfig, models: list[ModelEntry], *,
 
     @app.get("/api/experience")
     def experience_page(q: str = "", tag: str = "",
-                        limit: int = Query(50, ge=1, le=200),
+                        limit: int = Query(50, ge=1, le=500),
                         offset: int = Query(0, ge=0),
                         include_merged: bool = False) -> dict[str, Any]:
         """经验提炼页：自我进化的全部产出（可检索/按标签过滤）+ 提炼过程记录。
@@ -279,6 +291,51 @@ def create_app(cfg: SystemConfig, models: list[ModelEntry], *,
         if result is None:
             raise HTTPException(404, f"没有这条合并记录: {payload.merged_id}")
         return result
+
+    @app.post("/api/experience/absorb/preview")
+    async def experience_absorb_preview(payload: AbsorbPlanPayload) -> dict[str, Any]:
+        """合并（交给模型）：这些经验能不能并进已有的某一条。**不写库、不删任何条目。**
+
+        与「二次提炼」不同：提炼是组内极相似→压成一条并删原件；合并只是把内容
+        并进一条已有经验，被勾选的条目原样保留。
+        """
+        from spiritscout.config import load_model_config
+        from spiritscout.knowledge.absorb import plan_absorb
+        from spiritscout.knowledge.experience import shared_db_path
+        from spiritscout.web import vault as key_vault
+        from spiritscout.web.session_experience import _usable_models
+        from spiritscout.web.sessions import _conversation_gateway
+
+        try:
+            entries = key_vault.apply_keys(load_model_config(cfg.models_config_path))
+        except Exception:              # noqa: BLE001 —— 读不到配置就用启动快照
+            entries = list(models or [])
+        usable = _usable_models(entries)
+        if not usable:
+            raise HTTPException(
+                400, "没有配了 API Key 的渠道：先到「模型」页配一个，再回来合并")
+        audit = AuditLogger(cfg.audit_log_path)
+        gateway = _conversation_gateway(cfg, usable, audit)
+        timeout = int(getattr(cfg.experience, "distill_timeout_seconds", 90) or 90)
+        try:
+            return await plan_absorb(
+                gateway, shared_db_path(cfg), payload.ids,
+                timeout_seconds=timeout, audit=audit)
+        except SpiritScoutError as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+    @app.post("/api/experience/absorb/apply")
+    def experience_absorb_apply(payload: AbsorbApplyPayload) -> dict[str, Any]:
+        """确认合并：只更新目标条目正文，**一行都不删**（删除即报错回滚）。"""
+        from spiritscout.knowledge.absorb import apply_absorb
+        from spiritscout.knowledge.experience import shared_db_path
+
+        try:
+            return apply_absorb(
+                shared_db_path(cfg), payload.groups,
+                audit=AuditLogger(cfg.audit_log_path))
+        except SpiritScoutError as exc:
+            raise HTTPException(400, str(exc)) from exc
 
     @app.delete("/api/experience/{insight_id}")
     def delete_experience(insight_id: str) -> dict[str, Any]:

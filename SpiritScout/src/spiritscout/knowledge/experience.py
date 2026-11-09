@@ -33,8 +33,12 @@ _COLUMNS = ["insight_id", "insight", "context", "tags",
             # 二次提炼的溯源：merged_from 记着提炼吸收了哪些条目（原件随确认删除，
             # 溯源留在这里）；merged_into 只服务旧数据——老版本「只标记不删除」的
             # 原件靠它隐藏，仍可 restore_merge 还原。
-            "merged_into", "merged_from"]
-_MERGE_COLUMNS = {"merged_into": "TEXT DEFAULT ''", "merged_from": "TEXT DEFAULT '[]'"}
+            "merged_into", "merged_from",
+            # 合并（absorb）的溯源：目标条目吸收了哪些条目（原件仍在，只是内容已并入）
+            "absorbed_from"]
+_MERGE_COLUMNS = {"merged_into": "TEXT DEFAULT ''", "merged_from": "TEXT DEFAULT '[]'",
+                  # 合并（absorb）只更新目标条目、原件全部保留，这里记下它吸收过谁
+                  "absorbed_from": "TEXT DEFAULT '[]'"}
 
 
 def _ensure_columns(conn: sqlite3.Connection) -> None:
@@ -141,6 +145,13 @@ def _normalize(row: tuple[Any, ...]) -> dict[str, Any]:
     except (TypeError, ValueError):
         merged_from = []
     item["merged_from"] = [str(x) for x in merged_from] if isinstance(merged_from, list) else []
+    raw_absorbed = item.get("absorbed_from")
+    try:
+        absorbed = (json.loads(raw_absorbed or "[]")
+                    if isinstance(raw_absorbed, str) else (raw_absorbed or []))
+    except (TypeError, ValueError):
+        absorbed = []
+    item["absorbed_from"] = [str(x) for x in absorbed] if isinstance(absorbed, list) else []
     item["merged"] = bool(str(item.get("merged_into") or "").strip())
     return item
 

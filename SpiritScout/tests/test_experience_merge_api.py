@@ -122,11 +122,17 @@ class ExperienceMergeApiTests(unittest.TestCase):
         resp = self.client.post("/api/experience/merge", json={"ids": [self.ids["a"]]})
         self.assertEqual(resp.status_code, 422, "单条不该被接受")
 
-    def test_too_many_ids_are_rejected(self) -> None:
-        """「全选」一次勾太多也不行：上限 20 条，前端同一口径。"""
+    def test_large_batch_is_not_rejected_by_a_cap(self) -> None:
+        """「一次最多 20 条」的上限已拆：21 条不再被请求体校验挡掉。
+
+        这里用的是不存在的 id，因为本用例只关心**上限不在了**：请求应该落到
+        「经验不存在」的 400，而不是条数限制的 422。
+        """
         resp = self.client.post("/api/experience/merge/preview",
                                 json={"ids": [f"exp-{i}" for i in range(21)]})
-        self.assertEqual(resp.status_code, 422)
+        self.assertNotEqual(resp.status_code, 422, "不该再有 20 条上限")
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("经验不存在", resp.text)
 
     def test_restore_keeps_new_style_result(self) -> None:
         merged = self.client.post("/api/experience/merge", json={

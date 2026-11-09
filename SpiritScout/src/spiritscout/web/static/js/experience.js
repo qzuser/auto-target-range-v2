@@ -6,7 +6,7 @@ const ExperiencePage = (() => {
   const THRESHOLD_DEFAULT = 90;                    // 与后端默认值一致：九成相似
   const THRESHOLD_MIN = 50;
   const THRESHOLD_MAX = 100;
-  const PICK_LIMIT = 20;      // 与后端 MergePayload.ids 的上限一致
+  const PAGE_SIZE = 200;      // 拉全量时的分页块大小（后端上限 500）
 
   function readThreshold() {
     try {
@@ -18,8 +18,9 @@ const ExperiencePage = (() => {
   }
 
   const state = {items: [], offset: 0, q: "", tag: "", generation: 0, more: false,
-                 total: 0, merged: false, mergeOn: false, picks: new Set(), groups: [],
-                 threshold: readThreshold(), preview: null};
+                 total: 0, merged: false, mergeOn: false, absorbOn: false,
+                 picks: new Set(), groups: [], allItems: [], allLoaded: false,
+                 absorbPlan: null, threshold: readThreshold(), preview: null};
   const root = () => $("#view-exp");
   const time = t => t ? new Date(t * 1000).toLocaleString("zh-CN", {hour12: false}) : "未记录";
 
@@ -43,6 +44,7 @@ const ExperiencePage = (() => {
         </div>
         <div class="resource-head-actions">
           <button class="btn" data-merge-toggle title="把极其相似的经验提炼成一条">二次提炼</button>
+          <button class="btn" data-absorb-toggle title="交给 AI 判断能不能并进已有的某条经验（不删任何经验）">合并</button>
           <button class="btn" data-merged-toggle hidden title="显示被合并的原件">显示已合并</button>
           <button class="btn" data-refresh>刷新</button>
         </div>
@@ -53,6 +55,7 @@ const ExperiencePage = (() => {
         <div class="exp-tags" data-tags role="group" aria-label="按标签过滤"></div>
       </div>
       <section class="exp-merge" data-merge-panel hidden aria-label="二次提炼"></section>
+      <section class="exp-merge exp-absorb" data-absorb-panel hidden aria-label="合并"></section>
       <div class="exp-layout">
         <section aria-label="经验列表">
           <div class="resource-list-status" data-status role="status"></div>
@@ -67,6 +70,7 @@ const ExperiencePage = (() => {
       </div>`;
     el.querySelector("[data-refresh]").onclick = () => load(true);
     el.querySelector("[data-merge-toggle]").onclick = () => toggleMerge();
+    el.querySelector("[data-absorb-toggle]").onclick = () => toggleAbsorb();
     el.querySelector("[data-merged-toggle]").onclick = () => {
       state.merged = !state.merged;
       state.picks.clear();
@@ -85,6 +89,7 @@ const ExperiencePage = (() => {
     shell();
     if (resetTags) state.tag = "";
     const version = ++state.generation;
+    if (!append) { state.allItems = []; state.allLoaded = false; }   // 筛选变了，全量缓存作废
     const status = root().querySelector("[data-status]");
     if (!append) status.textContent = "正在读取…";
     try {
@@ -116,9 +121,29 @@ const ExperiencePage = (() => {
     state.picks.clear();
     state.preview = null;
     if (!state.mergeOn) state.groups = [];
+    if (state.mergeOn) { state.absorbOn = false; state.absorbPlan = null; }
     renderMergePanel();
+    renderAbsorbPanel();
     renderList();
-    if (state.mergeOn) loadGroups();
+    if (state.mergeOn) {
+      loadGroups();
+      ensureAllItems().then(() => { renderMergePanel(); renderList(); }).catch(() => {});
+    }
+  }
+
+  /* ---- 合并：交给模型判断能不能并进已有的一条，只更新目标条目、不删任何经验 ---- */
+
+  function toggleAbsorb() {
+    state.absorbOn = !state.absorbOn;
+    state.picks.clear();
+    state.absorbPlan = null;
+    if (state.absorbOn) { state.mergeOn = false; state.groups = []; state.preview = null; }
+    renderMergePanel();
+    renderAbsorbPanel();
+    renderList();
+    if (state.absorbOn) {
+      ensureAllItems().then(() => { renderAbsorbPanel(); renderList(); }).catch(() => {});
+    }
   }
 
   function setThreshold(value) {
@@ -142,16 +167,53 @@ const ExperiencePage = (() => {
     renderMergePanel();
   }
 
-  /* 可提炼的条目：库里有 id、且不是「已合并」的历史原件 */
+  /* 可提炼/可合并的条目：库里有 id、且不是「已合并」的历史原件。
+     列表本身是分页的（40 条一处），但「全选」不能只勾到当前这页——进入提炼或
+     合并时先把整库按 PAGE_SIZE 拉全，页面上的条数说明才是真数。 */
   function mergeable() {
-    return (state.items || []).filter(it => String(it.insight_id || "") && !it.merged);
+    const source = state.allLoaded ? state.allItems : state.items;
+    return (source || []).filter(it => String(it.insight_id || "") && !it.merged);
   }
 
-  /* 全选 / 取消全选：一次勾上当前列表里所有可提炼的条目 */
-  function togglePickAll(checked) {
-    const ids = mergeable().map(it => String(it.insight_id));
-    state.picks = checked ? new Set(ids) : new Set();
+  /* 拉全量（只读、按当前筛选条件），已经拉过就直接返回 */
+  async function ensureAllItems() {
+    if (state.allLoaded) return state.allItems;
+    const params = {limit: String(PAGE_SIZE), offset: "0"};
+    if (state.q) params.q = state.q;
+    if (state.tag) params.tag = state.tag;
+    if (state.merged) params.include_merged = "true";
+    const out = [];
+    let guard = 0;
+    while (guard++ < 200) {
+      params.offset = String(out.length);
+      const data = await api("/api/experience?" + new URLSearchParams(params));
+      const page = data.items || [];
+      out.push(...page);
+      if (!data.has_more || page.length === 0) break;
+    }
+    state.allItems = out;
+    state.allLoaded = true;
+    return out;
+  }
+
+  /* 全选 / 取消全选：勾上**整库**可提炼的条目，不是只勾当前这页 */
+  async function togglePickAll(checked) {
+    if (!checked) {
+      state.picks = new Set();
+      renderMergePanel();
+      renderAbsorbPanel();
+      renderList();
+      return;
+    }
+    try {
+      await ensureAllItems();
+    } catch (e) {
+      toast(`读取全部经验失败：${e.message}`, true);
+      return;
+    }
+    state.picks = new Set(mergeable().map(it => String(it.insight_id)));
     renderMergePanel();
+    renderAbsorbPanel();
     renderList();
   }
 
@@ -214,9 +276,9 @@ const ExperiencePage = (() => {
       ${previewCard}
       <div class="exp-merge-groups" data-groups>${rows || `<p class="muted">${state.groupsError ? `读取失败：${esc(state.groupsError)}` : `没有达到 ${percent}% 相似度的条目——宁可少合，也不合并相似度不够的经验。`}</p>`}</div>
       <footer class="exp-merge-batch">
-        <label class="exp-pick exp-pick-all"><input type="checkbox" data-pick-all>全选（${all.length} 条可提炼${all.length > PICK_LIMIT ? `，一次最多 ${PICK_LIMIT} 条` : ""}）</label>
+        <label class="exp-pick exp-pick-all"><input type="checkbox" data-pick-all>全选（${all.length} 条可提炼${state.allLoaded ? "" : "，载入中…"}）</label>
         <span>已选 ${picks.length} 条</span>
-        <button class="btn" data-merge-picks ${picks.length < 2 || picks.length > PICK_LIMIT ? "disabled" : ""} title="${picks.length > PICK_LIMIT ? `一次最多提炼 ${PICK_LIMIT} 条，请分批` : "把勾选的条目提炼成一条"}">提炼选中</button>
+        <button class="btn" data-merge-picks ${picks.length < 2 ? "disabled" : ""} title="把勾选的条目提炼成一条">提炼选中</button>
         <button class="btn" data-clear-picks ${picks.length ? "" : "disabled"}>清空勾选</button>
       </footer>`;
     box.querySelectorAll("[data-merge-ids]").forEach(b => {
@@ -246,14 +308,109 @@ const ExperiencePage = (() => {
     if (clearBtn) clearBtn.onclick = () => { state.picks.clear(); renderMergePanel(); renderList(); };
   }
 
+  /* ---- 合并面板：选择 → 交给模型 → 只更新目标条目，原件一条不删 ---- */
+
+  function renderAbsorbPanel() {
+    const box = root().querySelector("[data-absorb-panel]");
+    const toggle = root().querySelector("[data-absorb-toggle]");
+    toggle?.classList?.toggle("on", state.absorbOn);
+    if (!box) return;
+    box.hidden = !state.absorbOn;
+    if (!state.absorbOn) { box.innerHTML = ""; return; }
+    const all = mergeable();
+    const picks = [...state.picks].filter(id => all.some(it => String(it.insight_id) === id));
+    const plan = state.absorbPlan;
+    const cards = (plan && (plan.groups || []).length)
+      ? plan.groups.map((group, index) => `
+        <article class="exp-merge-group">
+          <header>
+            <span class="exp-merge-score">并入已有经验</span>
+            <span class="muted">吸收 ${(group.sources || []).length} 条</span>
+          </header>
+          <p class="muted">目标（现在）：${esc(group.target_insight || "")}</p>
+          <p class="exp-merge-draft-insight">${esc(group.insight || "")}</p>
+          ${group.context ? `<p class="exp-merge-preview">适用：${esc(group.context)}</p>` : ""}
+          <button class="btn primary" data-absorb-apply="${index}" title="把这段写进目标经验；被吸收的条目原样保留">采用这一处</button>
+        </article>`).join("")
+      : `<p class="muted">${plan ? esc(plan.note || "模型认为没有可以并入的地方，经验库没动。")
+        : "勾选要处理的条目，交给 AI 判断能不能并进已有的某一条。"}</p>`;
+    box.innerHTML = `
+      <header class="exp-merge-head">
+        <h3>合并（不删任何经验）</h3>
+        <p>把勾选的条目交给模型：如果能并进<span class="exp-merge-th">已有的某一条</span>经验，
+           就写进那一条；<b>原件全部保留</b>，库里一行都不会少。</p>
+      </header>
+      ${plan && (plan.groups || []).length > 1
+        ? `<div class="exp-merge-draft-ops"><button class="btn primary" data-absorb-all>全部采用（${plan.groups.length} 处）</button></div>` : ""}
+      <div class="exp-merge-groups">${cards}</div>
+      <footer class="exp-merge-batch">
+        <label class="exp-pick exp-pick-all"><input type="checkbox" data-absorb-pick-all>全选（${all.length} 条可合并${state.allLoaded ? "" : "，载入中…"}）</label>
+        <span>已选 ${picks.length} 条</span>
+        <button class="btn" data-absorb-plan ${picks.length < 1 ? "disabled" : ""} title="把这些条目交给 AI，看能不能并进已有经验">交给 AI 合并</button>
+        <button class="btn" data-absorb-clear ${picks.length ? "" : "disabled"}>清空勾选</button>
+      </footer>`;
+    const pickAll = box.querySelector("[data-absorb-pick-all]");
+    if (pickAll) {
+      pickAll.checked = all.length > 0 && picks.length === all.length;
+      pickAll.onchange = () => togglePickAll(!!pickAll.checked);
+    }
+    box.querySelectorAll("[data-absorb-apply]").forEach(b => {
+      b.onclick = () => applyAbsorb(
+        [(state.absorbPlan?.groups || [])[Number(b.dataset.absorbApply)]]);
+    });
+    const allBtn = box.querySelector("[data-absorb-all]");
+    if (allBtn) allBtn.onclick = () => applyAbsorb(state.absorbPlan?.groups || []);
+    const planBtn = box.querySelector("[data-absorb-plan]");
+    if (planBtn) planBtn.onclick = () => planAbsorb(picks);
+    const clearBtn = box.querySelector("[data-absorb-clear]");
+    if (clearBtn) clearBtn.onclick = () => {
+      state.picks.clear();
+      state.absorbPlan = null;
+      renderAbsorbPanel();
+      renderList();
+    };
+  }
+
+  /* 交给模型：只出方案，不动库 */
+  async function planAbsorb(ids) {
+    const list = (ids || []).map(id => String(id || "")).filter(Boolean);
+    if (!list.length) { toast("先勾选要合并的经验", true); return; }
+    toast(`正在交给 AI 判断（${list.length} 条）…`);
+    try {
+      const data = await api("/api/experience/absorb/preview", {
+        method: "POST", body: JSON.stringify({ids: list})});
+      state.absorbPlan = data;
+      renderAbsorbPanel();
+      toast(data.note || "合并方案已生成");
+    } catch (e) {
+      toast(e.message, true);
+    }
+  }
+
+  /* 采用：只更新目标条目，被吸收的条目原样保留（后端保证不删） */
+  async function applyAbsorb(groups) {
+    const usable = (groups || []).filter(g => g && g.target_id && g.insight);
+    if (!usable.length) return;
+    try {
+      const data = await api("/api/experience/absorb/apply", {
+        method: "POST", body: JSON.stringify({groups: usable})});
+      state.absorbPlan = null;
+      state.picks.clear();
+      toast(`已并入 ${data.applied || usable.length} 条目标经验，原件全部保留（删除 ${data.deleted || 0} 条）`);
+      await load();
+      if (state.absorbOn) await ensureAllItems().catch(() => {});
+      renderAbsorbPanel();
+      renderList();
+    } catch (e) {
+      toast(e.message, true);
+    }
+  }
+
+
   /* 第一步：只提炼，不动库。让用户先看提炼稿 */
   async function previewMerge(ids) {
     const list = (ids || []).map(id => String(id || "")).filter(Boolean);
     if (list.length < 2) { toast("二次提炼至少要选两条经验", true); return; }
-    if (list.length > PICK_LIMIT) {
-      toast(`一次最多提炼 ${PICK_LIMIT} 条，请分批勾选（当前 ${list.length} 条）`, true);
-      return;
-    }
     try {
       const res = await api("/api/experience/merge/preview", {
         method: "POST", body: JSON.stringify({ids: list, threshold: thresholdRatio()})});
@@ -309,6 +466,7 @@ const ExperiencePage = (() => {
     renderTags(data);
     renderList(data);
     renderMergePanel();
+    renderAbsorbPanel();
     renderHistory(data.history || []);
   }
 
@@ -347,7 +505,7 @@ const ExperiencePage = (() => {
         : `<span class="exp-source muted">来源未记录</span>`;
       const iid = String(item.insight_id || "");
       const picked = state.picks.has(iid);
-      const pick = state.mergeOn && iid && !item.merged
+      const pick = (state.mergeOn || state.absorbOn) && iid && !item.merged
         ? `<label class="exp-pick"><input type="checkbox" data-pick="${esc(iid)}"${picked ? " checked" : ""}>选这条</label>`
         : "";
       const parent = (item.merged_from || []).length > 0;
@@ -384,6 +542,7 @@ const ExperiencePage = (() => {
       if (!id) return;
       if (b.checked) state.picks.add(id); else state.picks.delete(id);
       renderMergePanel();
+      renderAbsorbPanel();
     });
     root().querySelector("[data-more]").hidden = !state.more;
   }
@@ -434,7 +593,8 @@ const ExperiencePage = (() => {
 
   return {open, load, toggleMerge, loadGroups, applyMerge, restoreMerge,
           previewMerge, keepPreview, discardPreview, setThreshold, togglePickAll,
-          renderMergePanel, state};
+          renderMergePanel, toggleAbsorb, planAbsorb, applyAbsorb,
+          renderAbsorbPanel, ensureAllItems, state};
 })();
 
 /* 会话页「经验」页签：这次会话产出了哪些经验，没有就手动补一次。

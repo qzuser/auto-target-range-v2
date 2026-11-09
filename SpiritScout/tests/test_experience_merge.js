@@ -33,6 +33,13 @@ const context = vm.createContext({
   $: sel => (sel === "#view-exp" ? page : fakeEl()),
   api: async (url, opt = {}) => {
     world.calls.push({url, opt});
+    if (url.startsWith("/api/experience?")) {
+      if (world.pages) {
+        const offset = Number(new URLSearchParams(url.split("?")[1]).get("offset") || 0);
+        return world.pages[offset] || {items: [], has_more: false};
+      }
+      return world.list;
+    }
     if (url.startsWith("/api/experience/merge/candidates")) return world.groups;
     if (url === "/api/experience/merge/preview") {
       if (world.error) throw Object.assign(new Error(world.error), {status: 400});
@@ -124,14 +131,30 @@ const TWO = () => ({total: 2, items: [item(), item({insight_id: "exp-b"})],
   assert.equal(Page.state.threshold, 50);
   await Page.setThreshold(90);
 
-  // ③ 全选：一次勾上当前列表里所有可提炼的条目，再点一次全清
-  Page.togglePickAll(true);
+  // ③ 全选：勾上**整库**可提炼的条目（不是只勾当前这页），再点一次全清
+  await Page.togglePickAll(true);
   assert.deepEqual([...Page.state.picks].sort(), ["exp-a", "exp-b"]);
   assert.match(panel().innerHTML, /全选（2 条可提炼）/);
   assert.match(panel().innerHTML, /已选 2 条/);
+  assert.equal(Page.state.allLoaded, true, "全选前要先把整库拉全");
   Page.togglePickAll(false);
   assert.equal(Page.state.picks.size, 0);
   assert.match(panel().innerHTML, /已选 0 条/);
+
+  // ③b 列表分页也不再限制「能提炼多少条」：两页都要勾上
+  world.pages = {
+    0: {items: [item()], has_more: true},
+    1: {items: [item({insight_id: "exp-b"}), item({insight_id: "exp-c"})],
+        has_more: false},
+  };
+  await Page.load();
+  await Page.togglePickAll(true);
+  assert.deepEqual([...Page.state.picks].sort(), ["exp-a", "exp-b", "exp-c"],
+    "全选要跨页，不能只勾第一页");
+  assert.match(panel().innerHTML, /全选（3 条可提炼）/);
+  world.pages = null;
+  Page.togglePickAll(false);
+  await Page.load();
 
   // ④ 第一步：提炼只出稿子，绝不落库（不能碰 /api/experience/merge）
   world.previewResponse = {applied: false, absorbed: ["exp-a", "exp-b"], removed: [],
@@ -218,20 +241,24 @@ const TWO = () => ({total: 2, items: [item(), item({insight_id: "exp-b"})],
   await Page.load();
   assert.match(lastCall().url, /include_merged=true/);
 
-  // ⑪ 一次超过 20 条：不发请求、直接提示分批（后端也是这个上限）
-  const many = Array.from({length: 21}, (_, i) => `exp-${i}`);
+  // ⑪ 一次选多少条都行：20 条上限已经拆掉，25 条也照发请求
+  const many = Array.from({length: 25}, (_, i) => `exp-${i}`);
   world.calls = [];
+  world.previewResponse = {applied: false, absorbed: many, removed: [], score: 0.95,
+                           insight: "合并后的说法", context: "", tags: [],
+                           merged_from: many};
   await Page.previewMerge(many);
-  assert.equal(world.calls.length, 0, "超上限不发请求");
-  assert.match(world.toasts.at(-1).msg, /一次最多/);
+  assert.equal(world.toasts.filter(t => /最多/.test(t.msg)).length, 0,
+    "不该再有「一次最多」的拦截");
+  assert.equal(posts("/api/experience/merge/preview").length, 1, "25 条也要发请求");
+  assert.equal(JSON.parse(posts("/api/experience/merge/preview")[0].opt.body).ids.length,
+    25, "请求体里要带全部勾选的条目");
   Page.state.mergeOn = true;
   Page.state.items = many.map(id => item({insight_id: id}));
+  Page.state.allLoaded = false;
   Page.renderMergePanel();
-  assert.match(panel().innerHTML, /全选（21 条可提炼，一次最多 20 条）/);
-  Page.togglePickAll(true);
-  assert.equal(Page.state.picks.size, 21, "全选照勾，按钮自己禁用");
-  assert.match(panel().innerHTML, /请分批/);
-  Page.togglePickAll(false);
+  assert.doesNotMatch(panel().innerHTML, /一次最多/, "面板上不该再提 20 条上限");
+  Page.state.mergeOn = false;
 
   console.log("test_experience_merge.js: 全部通过");
 })().catch(err => { console.error(err); process.exit(1); });
