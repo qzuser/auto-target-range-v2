@@ -257,6 +257,11 @@ def diagnose(root: Path, *, python: str | None = None) -> dict[str, Any]:
         warnings.append(f"仓库目录不可写：{root}（建 venv 与 pip 缓存都写在这里）")
     if deps is None and venv["exists"] and venv["version"] and not venv["has_pip"]:
         warnings.append("venv 里没有 pip：补装不了，需要 --recreate 重建")
+    probe_script = root / "scripts" / "probe_deps.py"
+    if deps is None and not probe_script.is_file():
+        # 探针缺失时「不知道依赖全不全」，和「依赖不全」要分开说：
+        # 前者多半是包被裁剪过（比如只有 wheel），后者才是真缺东西。
+        warnings.append(f"没有 {probe_script}：没法确认依赖是否齐全（源码包与 zip 里都有）")
     if venv["exists"] and venv["version"] is None:
         warnings.append("venv 里的解释器跑不起来（多半是从别的机器拷过来的）：需要 --recreate")
 
@@ -276,6 +281,7 @@ def diagnose(root: Path, *, python: str | None = None) -> dict[str, Any]:
         "python": target,
         "venv": venv,
         "deps": deps,
+        "probe": "ok" if deps is not None else ("missing" if not probe_script.is_file() else "failed"),
         "missing": missing,
         "toolkit_missing": toolkit_missing,
         "warnings": warnings,
@@ -290,8 +296,15 @@ def _pip_install(target: str, *, root: Path, exe: Path, mirrors: Iterable[str],
     """装一个 target（`SpiritScout` 或 `SpiritScout[toolkit]`），逐源重试。"""
     attempts: list[dict[str, Any]] = []
     tmp = tmp_dir(root)
+    # 缓存也钉在这一处：默认位置在用户目录，某些机器/策略下不可写，
+    # 而且会把几个 G 的 wheel 缓存散在别人的家目录里。
+    cache = tmp / "pip-cache"
+    try:
+        cache.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        cache = tmp
     env = {"TMP": str(tmp), "TEMP": str(tmp), "TMPDIR": str(tmp),
-           "PIP_DISABLE_PIP_VERSION_CHECK": "1"}
+           "PIP_CACHE_DIR": str(cache), "PIP_DISABLE_PIP_VERSION_CHECK": "1"}
     for mirror in mirrors:
         cmd = [str(exe), "-m", "pip", "install", "--disable-pip-version-check",
                "--retries", "2", "--timeout", "30", "--index-url", mirror, "--editable", target]

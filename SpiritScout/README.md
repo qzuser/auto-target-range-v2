@@ -9,7 +9,7 @@
 
 **简体中文 · [English](README_EN.md)**
 
-[![Version](https://img.shields.io/badge/version-v0.45.0-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
+[![Version](https://img.shields.io/badge/version-v0.45.1-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
 
 [快速开始](#快速开始) · [三种模式](#三种模式) · [界面](#界面) · [工作原理](#工作原理) · [配置参考](#配置参考) · [常见问题](#常见问题) · [部署指南](docs/部署与配置.md)
 
@@ -220,7 +220,7 @@ launch.cmd --auth password
 `[状态] 已运行 01:00 · 会话 2（运行中 0） · 内存 244 MB`，不开任务管理器也能知道它活着。
 
 ```
-灵枢 Web 控制台 v0.45.0: http://127.0.0.1:8010  (登录已关闭，本机直接进入（auth_mode=none），并发上限 4，Ctrl+C 停止)
+灵枢 Web 控制台 v0.45.1: http://127.0.0.1:8010  (登录已关闭，本机直接进入（auth_mode=none），并发上限 4，Ctrl+C 停止)
 
 [就绪] 浏览器可以打开了: http://127.0.0.1:8010
        每 60 秒报一次状态；Ctrl+C 停止
@@ -249,14 +249,14 @@ shell / Python 沙箱需要 Linux + bubblewrap；Windows 与 macOS 原生控制�
 
 | 附件 | 带什么 |
 | --- | --- |
-| `spiritscout-0.45.0-py3-none-any.whl` | `pip install` 用：前端静态页面、知识库种子、报告模板、206 条内置安全技能（`knowledge/data/security_skills.json`）、342 条经验（`knowledge/data/experience.json` + `experience.md`）。**不含** `skills/` 那套自定义技能包（它有 5669 个文件，塞进 wheel 太重） |
-| `spiritscout-0.45.0.tar.gz` | sdist（约 24 MB）：整份源码 + `skills/` 技能包的文本素材（4549 个文件，插图与演示视频留在 zip 里）+ 配置模板（`skills.yaml`、`models.example.yaml`、`models.mock.yaml`、`system.example.yaml`）+ 经验。真实 `models.yaml` / `system.yaml` 不在里面 |
-| `spiritscout-0.45.0.zip` | 整仓源码：代码、`skills/`、`configs/`、`experience-export/`、`EXPERIENCE.md`，解开就按上面「快速开始」跑 |
-| `spiritscout-desktop-0.45.0-win64.exe` | **Windows 桌面版**（约 824 KB）：自带窗口的客户端，内嵌 WebView2，不是浏览器标签页。里面已包含运行所需的 WebView2 托管 DLL 与原生 loader（首次运行自动解到 `%LOCALAPPDATA%`），双击即用；**仍需要本机有 Python 3.11+ 与一份仓库源码**——它负责起停服务与环境自检，不代替解释器 |
+| `spiritscout-0.45.1-py3-none-any.whl` | `pip install` 用：前端静态页面、知识库种子、报告模板、206 条内置安全技能（`knowledge/data/security_skills.json`）、342 条经验（`knowledge/data/experience.json` + `experience.md`）。**不含** `skills/` 那套自定义技能包（它有 5669 个文件，塞进 wheel 太重） |
+| `spiritscout-0.45.1.tar.gz` | sdist（约 24 MB）：整份源码 + `skills/` 技能包的文本素材（4549 个文件，插图与演示视频留在 zip 里）+ 配置模板（`skills.yaml`、`models.example.yaml`、`models.mock.yaml`、`system.example.yaml`）+ 经验。真实 `models.yaml` / `system.yaml` 不在里面 |
+| `spiritscout-0.45.1.zip` | 整仓源码：代码、`skills/`、`configs/`、`experience-export/`、`EXPERIENCE.md`，解开就按上面「快速开始」跑 |
+| `spiritscout-desktop-0.45.1-win64.exe` | **Windows 桌面版**（约 824 KB）：自带窗口的客户端，内嵌 WebView2，不是浏览器标签页。里面已包含运行所需的 WebView2 托管 DLL 与原生 loader（首次运行自动解到 `%LOCALAPPDATA%`），双击即用；**仍需要本机有 Python 3.11+ 与一份仓库源码**——它负责起停服务与环境自检，不代替解释器 |
 | `SHA256SUMS` | 上面几个包的校验和，装前先对一遍 |
 
 ```bash
-pip install spiritscout-0.45.0-py3-none-any.whl
+pip install spiritscout-0.45.1-py3-none-any.whl
 spiritscout --help
 ```
 
@@ -274,6 +274,9 @@ wheel 与 sdist、`git archive` 打整仓 zip 并把摘要塞进去、再装进�
 在另一个 Windows 任务里用系统自带 `csc.exe` 编（不需要 .NET SDK），两边产物汇到
 最后一并算 `SHA256SUMS` 再附到同名 Release。没打 tag 也能出包：Actions 页面选
 「打包并发布」→ Run workflow，填一个已存在的 tag 即可。
+
+删了重传同名附件后，下载链接可能还被 CDN 缓存几分钟（表现是校验和对不上），
+加个 ?cb=<随机> 再取一次才是新文件。
 
 > 打包只带 git 跟踪的文件加现算的摘要：`.venv/`、`.spiritscout/` 工作区数据、
 > `configs/models.yaml` 里的真实密钥都不会进包；经验在导出时已脱敏（地址、IP、
@@ -482,7 +485,7 @@ Docker 用 `python deploy.py migrate`；手工迁移时停服 → 拷 `.spiritsc
 
 ## 文档与贡献
 
-当前代码版本 **v0.45.0**。版本唯一来源、递增规则与历史说明见 [版本管理](CONTRIBUTING.md#版本管理)。
+当前代码版本 **v0.45.1**。版本唯一来源、递增规则与历史说明见 [版本管理](CONTRIBUTING.md#版本管理)。
 
 | 我想了解 | 阅读入口 |
 | --- | --- |

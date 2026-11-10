@@ -72,3 +72,6 @@ SpiritScout/launcher/.cache/
 desktop-runtime-error.txt
 logs/
 灵枢桌面版.exe.WebView2/
+# 环境自检（bootstrap.py）在没有可写临时目录时会退到仓库根的 .tmp/
+.tmp/
+SpiritScout/.tmp/
