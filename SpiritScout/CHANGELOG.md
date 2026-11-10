@@ -1,6 +1,6 @@
 # 更新日志
 
-项目采用 `主版本.次版本.修订号`。当前版本为 **0.44.1**，版本唯一来源是
+项目采用 `主版本.次版本.修订号`。当前版本为 **0.44.2**，版本唯一来源是
 `src/spiritscout/__init__.py`；包构建、命令行、控制台及 MCP 握手共用该值。
 
 **历史版本说明**：0.1.0 是仓库早期已有的代码版本；0.2.0—0.11.1 根据现有
@@ -9,6 +9,31 @@ Git 历史与日期日志回溯整理，用于标识功能演进，**并非当�
 行为，部分规则后来已有调整，请以当前代码和最新条目为准。
 
 版本递增和发布记录规则见 [贡献指南](CONTRIBUTING.md#版本管理)。
+
+## [0.44.2] - 2026-11-10
+
+源码包里少了技能库与配置模板：从 sdist 重建的人拿不到 `skills/`，问「这个包到底
+带了什么」也说不清。这次把三个发行包的内容补全并写进 README。
+
+### 修复
+
+- **sdist 缺 `skills/` 与配置模板**：`MANIFEST.in` 补 `graft skills`，外加
+  `configs/skills.yaml` / `models.example.yaml` / `models.mock.yaml` /
+  `system.example.yaml`。真实 `models.yaml`、`agent_models.yaml`、`system.yaml`
+  显式点名排除——MANIFEST 看的是磁盘目录而不是 git 跟踪列表，光靠 `.gitignore`
+  兜不住密钥。技能包里的插图与演示视频（约 126 MB 的 png/gif/mp4）不进 sdist：
+  文字素材（4549 个文件）够用、全量在 zip 里，于是 sdist 从 419 个文件 / 1.5 MB
+  变成 4974 个文件 / 24 MB，而不是 150 MB。
+- **README 写清三个发行包各带什么**：zip 是整仓（含 `skills/` 与
+  `experience-export/`）；sdist 带 `skills/`、配置模板与经验；wheel 只带 206 条
+  内置技能（`knowledge/data/security_skills.json`），自定义技能库走 zip/sdist，
+  或用 `python -m spiritscout.resources.skill_sync import skills` 导入。
+
+### 测试
+
+- `tests/test_experience_sync.py` 新增 `test_pull_takes_every_contributors_inbox`：
+  模拟 alice / bob 各自往远端推自己的 inbox 文件，全新库拉取后两条都进来了
+  （`added=2`、`files=2`），钉住「拉的是所有人的，不只自己那份」。
 
 ## [0.44.1] - 2026-11-10
 

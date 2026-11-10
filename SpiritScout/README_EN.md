@@ -9,7 +9,7 @@ and progress, evidence, and artifacts stay in the same session.
 
 **English · [简体中文](README.md)**
 
-[![Version](https://img.shields.io/badge/version-v0.44.1-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
+[![Version](https://img.shields.io/badge/version-v0.44.2-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
 
 [Quick start](#quick-start) · [Three modes](#three-modes) · [Interface](#interface) · [How it works](#how-it-works) · [Configuration](#configuration) · [FAQ](#faq) · [Deployment guide (中文)](docs/部署与配置.md)
 
@@ -177,7 +177,7 @@ up models, so a fixed delay would either lie or waste time. After that it report
 line every 60 seconds, so you do not need a task manager to know it is alive.
 
 ```
-灵枢 Web 控制台 v0.44.1: http://127.0.0.1:8010  (管理员登录已启用，并发上限 4，Ctrl+C 停止)
+灵枢 Web 控制台 v0.44.2: http://127.0.0.1:8010  (管理员登录已启用，并发上限 4，Ctrl+C 停止)
 
 [就绪] 浏览器可以打开了: http://127.0.0.1:8010
        每 60 秒报一次状态；Ctrl+C 停止
@@ -209,20 +209,25 @@ The shell/Python sandbox needs Linux with bubblewrap. Native Windows and macOS c
 ### Release artifacts
 
 Prefer a ready-made package over a source checkout? All three artifacts carry the
-**experience library**: wheel and sdist include `knowledge/data/experience.json`
-(machine-readable, all 342 entries) plus `experience.md`, and every package root has
-`EXPERIENCE.md`; the zip is the full repository including `experience-export/`.
+**experience library**, but they differ in skill packs — pick by what you need:
 
-| Asset | What it is for |
+| Asset | What it ships |
 | --- | --- |
-| `spiritscout-0.44.1-py3-none-any.whl` | `pip install` target; ships the console assets, knowledge seeds, report templates and the experience library |
-| `spiritscout-0.44.1.tar.gz` | sdist, for inspecting or re-packaging the build |
-| `spiritscout-0.44.1.zip` | full repository source (including `skills/` and `experience-export/`), unzip and follow *Quick start* |
+| `spiritscout-0.44.2-py3-none-any.whl` | `pip install` target: console assets, knowledge seeds, report templates, the 206 built-in security skills (`knowledge/data/security_skills.json`) and all 342 experience entries (`knowledge/data/experience.json` + `experience.md`). It does **not** include the custom `skills/` packs — 5669 files would make the wheel unreasonably heavy |
+| `spiritscout-0.44.2.tar.gz` | sdist (~24 MB): full source + the text part of `skills/` (4549 files; images and demo videos stay in the zip) + config templates (`skills.yaml`, `models.example.yaml`, `models.mock.yaml`, `system.example.yaml`) + experience. Real `models.yaml` / `system.yaml` stay out |
+| `spiritscout-0.44.2.zip` | full repository source: code, `skills/`, `configs/`, `experience-export/`, `EXPERIENCE.md` — unzip and follow *Quick start* |
 | `SHA256SUMS` | checksums for the three files above |
 
 ```bash
-pip install spiritscout-0.44.1-py3-none-any.whl
+pip install spiritscout-0.44.2-py3-none-any.whl
 spiritscout --help
+```
+
+A pip install only has the built-in skills; add the repository pack from the unzipped
+zip or sdist with:
+
+```bash
+python -m spiritscout.resources.skill_sync import skills
 ```
 
 **How the packages are produced**: pushing a `v*` tag runs
@@ -353,7 +358,7 @@ Use `python deploy.py migrate` for Docker. Manually: stop the service, copy `.sp
 
 ## Docs and contributing
 
-Current code version: **v0.44.1**. The single source of the version, the bump rules, and the history: see [version management (中文)](CONTRIBUTING.md#版本管理).
+Current code version: **v0.44.2**. The single source of the version, the bump rules, and the history: see [version management (中文)](CONTRIBUTING.md#版本管理).
 
 | I want to | Read |
 | --- | --- |

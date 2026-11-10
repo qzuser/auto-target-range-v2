@@ -9,3 +9,20 @@ recursive-include tests *.js
 include EXPERIENCE.md
 include src/spiritscout/knowledge/data/experience.json
 include src/spiritscout/knowledge/data/experience.md
+
+# 技能库：skills/ 是技能包的原始素材（多轮实战沉淀的 SKILL.md 与参考文档），
+# 装完想看/想改的人得拿得到，所以整目录进 sdist。
+graft skills
+
+# 但技能包里的插图与演示视频（合计约 126 MB 的 png/gif/mp4）不进 sdist：
+# 它只压缩到 150 MB，纯属白占带宽；文字素材齐了就够用，全量素材在 zip 里。
+# 这些扩展名在 skills/ 以外没有分布（docs 只有 svg），所以整包排除是安全的。
+global-exclude *.png *.jpg *.jpeg *.gif *.mp4 *.webm
+
+# 配置文件只收模板与技能清单——真实 models.yaml / agent_models.yaml / system.yaml
+# 带供应商端点与密钥，绝不能进包（它们本来也在 .gitignore 里，这里显式点名是为了
+# 不依赖 .gitignore：MANIFEST 看的是磁盘目录，不是 git 跟踪列表）。
+include configs/skills.yaml
+include configs/models.example.yaml
+include configs/models.mock.yaml
+include configs/system.example.yaml

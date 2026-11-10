@@ -266,6 +266,51 @@ class GitSyncTests(unittest.TestCase):
             sync.pull(self.db, repo=str(self.work), inbox="data/exp/inbox",
                       branch="main")
 
+    def _push_foreign(self, text: str, *, who: str) -> str:
+        """模拟**别人**在自己机器上提交：直接往远端放他名下的 inbox 文件。"""
+        rel = f"data/exp/inbox/{who}-20261110T000000Z.json"
+        payload = {
+            "format": sync.FORMAT,
+            "exported_at": 1762310400.0,
+            "count": 1,
+            "items": [{
+                "insight_id": f"exp-{who}",
+                "insight": text,
+                "context": "别人的机器",
+                "tags": ["shared"],
+                "source_model": who,
+                "ts": 1762310400.0,
+                "fp": sync.fingerprint(sync.redact(text)),
+            }],
+        }
+        path = self.work / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+        _git(self.work, "add", "--", rel)
+        _git(self.work, "commit", "-m", f"{who} 提交经验")
+        _git(self.work, "push", "origin", "main")
+        return rel
+
+    def test_pull_takes_every_contributors_inbox(self) -> None:
+        """拉取会把 inbox 里**所有人**的文件都读进来，不只看自己那份。"""
+        alice = self._push_foreign("别人家在别处攒的经验一", who="alice")
+        bob = self._push_foreign("别人家在别处攒的经验二", who="bob")
+        fresh = Path(self.tmp.name) / "fresh.db"
+        _store(fresh).close()
+
+        result = sync.pull(fresh, repo=str(self.work), inbox="data/exp/inbox",
+                           branch="main")
+        self.assertEqual(result["added"], 2)
+        self.assertEqual(result["files"], 2)
+        self.assertIn(alice, result["sources"])
+        self.assertIn(bob, result["sources"])
+
+        conn = __import__("sqlite3").connect(fresh)
+        texts = sorted(row[0] for row in conn.execute("SELECT insight FROM insights"))
+        conn.close()
+        self.assertIn("别人家在别处攒的经验一", texts)
+        self.assertIn("别人家在别处攒的经验二", texts)
+
 
 class MergeAbsorbProvenanceTests(unittest.TestCase):
     """二次提炼删原件时，合并留下的溯源不能变成空指针。"""
