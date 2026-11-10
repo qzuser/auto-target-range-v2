@@ -223,9 +223,11 @@ namespace SpiritScoutDesktop
         private const int PreferredPort = 8010;
         private const string LogFolderName = "logs";
 
-        private readonly string _repoRoot;      // 仓库根（start-local.ps1 所在目录）
-        private readonly string _packageDir;    // SpiritScout/（pyproject.toml 与 .venv 在这）
+        private readonly string _repoRoot;      // 仓库根（start-local.ps1 所在目录）；便携版是程序目录
+        private readonly string _packageDir;    // SpiritScout/（pyproject.toml 与 .venv 在这）；便携版是程序目录
         private readonly string _logDir;
+        private readonly string _pythonOverride; // desktop.json 里指定的解释器（便携版内嵌的那个）
+        private readonly bool _portable;         // 便携版：依赖已装进内嵌 Python，没有 venv 也没有 bootstrap.py
 
         private readonly Label _status = new Label();
         private readonly TextBox _log = new TextBox();
@@ -251,8 +253,27 @@ namespace SpiritScoutDesktop
 
         public DesktopForm()
         {
-            _repoRoot = ResolveRepoRoot();
-            _packageDir = Path.Combine(_repoRoot, "SpiritScout");
+            // 便携版靠 exe 旁边的 desktop.json 指路：root 是程序目录，python 是内嵌解释器。
+            // 没有这个文件就是「仓库里跑」的常规模式。
+            DesktopConfig cfg = ReadDesktopConfig();
+            if (cfg != null && !string.IsNullOrEmpty(cfg.Root) && Directory.Exists(cfg.Root))
+            {
+                _repoRoot = cfg.Root;
+                // 便携版把 configs/ 放在程序目录；万一有人把整仓塞进来，就认 SpiritScout/ 那层。
+                string inner = Path.Combine(cfg.Root, "SpiritScout");
+                bool innerHasConfig = File.Exists(Path.Combine(inner, "configs", "system.yaml"));
+                _packageDir = innerHasConfig ? inner : cfg.Root;
+                _pythonOverride = cfg.Python;
+                _portable = true;
+                if (cfg.Port > 0) { _port = cfg.Port; }
+            }
+            else
+            {
+                _repoRoot = ResolveRepoRoot();
+                _packageDir = Path.Combine(_repoRoot, "SpiritScout");
+                _pythonOverride = null;
+                _portable = false;
+            }
             _logDir = Path.Combine(_repoRoot, LogFolderName);
 
             Text = "灵枢桌面版 · SpiritScout";
@@ -288,6 +309,55 @@ namespace SpiritScoutDesktop
                 }
             }
             return exeDir;
+        }
+
+        /// <summary>desktop.json 的内容（便携版用）。字段缺省即视为没配。</summary>
+        private sealed class DesktopConfig
+        {
+            public string Root;
+            public string Python;
+            public int Port;
+        }
+
+        /// <summary>读 exe 旁边的 desktop.json；没有或不合法就返回 null（退回仓库模式）。</summary>
+        private static DesktopConfig ReadDesktopConfig()
+        {
+            string exeDir = Path.GetDirectoryName(Application.ExecutablePath);
+            if (string.IsNullOrEmpty(exeDir)) { return null; }
+            string path = Path.Combine(exeDir, "desktop.json");
+            if (!File.Exists(path)) { return null; }
+            string json;
+            try { json = File.ReadAllText(path, Encoding.UTF8); }
+            catch (Exception) { return null; }
+
+            DesktopConfig cfg = new DesktopConfig();
+            string root = JsonField(json, "root");
+            if (!string.IsNullOrEmpty(root))
+            {
+                cfg.Root = Path.IsPathRooted(root) ? root : Path.GetFullPath(Path.Combine(exeDir, root));
+            }
+            string python = JsonField(json, "python");
+            if (!string.IsNullOrEmpty(python))
+            {
+                cfg.Python = Path.IsPathRooted(python) ? python : Path.GetFullPath(Path.Combine(exeDir, python));
+            }
+            string port = JsonField(json, "port");
+            int parsed;
+            if (!string.IsNullOrEmpty(port) && int.TryParse(port, out parsed) && parsed > 0 && parsed < 65536)
+            {
+                cfg.Port = parsed;
+            }
+            return cfg;
+        }
+
+        /// <summary>够用就好的 JSON 取值：只认一层扁平字符串/数字，不引第三方库。</summary>
+        private static string JsonField(string json, string key)
+        {
+            string quoted = "\"" + Regex.Escape(key) + "\"\\s*:\\s*\"([^\"]*)\"";
+            Match m = Regex.Match(json, quoted);
+            if (m.Success) { return m.Groups[1].Value; }
+            m = Regex.Match(json, "\"" + Regex.Escape(key) + "\"\\s*:\\s*(-?\\d+)");
+            return m.Success ? m.Groups[1].Value : null;
         }
 
         // ---------------- 界面 ----------------
@@ -474,11 +544,12 @@ namespace SpiritScoutDesktop
             return Path.Combine(_packageDir, ".venv", "Scripts", "python.exe");
         }
 
-        /// <summary>跑 bootstrap.py 用的解释器：优先 venv 里的，否则找系统 Python。</summary>
+        /// <summary>跑 bootstrap.py 用的解释器：优先 venv 里的，否则 desktop.json 指定的，最后找系统 Python。</summary>
         private string PickPythonForBootstrap()
         {
             string venv = VenvPython();
             if (File.Exists(venv)) { return venv; }
+            if (!string.IsNullOrEmpty(_pythonOverride) && File.Exists(_pythonOverride)) { return _pythonOverride; }
             string fromEnv = Environment.GetEnvironmentVariable("SPIRITSCOUT_PYTHON");
             if (!string.IsNullOrEmpty(fromEnv) && File.Exists(fromEnv)) { return fromEnv; }
             string[] probes = new string[] { "py -3.11", "py -3", "python", "python3" };
@@ -532,6 +603,8 @@ namespace SpiritScoutDesktop
             psi.StandardErrorEncoding = Encoding.UTF8;
             psi.EnvironmentVariables["PYTHONUTF8"] = "1";
             psi.EnvironmentVariables["PYTHONIOENCODING"] = "utf-8";
+            // 便携版自带依赖：别让宿主机 %APPDATA%\Python 里的同名包装进 sys.path
+            psi.EnvironmentVariables["PYTHONNOUSERSITE"] = "1";
             return psi;
         }
 
@@ -575,6 +648,7 @@ namespace SpiritScoutDesktop
             string script = Path.Combine(_packageDir, "scripts", "bootstrap.py");
             if (!File.Exists(script))
             {
+                if (_portable) { await CheckPortableAsync(python, verbose); return; }
                 SetStatus("环境自检脚本缺失：" + script, Color.FromArgb(235, 120, 120));
                 AppendLog("[x] 找不到 " + script + "，这个程序必须放在仓库里运行。");
                 return;
@@ -687,8 +761,50 @@ namespace SpiritScoutDesktop
             }
             return count;
         }
+        /// <summary>便携版体检：依赖装在内嵌解释器里，问一句就知道，不需要 bootstrap.py。</summary>
+        private async Task CheckPortableAsync(string python, bool verbose)
+        {
+            if (python == null || !File.Exists(python))
+            {
+                SetStatus("找不到内嵌的 Python：desktop.json 里的 python 路径不对。", Color.FromArgb(235, 120, 120));
+                AppendLog("[x] desktop.json 指向的解释器不存在；便携版要整份目录一起拷，不能只拿 exe。");
+                _btnStart.Enabled = false;
+                return;
+            }
+            AppendLog("[>] 便携版自检：" + python);
+            CaptureResult probe = await CaptureAsync(python,
+                "-c \"import sys, spiritscout; print(spiritscout.__version__ + ' | ' + sys.version.split()[0])\"",
+                _packageDir);
+            string text = probe.Output == null ? "" : probe.Output.Trim();
+            if (probe.Code == 0 && text.Length > 0)
+            {
+                string[] parts = text.Split('|');
+                string pkg = parts[0].Trim();
+                string py = parts.Length > 1 ? parts[1].Trim() : "?";
+                AppendLog("[+] 内嵌运行时可用：灵枢 " + pkg + "，Python " + py);
+                SetStatus("环境就绪（便携版，无需安装）：可以启动控制台了。", Color.FromArgb(120, 210, 150));
+                _btnStart.Enabled = true;
+                _placeholder.Text = "环境就绪，点「启动服务」打开控制台。";
+            }
+            else
+            {
+                SetStatus("便携版环境不完整：建议重新解压整份目录。", Color.FromArgb(240, 190, 110));
+                _btnStart.Enabled = false;
+                AppendLog("[!] 内嵌解释器里 import spiritscout 失败（退出码 " + probe.Code + "）");
+            }
+            if (verbose) { AppendLog(probe.Code == 0 ? "[+] 便携版自检通过" : "[!] 便携版自检未通过"); }
+        }
+
         private async Task RunBootstrapAsync(string extraArgs, bool thenCheck)
         {
+            if (_portable)
+            {
+                // 便携版没有 venv 也没有 bootstrap.py：依赖关系在打包时就装进内嵌解释器了。
+                SetStatus("便携版不需要修复：依赖已随包装好，坏了就重新解压整份目录。", Color.FromArgb(200, 205, 205));
+                AppendLog("[i] 便携版的 Python 与依赖都在程序目录里，没有 venv 可修。");
+                if (thenCheck) { await CheckEnvironmentAsync(false); }
+                return;
+            }
             _btnFix.Enabled = false;
             _btnCheck.Enabled = false;
             SetStatus("正在修复环境（首次装依赖要几分钟，别关窗口）…", Color.FromArgb(240, 190, 110));

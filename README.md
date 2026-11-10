@@ -88,6 +88,21 @@ powershell -ExecutionPolicy Bypass -File SpiritScout\launcher\build-desktop.ps1
 命令行那条路（`启动服务.cmd` + `start-local.ps1`）没变，桌面版只是给它套了个窗口；
 两者不要同时开同一个端口。
 
+## 便携版：连 Python 都不用装
+
+上面的桌面版要目标机器上有 Python 3.11+。要交给一台干净机器（或者塞进 U 盘），就打成便携版：
+内嵌 python.org 的 embeddable 运行时 + 装好的依赖 + exe 摆进同一个目录。
+
+```powershell
+python -m build --outdir dist SpiritScout
+powershell -ExecutionPolicy Bypass -File SpiritScout\launcher\build-portable.ps1
+```
+
+产物 `dist-portable\灵枢便携版-<版本>\` 约 334 MB，`desktop.json` 指路、`configs\` 只有模板、
+`py\` 里是解释器和 95 个依赖。整份目录拷到别的机器，解压双击 `灵枢桌面版.exe` 就开——
+不装 Python、不联外网也能起来（调模型当然还要网）。
+
+
 ## 两份 system 配置：为什么不是简单地「照 example 覆盖」
 
 仓库同时提交 [`SpiritScout/configs/system.yaml`](SpiritScout/configs/system.yaml)（本机现行）
@@ -110,21 +125,29 @@ powershell -ExecutionPolicy Bypass -File SpiritScout\launcher\build-desktop.ps1
 
 ## 发布产物
 
-Release 附三种包，按需取用：
+Release 上按需取：
 
-- `spiritscout-0.24.3-py3-none-any.whl` — 二进制轮包。带 CTF 工具箱要用
-  `pip install "spiritscout[toolkit] @ file:///…whl"` 这种 PEP 508 直接引用形式；
-  写成 `xxx.whl[toolkit]` 会被 pip **静默丢弃 extras**，一个工具箱依赖都不装且不报错。
-- `spiritscout-0.24.3.tar.gz` — sdist 源码分发，含 `src/` 与 `tests/`
-- `SpiritScout-0.24.3-portable.zip`（约 212MB，解压后 619MB / 25621 个文件）— 免安装便携包：内嵌 CPython 3.11 与
-  全部依赖，解压后双击 `1-启动服务.bat` 即用，目标机不需要装 Python，路径带中文也没问题。
-  自己重建，按这个顺序三步：`python _work/build_release.py`（只组装暂存目录）→
-  `python _work/validate_release.py`（把包当别人拿到手那样冒烟跑一遍，跑完清掉它在
-  `data\` 里留下的运行数据）→ `python _work/build_release.py --zip-only`（打 zip）。
-  先验后打是有意的：冒烟会把控制台真起一次，先打 zip 就把「被人点开过一次」的包发出去。
+| 附件 | 给谁用 |
+| --- | --- |
+| `spiritscout-desktop-<版本>-win64.exe` | Windows 桌面版（约 828 KB）：自带窗口，但机器上要有 Python 3.11+ 与一份仓库 |
+| `spiritscout-<版本>-portable-win64.zip` | **便携版（约 150 MB）**：内嵌 Python 与 95 个依赖，解压双击 `灵枢桌面版.exe` 就用，目标机什么都不装 |
+| `spiritscout-<版本>-py3-none-any.whl` | `pip install` 用。带 CTF 工具箱要写成 `pip install "spiritscout[toolkit] @ file:///…whl"`——写成 `xxx.whl[toolkit]` 会被 pip **静默丢弃 extras**，一个工具箱依赖都不装还不报错 |
+| `spiritscout-<版本>.tar.gz` | sdist：源码 + `scripts/` + `skills/` 文本素材 + 配置模板 |
+| `spiritscout-<版本>.zip` | 整仓源码，解开就能跑 |
+| `SHA256SUMS` | 上面几个的校验和 |
+
+**便携版怎么来的**：`python -m build --outdir dist SpiritScout` 出 wheel，再
+`powershell -ExecutionPolicy Bypass -File SpiritScout\launcher\build-portable.ps1`。
+脚本下 python.org 的 embeddable 运行时、补 `._pth` 让 site-packages 生效、`get-pip.py` 装 pip
+再 `--target` 装依赖，最后摆好 exe / `desktop.json` / 配置模板。细节见
+[`docs/部署与配置.md`](SpiritScout/docs/部署与配置.md) 的「便携版」小节。
+
+仓库里还留着更早那套「bat 启动」的便携包流程（`_work/build_release.py` →
+`_work/validate_release.py` → `--zip-only`），它做的是没有 GUI 的老形态；要带窗口的桌面版就用上面这个。
 
 装好后直接 `python -m spiritscout --port 8010`；注意 `--config` 与模型注册表按**当前工作目录**
 解析，从仓库外安装时需要显式传 `--config` 指向你自己的 `system.yaml`。
+
 
 ## 安全边界
 

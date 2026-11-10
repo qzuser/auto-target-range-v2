@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "要附件的 tag（例如 v0.45.1）；留空则按 ref / 代码版本号推导"
+        description: "要附件的 tag（例如 v0.46.0）；留空则按 ref / 代码版本号推导"
         required: false
         type: string
 

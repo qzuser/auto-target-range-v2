@@ -75,3 +75,6 @@ logs/
 # 环境自检（bootstrap.py）在没有可写临时目录时会退到仓库根的 .tmp/
 .tmp/
 SpiritScout/.tmp/
+# 便携版打包产物（内嵌解释器 + 依赖，上百 MB，只发 release）
+dist-portable/
+SpiritScout/launcher/.cache/python/

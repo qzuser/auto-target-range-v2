@@ -85,7 +85,10 @@ def sweep_runs(workspace: str | Path, *, stale_seconds: float = STALE_SECONDS) -
         try:
             if not child.is_dir():
                 continue
-            if now - child.stat().st_mtime < stale_seconds:
+            # stale_seconds=0 表示「不留情，全清」：文件时间戳在某些文件系统上
+            # （FAT/exFAT 按 2 秒向上取整）会比 time.time() 还新，直接减出负数
+            age = now - child.stat().st_mtime
+            if stale_seconds > 0 and age < stale_seconds:
                 continue
         except OSError:
             continue

@@ -1,7 +1,47 @@
 # 更新日志
 
-项目采用 `主版本.次版本.修订号`。当前版本为 **0.45.1**，版本唯一来源是
+项目采用 `主版本.次版本.修订号`。当前版本为 **0.46.0**，版本唯一来源是
 `src/spiritscout/__init__.py`；包构建、命令行、控制台及 MCP 握手共用该值。
+
+## [0.46.0] - 2026-11-10
+
+桌面版还是「壳子」：真正干活的 Python 与一坨依赖得目标机器上自己装。这一版做便携版——
+把 Python 3.11 内嵌运行时和装好的依赖塞进同一个目录，解压双击就开，机器上什么都不用装。
+
+### 新增
+
+- **便携版目录**（`launcher/build-portable.ps1`）：内嵌 python.org 的 embeddable 解释器
+  （约 10 MB，免安装），补好 `pythonXY._pth` 让 `Lib\site-packages` 生效，用 `get-pip.py`
+  装 pip 再 `--target` 装灵枢与依赖，最后把桌面版 exe、`configs\`（模板）、`desktop.json`、
+  `启动灵枢.cmd` 一起摆好。产物约 334 MB，压成 zip 就是 release 附件。
+- **桌面版认 `desktop.json`**：exe 旁边有这个文件就用它指的程序目录与解释器（便携版模式），
+  没有就按老规矩在仓库里找。便携版模式下「环境自检」不去找 `scripts/bootstrap.py`，
+  而是问内嵌解释器一句 `import spiritscout`；「一键修复」直言「便携版不需要修复」。
+- **子进程统一 `PYTHONNOUSERSITE=1`**：便携版自带依赖，不该让宿主机 `%APPDATA%\Python` 里
+  的同名包装进 `sys.path`。
+
+### 修复
+
+- **pip 装到用户目录去**：内嵌解释器启用 `site` 后会被判成「用户 site 可写」，依赖装进
+  `%APPDATA%\Python\Python311`——本机实测直接 `[WinError 5] 拒绝访问`（还差点把宿主机的
+  `python-dotenv` 卸掉）。改成显式 `--target py\Lib\site-packages --no-user`。
+- **`sweep_runs(stale_seconds=0)` 什么都不清**：条件是 `now - mtime < 0`，而 FAT/exFAT 上
+  时间戳会向上取整到 2 秒，刚建的目录 mtime 比 `time.time()` 还新，减出负数被判成「还没过期」。
+  改成 `stale_seconds > 0` 才比年龄——0 就是全清，正是调用方想要的语义。
+- **`启动灵枢.cmd` 按 ANSI（936）落盘**：里面写着 `灵枢桌面版.exe`，用 ASCII 写会把中文
+  变成 `?`，双击只会得到「找不到文件」。
+
+### 测试
+
+- `tests/test_desktop_launcher.py` 加 8 条：脚本必须带 BOM、必须修 `._pth` 与 `import site`、
+  `desktop.json` 必须指向 `py\python.exe`、只许拷 `*.example.yaml` 模板（真实 `models.yaml`
+  里有别人的密钥）、离线也能出包、C# 侧必须走便携自检而不是 bootstrap。
+
+### 文档
+
+- 根 README、包内 README / README_EN、`docs/部署与配置.md` 补便携版：打之前先出 wheel、
+  体积与目录结构、`desktop.json` 的作用、和「仓库里跑」「只发 exe」两种方式的区别。
+
 
 ## [0.45.1] - 2026-11-10
 
