@@ -55,7 +55,7 @@ const LocalToolsPage = (() => {
         <div>
           <h2>本地工具</h2>
           <p class="lt-sub">把本机现成的工具（exe / 脚本）编进索引，Agent 用 <code>local_tool</code> 按名字检索并运行。
-            每次运行先把工具目录复制到工作区暂存副本、隔离临时目录与 HOME，跑完对账（新增删掉、改动还原）、
+            目录可以点「选择文件夹」挑，也可以手填绝对路径。每次运行先把工具目录复制到工作区暂存副本、隔离临时目录与 HOME，跑完对账（新增删掉、改动还原）、
             核对清单一致后销毁副本——<b>用完不留残留文件</b>。</p>
         </div>
         <div class="lt-head-actions">
@@ -80,8 +80,9 @@ const LocalToolsPage = (() => {
               <button type="button" class="btn sm ghost" data-lt-remove="${esc(dir)}">移除</button></div>`).join("")
           : '<p class="lt-empty">还没有目录。</p>'}</div>
         <div class="lt-add">
-          <input type="text" id="lt-dir-input" placeholder="D:\\tools（绝对路径，别用盘符根）"
+          <input type="text" id="lt-dir-input" placeholder="D:\\tools（绝对路径，别用盘符根，也可以点右边的「选择文件夹」）"
                  autocomplete="off" spellcheck="false">
+          <button type="button" class="btn sm" id="lt-pick" ${busy ? "disabled" : ""}>${busy ? "等待选择…" : "选择文件夹…"}</button>
           <button type="button" class="btn sm primary" id="lt-dir-add" ${busy ? "disabled" : ""}>添加</button>
         </div>
         <div class="lt-actions">
@@ -150,6 +151,25 @@ const LocalToolsPage = (() => {
       if (!value) { input?.focus(); return; }
       send("/api/local-tools", { method: "PUT",
         body: JSON.stringify({ dirs: [...dirs(), value], enabled: enabled() }) });
+    });
+    /* 原生「选择文件夹」：对话框在本机弹，选完直接加进列表并重扫 */
+    box.querySelector("#lt-pick")?.addEventListener("click", async () => {
+      const wantEnabled = enabled();
+      busy = true; error = ""; render();
+      let picked = null;
+      try {
+        const res = await api("/api/local-tools/pick-dir", { method: "POST" });
+        picked = res?.path || null;
+      } catch (e) {
+        error = e.message || "打开文件夹选择失败";
+      }
+      busy = false;
+      if (picked) {
+        await send("/api/local-tools", { method: "PUT",
+          body: JSON.stringify({ dirs: [...dirs(), picked], enabled: wantEnabled }) });
+        return;
+      }
+      render();
     });
     box.querySelector("#lt-dir-input")?.addEventListener("keydown", ev => {
       if (ev.key === "Enter") { ev.preventDefault(); box.querySelector("#lt-dir-add")?.click(); }

@@ -37,13 +37,16 @@ function fakeEl(id) {
 }
 
 const page = fakeEl("#view-localtools");
-const state = { calls: [], payload: null, throwOn: new Set() };
+const state = { calls: [], payload: null, throwOn: new Set(), picked: null };
 
 const context = vm.createContext({
   $: sel => (sel === "#view-localtools" ? page : page.querySelector(sel)),
   api: async (url, opt = {}) => {
     state.calls.push({ url, method: opt.method || "GET", body: opt.body });
     if (state.throwOn.has(url)) throw new Error("后端连接失败");
+    if (url === "/api/local-tools/pick-dir") {
+      return state.picked ? { cancelled: false, path: state.picked } : { cancelled: true, path: null };
+    }
     return state.payload;
   },
   esc: s => String(s ?? "").replace(/[&<>"]/g,
@@ -110,6 +113,25 @@ const fixture = {
   await new Promise(resolve => setImmediate(resolve));
   const addPut = state.calls.filter(call => call.method === "PUT").pop();
   assert.deepEqual(JSON.parse(addPut.body).dirs, ["D:\\tools", "E:\\kit"]);
+
+  // 原生「选择文件夹」：选中的路径直接进配置
+  assert.match(page.innerHTML, /选择文件夹/, "应有选择文件夹按钮");
+  state.picked = "F:\\picked-tools";
+  page.querySelector("#lt-pick").fire("click");
+  await new Promise(resolve => setImmediate(resolve));
+  await new Promise(resolve => setImmediate(resolve));
+  await new Promise(resolve => setImmediate(resolve));
+  const pickPut = state.calls.filter(call => call.method === "PUT").pop();
+  assert.deepEqual(JSON.parse(pickPut.body).dirs, ["D:\\tools", "F:\\picked-tools"],
+    "选中的目录应追加进配置");
+  // 取消不该改配置
+  const beforeCancel = state.calls.filter(call => call.method === "PUT").length;
+  state.picked = null;
+  page.querySelector("#lt-pick").fire("click");
+  await new Promise(resolve => setImmediate(resolve));
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(state.calls.filter(call => call.method === "PUT").length, beforeCancel,
+    "取消选择不应提交配置");
 
   // 清理暂存返回 {count}，不能把面板数据冲掉（显示错乱就是这么来的）
   state.payload = { count: 0, removed: [], runs_dir: "D:\\work\\local-tools\\runs" };

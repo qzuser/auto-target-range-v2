@@ -1,13 +1,15 @@
 """本地工具索引的读写接口：目录由用户在控制台设置，扫描与清理都在工作区里做。
 
-四条路由，边界都在这一层定好：
+五条路由，边界都在这一层定好：
 
 - ``GET  /api/local-tools``：当前配置 + 索引摘要 + 工具清单（可关键词过滤）；
 - ``PUT  /api/local-tools``：改开关/目录/上限；目录必须是已存在的绝对路径，
   驱动器根和被拒绝（复制整盘进暂存毫无意义）；
 - ``POST /api/local-tools/refresh``：重扫并落盘；
 - ``POST /api/local-tools/cleanup``：清掉遗留的暂存目录（正常运行结束即删，
-  这里兜的是崩溃残壳）。
+  这里兜的是崩溃残壳）；
+- ``POST /api/local-tools/pick-dir``：弹本机「选择文件夹」对话框，把选中的
+  绝对路径交给前端（取消返回 ``cancelled``）。
 
 Agent 侧真正的执行入口是工具 ``local_tool``，这里不提供任意路径执行。
 """
@@ -21,7 +23,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from spiritscout.tools import local_index, local_runner
+from spiritscout.tools import dir_picker, local_index, local_runner
 
 
 class LocalToolsPayload(BaseModel):
@@ -105,3 +107,19 @@ def mount_local_tools(app: FastAPI, *, cfg: Any) -> None:
         removed = local_runner.sweep_runs(root, stale_seconds=0)
         return {"removed": removed, "count": len(removed),
                 "runs_dir": str(local_runner.runs_root(root))}
+
+    @app.post("/api/local-tools/pick-dir")
+    def pick_local_tool_dir(initial: str = "") -> dict[str, Any]:
+        """弹本机原生「选择文件夹」对话框。
+
+        对话框在子进程里开，用户选完才返回；取消返回 ``cancelled=True``，
+        起不来（无图形环境）返回 503 并说明原因，前端退回手填。
+        """
+        start = initial.strip() or (local_index.load(root).get("dirs") or [""])[0]
+        try:
+            picked = dir_picker.pick_directory(start)
+        except dir_picker.PickerError as exc:
+            raise HTTPException(503, str(exc)) from exc
+        if not picked:
+            return {"cancelled": True, "path": None}
+        return {"cancelled": False, "path": picked}
