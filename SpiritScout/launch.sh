@@ -14,7 +14,8 @@ case "${1:-start}" in
   help|-h|--help|stop) ;;
   *)
     if [ ! -x .venv/bin/python ]; then
-      echo "缺少虚拟环境：先执行 python3 -m venv .venv，再执行 .venv/bin/python -m pip install -e ." >&2
+      echo "缺少虚拟环境：先执行 python3 -m venv .venv，再执行 .venv/bin/python -m pip install -e . -i https://pypi.tuna.tsinghua.edu.cn/simple" >&2
+      echo "        国内默认走清华镜像；要官方源就把 -i 那段去掉" >&2
       exit 1
     fi
     # 首次启动：还没有管理员就当场设密码（只存 scrypt 哈希，明文不落盘）。

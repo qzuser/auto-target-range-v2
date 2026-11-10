@@ -9,7 +9,7 @@
 
 **简体中文 · [English](README_EN.md)**
 
-[![Version](https://img.shields.io/badge/version-v0.44.2-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
+[![Version](https://img.shields.io/badge/version-v0.44.3-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
 
 [快速开始](#快速开始) · [三种模式](#三种模式) · [界面](#界面) · [工作原理](#工作原理) · [配置参考](#配置参考) · [常见问题](#常见问题) · [部署指南](docs/部署与配置.md)
 
@@ -151,11 +151,15 @@ docker compose up -d --build --wait
 
 需要 Python 3.11+。原生浏览器工具另需 Node.js 22+ 和 Chromium/Chrome，也可用 `SPIRITSCOUT_CHROME_EXECUTABLE` 指定路径。
 
+装依赖国内建议加镜像：`-i https://pypi.tuna.tsinghua.edu.cn/simple`（清华 TUNA，也可以用
+`https://mirrors.aliyun.com/pypi/simple/`）。仓库根那套 `start-local.ps1` 已经把镜像当默认
+——它自检到缺依赖就会用镜像装，镜像不可用时自动退官方源重试。
+
 **Linux**
 
 ```bash
 python3 -m venv .venv
-.venv/bin/python -m pip install -e .
+.venv/bin/python -m pip install -e . -i https://pypi.tuna.tsinghua.edu.cn/simple
 sudo apt install bubblewrap   # Debian / Ubuntu；Fedora 用 sudo dnf install bubblewrap
 ./launch.sh
 ```
@@ -164,7 +168,7 @@ sudo apt install bubblewrap   # Debian / Ubuntu；Fedora 用 sudo dnf install bu
 
 ```bat
 py -3 -m venv .venv
-.venv\Scripts\python.exe -m pip install -e .
+.venv\Scripts\python.exe -m pip install -e . -i https://pypi.tuna.tsinghua.edu.cn/simple
 launch.cmd
 ```
 
@@ -192,7 +196,7 @@ launch.cmd --auth password
 `[状态] 已运行 01:00 · 会话 2（运行中 0） · 内存 244 MB`，不开任务管理器也能知道它活着。
 
 ```
-灵枢 Web 控制台 v0.44.2: http://127.0.0.1:8010  (登录已关闭，本机直接进入（auth_mode=none），并发上限 4，Ctrl+C 停止)
+灵枢 Web 控制台 v0.44.3: http://127.0.0.1:8010  (登录已关闭，本机直接进入（auth_mode=none），并发上限 4，Ctrl+C 停止)
 
 [就绪] 浏览器可以打开了: http://127.0.0.1:8010
        每 60 秒报一次状态；Ctrl+C 停止
@@ -221,13 +225,13 @@ shell / Python 沙箱需要 Linux + bubblewrap；Windows 与 macOS 原生控制�
 
 | 附件 | 带什么 |
 | --- | --- |
-| `spiritscout-0.44.2-py3-none-any.whl` | `pip install` 用：前端静态页面、知识库种子、报告模板、206 条内置安全技能（`knowledge/data/security_skills.json`）、342 条经验（`knowledge/data/experience.json` + `experience.md`）。**不含** `skills/` 那套自定义技能包（它有 5669 个文件，塞进 wheel 太重） |
-| `spiritscout-0.44.2.tar.gz` | sdist（约 24 MB）：整份源码 + `skills/` 技能包的文本素材（4549 个文件，插图与演示视频留在 zip 里）+ 配置模板（`skills.yaml`、`models.example.yaml`、`models.mock.yaml`、`system.example.yaml`）+ 经验。真实 `models.yaml` / `system.yaml` 不在里面 |
-| `spiritscout-0.44.2.zip` | 整仓源码：代码、`skills/`、`configs/`、`experience-export/`、`EXPERIENCE.md`，解开就按上面「快速开始」跑 |
+| `spiritscout-0.44.3-py3-none-any.whl` | `pip install` 用：前端静态页面、知识库种子、报告模板、206 条内置安全技能（`knowledge/data/security_skills.json`）、342 条经验（`knowledge/data/experience.json` + `experience.md`）。**不含** `skills/` 那套自定义技能包（它有 5669 个文件，塞进 wheel 太重） |
+| `spiritscout-0.44.3.tar.gz` | sdist（约 24 MB）：整份源码 + `skills/` 技能包的文本素材（4549 个文件，插图与演示视频留在 zip 里）+ 配置模板（`skills.yaml`、`models.example.yaml`、`models.mock.yaml`、`system.example.yaml`）+ 经验。真实 `models.yaml` / `system.yaml` 不在里面 |
+| `spiritscout-0.44.3.zip` | 整仓源码：代码、`skills/`、`configs/`、`experience-export/`、`EXPERIENCE.md`，解开就按上面「快速开始」跑 |
 | `SHA256SUMS` | 上面三个包的校验和，装前先对一遍 |
 
 ```bash
-pip install spiritscout-0.44.2-py3-none-any.whl
+pip install spiritscout-0.44.3-py3-none-any.whl
 spiritscout --help
 ```
 
@@ -460,7 +464,7 @@ Docker 用 `python deploy.py migrate`；手工迁移时停服 → 拷 `.spiritsc
 
 ## 文档与贡献
 
-当前代码版本 **v0.44.2**。版本唯一来源、递增规则与历史说明见 [版本管理](CONTRIBUTING.md#版本管理)。
+当前代码版本 **v0.44.3**。版本唯一来源、递增规则与历史说明见 [版本管理](CONTRIBUTING.md#版本管理)。
 
 | 我想了解 | 阅读入口 |
 | --- | --- |

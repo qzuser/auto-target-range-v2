@@ -9,7 +9,7 @@
 | 路径 | 作用 |
 | --- | --- |
 `SpiritScout/` | 产品本体。灵枢 v0.24.3，Python 3.11+，FastAPI Web 控制台 + 多 Agent 编排。详见 [SpiritScout/README.md](SpiritScout/README.md)
-`start-local.ps1` | 本机启动器（不走 Docker）：环境与依赖自检（缺运行依赖自动 `pip install`，缺 venv/pip/解释器版本只给命令不动手）→ 导出执行后端与模型 key 环境变量 → 前台起 Web 控制台。首次启动会先让你设管理员密码（输两遍、不回显，只存 scrypt 哈希进 `admin.db`）。`-NoInstall` 只报告不装
+`start-local.ps1` | 本机启动器（不走 Docker）：环境与依赖自检（缺运行依赖自动 `pip install`，缺 venv/pip/解释器版本只给命令不动手）→ 导出执行后端与模型 key 环境变量 → 前台起 Web 控制台。首次启动会先让你设管理员密码（输两遍、不回显，只存 scrypt 哈希进 `admin.db`）。`-NoInstall` 只报告不装；装依赖默认走**清华 PyPI 镜像**，`-PipIndex official` 换官方源
 `启动服务.cmd` | 双击入口，包一层 `start-local.ps1 -Port 8010`
 `deploy-spiritscout.ps1` | Docker Desktop 一键部署（CTF 的 shell/python 工具硬依赖 bubblewrap，Windows 原生沙箱不可用时需要它）
 `_work/build_release.py` | 组装「解压即用」便携包：内嵌 CPython 3.11 + site-packages + app + configs + data，再打 zip
@@ -27,6 +27,12 @@ py -3.11 -m venv SpiritScout\.venv
 只有 venv 需要你亲手建（装在哪、用哪个解释器由你定）；建好后双击启动，缺的运行依赖
 与可选工具包由 `start-local.ps1` 自己 `pip install`，首次要几分钟。不想让它联网装东西就
 手动跑 `powershell -ExecutionPolicy Bypass -File .\start-local.ps1 -NoInstall`，只报命令。
+
+装依赖的源默认是**清华 PyPI 镜像**（`https://pypi.tuna.tsinghua.edu.cn/simple`），
+国内直连官方站常常几十 KB/s；镜像没同步好或想走官方源时，`.\start-local.ps1 -PipIndex official`，
+换别的镜像 `-PipIndex https://mirrors.aliyun.com/pypi/simple/`，也可以设环境变量
+`SPIRITSCOUT_PIP_INDEX`。镜像装不下来时脚本会自动退官方源重试一次并打印换了源。
+只想看当前解析出哪个源、不动手：`.\start-local.ps1 -ShowPipIndex`。
 
 浏览器打开 <http://127.0.0.1:8010>。关闭那个窗口即停止服务。
 端口来自双击入口里的 `-Port 8010`（它转成 `--port` 覆盖 `configs/system.yaml` 的 `web.port`；

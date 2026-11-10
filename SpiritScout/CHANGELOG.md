@@ -1,7 +1,37 @@
 # 更新日志
 
-项目采用 `主版本.次版本.修订号`。当前版本为 **0.44.2**，版本唯一来源是
+项目采用 `主版本.次版本.修订号`。当前版本为 **0.44.3**，版本唯一来源是
 `src/spiritscout/__init__.py`；包构建、命令行、控制台及 MCP 握手共用该值。
+
+## [0.44.3] - 2026-11-10
+
+启动脚本装依赖一直直连 PyPI 官方站，国内动辄几十 KB/s，首次装 litellm / langgraph
+那几百兆能把人耗在窗口前。改成默认走国内镜像，并留好换源与回退的路。
+
+### 修复
+
+- **`start-local.ps1` 默认依赖源改成清华 TUNA 镜像**：`pip install` 带
+  `--index-url https://pypi.tuna.tsinghua.edu.cn/simple`；换源用 `-PipIndex <url>`
+  或环境变量 `SPIRITSCOUT_PIP_INDEX`，`-PipIndex official` 回官方源。裸词（`tuna`）
+  直接报错而不是悄悄装到默认源上。
+- **镜像装不下自动退官方源**：先走镜像，退出码非 0 就退 `https://pypi.org/simple`
+  重试**一次**，成功则本次启动后续步骤都切到官方源（工具包那一步不再撞同一面墙），
+  并打印换了源。
+- **新增 `-ShowPipIndex`**：只打印当前解析出的 `PIP_INDEX` 与标签（清华 / 官方 / 自定义）
+  然后退出，排障时不用真去装一遍。启动时也会在依赖段打印一行「依赖源：…」。
+- **手抄命令同步带源**：`cmdCore` / `cmdToolkit` 与 `launch.sh` / `launch.cmd` 的缺环境
+  提示都带上镜像地址，照着抄就能用；`launch.cmd` 的提示另起一行说明国内默认走镜像。
+- **文档**：README（本工作区与包内）本地安装步骤加镜像参数，`docs/部署与配置.md`
+  「启动前的依赖自检」补一条依赖源说明。
+
+### 测试
+
+- 新增 `tests/test_start_script_pip_index.py`（7 条）：默认源、环境变量覆盖、参数优先、
+  `official` 关键字、裸词报错；另用 AST 把 `Invoke-PipInstall` 抠出来配桩 python 真跑
+  一遍——镜像失败必须退官方源且只重试一次、镜像通时不许再打官方源。没有 PowerShell
+  的环境整体 skip。
+- 修一处老坑：`start-local.ps1` 是无 BOM UTF-8 时 Windows PowerShell 5.1 会把中文读成
+  乱码并把它后面的引号拆坏，现在按 BOM 存盘，文件里也把 `-in` 换成 `-contains`。
 
 **历史版本说明**：0.1.0 是仓库早期已有的代码版本；0.2.0—0.11.1 根据现有
 Git 历史与日期日志回溯整理，用于标识功能演进，**并非当时已发布的版本或 Git 标签**。

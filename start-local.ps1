@@ -8,6 +8,11 @@
 #   powershell -ExecutionPolicy Bypass -File .\start-local.ps1
 #   powershell -ExecutionPolicy Bypass -File .\start-local.ps1 -Port 8010
 #   powershell -ExecutionPolicy Bypass -File .\start-local.ps1 -NoInstall   # 只报告，不自动装
+#   powershell -ExecutionPolicy Bypass -File .\start-local.ps1 -PipIndex official   # 走 PyPI 官方源
+#
+# 装依赖默认走国内镜像（清华 TUNA），镜像不可用时自动退回 PyPI 官方源重试一次。
+# 换源：-PipIndex <url>，或环境变量 SPIRITSCOUT_PIP_INDEX；`-PipIndex official` 强制官方源。
+# 只看当前解析出的源不动手：-ShowPipIndex。
 #
 # -Port 以 `--port` 传给 CLI，**覆盖** SpiritScout\configs\system.yaml 里的 web.port
 # （配置里写的是 8000）；双击入口「启动服务.cmd」固定 8010，两个数字不一样是正常的。
@@ -16,7 +21,9 @@
 param(
     [int]$Port = 8010,
     [switch]$Debug,
-    [switch]$NoInstall
+    [switch]$NoInstall,
+    [string]$PipIndex = '',
+    [switch]$ShowPipIndex
 )
 
 $ErrorActionPreference = 'Stop'
@@ -25,9 +32,47 @@ $venvPy = Join-Path $root 'SpiritScout\.venv\Scripts\python.exe'
 $depsProbe = Join-Path $root 'SpiritScout\scripts\probe_deps.py'
 $minPython = [version]'3.11'
 
+# 依赖源：国内镜像优先。默认清华 TUNA——PyPI 官方站在国内经常几十 KB/s 甚至超时，
+# 首次装 litellm/langgraph 那几百兆能把人耗死在窗口前。
+$script:MirrorIndex = 'https://pypi.tuna.tsinghua.edu.cn/simple'
+$script:OfficialIndex = 'https://pypi.org/simple'
+$script:MirrorLabel = '清华镜像（TUNA）'
+
+function Resolve-PipIndex([string]$value) {
+    # 优先级：-PipIndex > 环境变量 SPIRITSCOUT_PIP_INDEX > 默认镜像。
+    # 关键字 official / pypi / default 表示「用官方源」，便于临时排障。
+    $raw = $value
+    if (-not $raw) { $raw = $env:SPIRITSCOUT_PIP_INDEX }
+    if (-not $raw) { return $script:MirrorIndex }
+    $raw = $raw.Trim()
+    if (-not $raw) { return $script:MirrorIndex }
+    $lower = $raw.ToLowerInvariant()
+    if (@('official', 'pypi', 'default') -contains $lower) { return $script:OfficialIndex }
+    if ($raw -notmatch '^https?://') {
+        throw "-PipIndex 要给完整地址（例如 https://pypi.tuna.tsinghua.edu.cn/simple），收到：$raw"
+    }
+    return $raw
+}
+
+$script:pipIndex = Resolve-PipIndex $PipIndex
+
+function Get-IndexLabel([string]$index) {
+    # 标签跟着实际源走：自定义镜像不能还挂着「清华」的名
+    if ($index -eq $script:OfficialIndex) { return 'PyPI 官方源' }
+    if ($index -eq $script:MirrorIndex) { return $script:MirrorLabel }
+    return '自定义源'
+}
+
+if ($ShowPipIndex) {
+    Write-Host "PIP_INDEX=$script:pipIndex"
+    Write-Host "PIP_INDEX_LABEL=$(Get-IndexLabel $script:pipIndex)"
+    exit 0
+}
+
+
 # 提示与自装共用同一份命令文本，免得两处写歪
-$cmdCore = 'SpiritScout\.venv\Scripts\python.exe -m pip install -e "SpiritScout"'
-$cmdToolkit = 'SpiritScout\.venv\Scripts\python.exe -m pip install -e "SpiritScout[toolkit]"'
+$cmdCore = "SpiritScout\.venv\Scripts\python.exe -m pip install --index-url $script:pipIndex -e `"SpiritScout`""
+$cmdToolkit = "SpiritScout\.venv\Scripts\python.exe -m pip install --index-url $script:pipIndex -e `"SpiritScout[toolkit]`""
 
 function Find-HostPython {
     # 本机 py 启动器里可用的 3.11+。取版本号最低的那个：工具包里的 gmpy2 / z3-solver
@@ -60,12 +105,31 @@ function Invoke-PipInstall {
     # `powershell -File … > 日志` 这种重定向场景，Out-Host 在没有交互宿主时
     # 无处可写，pip 的下载进度和报错全都看不见，只剩一个静默挂死的窗口。
     # --retries/--timeout 让断网时的最坏耗时收敛到几十秒，而不是无限等。
+    # 源：先走解析出的镜像；镜像挂了（同步延迟、被墙、限流）自动退官方源重试一次，
+    # 并把后续步骤也切到官方源——免得每次都先撞一面墙再回来。
     param([string]$Target)
+
+    function Invoke-Pip([string]$index) {
+        $pipArgs = @('-m', 'pip', 'install', '--disable-pip-version-check',
+                     '--retries', '2', '--timeout', '30')
+        if ($index) { $pipArgs += @('--index-url', $index) }
+        $pipArgs += @('--editable', $Target)
+        & $venvPy @pipArgs | ForEach-Object { Write-Host $_ }
+        return $LASTEXITCODE
+    }
+
     Push-Location $root
     try {
-        & $venvPy -m pip install --disable-pip-version-check --retries 2 --timeout 30 --editable $Target |
-            ForEach-Object { Write-Host $_ }
-        return $LASTEXITCODE
+        $code = Invoke-Pip $script:pipIndex
+        if ($code -ne 0 -and $script:pipIndex -ne $script:OfficialIndex) {
+            Write-Host "[!] 镜像 $script:pipIndex 装不下（退出码 $code），改用官方源重试一次…" -ForegroundColor Yellow
+            $code = Invoke-Pip $script:OfficialIndex
+            if ($code -eq 0) {
+                $script:pipIndex = $script:OfficialIndex
+                Write-Host "[i] 官方源通了；本次启动后续都走 $script:OfficialIndex" -ForegroundColor DarkGray
+            }
+        }
+        return $code
     } finally { Pop-Location }
 }
 
@@ -123,6 +187,8 @@ if (-not $deps) {
     if ($deps.source_version) {
         Write-Host "[i] 源码版本：灵枢 v$($deps.source_version)（SpiritScout\src 当前代码）" -ForegroundColor DarkGray
     }
+    $srcLabel = Get-IndexLabel $script:pipIndex
+    Write-Host "[i] 依赖源：$srcLabel（$script:pipIndex；换源用 -PipIndex <url> 或环境变量 SPIRITSCOUT_PIP_INDEX）" -ForegroundColor DarkGray
     if ($deps.self_version -and $deps.source_version -and
         ($deps.self_version -ne $deps.source_version)) {
         Write-Host "[i] 安装元数据 $($deps.self_version) 落后于源码 $($deps.source_version)" -ForegroundColor DarkGray
@@ -151,8 +217,10 @@ if (-not $deps) {
         Write-Host "[>] 自动补装运行依赖（首次要几分钟，别关窗口）…" -ForegroundColor Cyan
         $code = Invoke-PipInstall 'SpiritScout'
         if ($code -ne 0) {
-            Write-Host "[x] pip 安装失败（退出码 $code），常见原因是网络或代理。换镜像再试：" -ForegroundColor Red
-            Write-Host "        SpiritScout\.venv\Scripts\python.exe -m pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -e `"SpiritScout`""
+            Write-Host "[x] pip 安装失败（退出码 $code），常见原因是网络、代理或镜像没同步" -ForegroundColor Red
+            Write-Host "    换官方源试：start-local.ps1 -PipIndex official" -ForegroundColor Red
+            Write-Host "    换别的镜像：start-local.ps1 -PipIndex https://mirrors.aliyun.com/pypi/simple/" -ForegroundColor Red
+            Write-Host "    手工执行：$cmdCore"
             exit 1
         }
         # 装完必须复验：pip 报成功但装到了别的环境、或依赖冲突回滚，都会留在这里

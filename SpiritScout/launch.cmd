@@ -13,7 +13,8 @@ cd /d "%~dp0"
 set "PROJECT_PYTHON=%~dp0.venv\Scripts\python.exe"
 if not exist "%PROJECT_PYTHON%" (
     echo [launch] missing .venv - run: py -3 -m venv .venv
-    echo [launch] then: .venv\Scripts\python.exe -m pip install -e .
+    echo [launch] then: .venv\Scripts\python.exe -m pip install -e . -i https://pypi.tuna.tsinghua.edu.cn/simple
+    echo [launch] (-i points pip at the Tsinghua PyPI mirror; drop it to use pypi.org)
     echo [launch] full deployment: py -3 deploy.py up
     exit /b 1
 )
