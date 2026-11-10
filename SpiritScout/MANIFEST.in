@@ -1,3 +1,8 @@
+# 运维脚本：文档里直接让人跑 `python scripts/bootstrap.py` / `scripts/probe_deps.py`，
+# 缺了这些路径就成了空指路（之前 sdist 里确实没有）。
+recursive-include scripts *.py
+# 编译缓存不是源码：本机构建时 scripts/__pycache__ 会跟着进去，白占体积
+global-exclude *.pyc *.pyo
 # 桌面版（Windows 自带窗口的客户端）：源码与编译脚本进 sdist，够别人自己编；
 # 下下来的 WebView2 SDK 缓存（约 8 MB）与编好的 exe 不入包——exe 作为 release 附件单独发。
 include launcher/SpiritScoutDesktop.cs
