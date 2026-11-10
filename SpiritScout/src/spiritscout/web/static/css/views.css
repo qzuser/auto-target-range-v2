@@ -1486,19 +1486,40 @@ dialog.panel { width: min(880px, 94vw); padding: 0; overflow: hidden; max-height
 .usage-error { margin: 0 0 14px; font-size: 13px; color: #c0392b; }
 .u-note { margin: 12px 0 0; font-size: 12px; color: var(--ink-3); }
 
-/* 本地工具：目录清单、扫描结果与「用完还原」的提示 */
-.lt-dirs { margin: 16px 0 0; }
-.lt-dirs h3 { margin: 0 0 8px; font-size: 13px; color: var(--ink-2); }
-.lt-dir { display: flex; align-items: center; gap: 10px; padding: 6px 0;
-  border-bottom: 1px dashed var(--line, #ececf2); }
-.lt-dir code { flex: 1; font-size: 12px; overflow-wrap: anywhere; }
+/* 本地工具：整页宽布局（标题 + 开关/目录 + 索引结果），跟「模型」页同级，
+   不要套 .set-card——那一层把宽度锁在 720px，表格会被挤成一条 */
+.lt-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin: 0 0 18px; }
+.lt-head h2 { margin: 0 0 6px; font-size: 22px; font-weight: 700; letter-spacing: -.01em; }
+.lt-sub { margin: 0; max-width: 82ch; font-size: 13px; line-height: 1.85; color: var(--ink-2); }
+.lt-sub b { color: var(--ink); }
+.lt-sub code, .lt-note code, .lt-empty code { font-size: 12px; padding: 1px 5px; border-radius: 5px;
+  background: var(--surface-2); overflow-wrap: anywhere; }
+.lt-head-actions { display: flex; gap: 8px; flex: none; }
+.lt-block { border: 1px solid var(--line); border-radius: 12px; background: var(--surface);
+  padding: 18px 22px; margin: 0 0 16px; }
+.lt-block-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin: 0 0 12px; }
+.lt-block-head b { font-size: 14px; }
+.lt-block-head input[type="search"] { width: 260px; max-width: 40%; }
+.lt-meta { font-size: 12px; color: var(--ink-3); }
+.lt-toggle { display: flex; align-items: center; gap: 9px; font-size: 13px; color: var(--ink-2); cursor: pointer; }
+.lt-toggle input { width: 15px; height: 15px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+.lt-sub-title { margin: 18px 0 8px; font-size: 13px; color: var(--ink-2); }
+.lt-dirs { display: grid; gap: 6px; }
+.lt-dir { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 8px;
+  background: var(--surface-2); }
+.lt-dir code { flex: 1; min-width: 0; font-size: 12px; overflow-wrap: anywhere; }
 .lt-add { display: flex; gap: 8px; margin: 12px 0 0; }
-.lt-add input { flex: 1; }
-.lt-actions { display: flex; align-items: center; gap: 10px; margin: 18px 0 0; flex-wrap: wrap; }
+.lt-add input { flex: 1; min-width: 0; }
+.lt-actions { display: flex; align-items: center; gap: 12px; margin: 14px 0 0; flex-wrap: wrap; }
 .lt-error { margin: 12px 0 0; font-size: 13px; color: #c0392b; }
-.lt-search { margin: 14px 0 8px; }
-.lt-search input { width: 100%; }
+.lt-empty { margin: 4px 0; font-size: 13px; line-height: 1.7; color: var(--ink-3); }
+.lt-note { margin: 12px 0 0; font-size: 12px; line-height: 1.7; color: var(--ink-3); }
 .lt-table-wrap { overflow-x: auto; }
+.lt-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.lt-table th { padding: 6px 10px; text-align: left; font-size: 12px; font-weight: 600;
+  color: var(--ink-3); border-bottom: 1px solid var(--line); white-space: nowrap; }
+.lt-table td { padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.lt-table tbody tr:last-child td { border-bottom: 0; }
 .lt-table td code { font-size: 12px; overflow-wrap: anywhere; }
-.lt-table td small { display: block; color: var(--ink-3); font-size: 11px; }
-.set-toggle { display: flex; align-items: center; gap: 8px; margin: 14px 0 0; font-size: 13px; }
+.lt-table td small { display: block; font-size: 11px; color: var(--ink-3); }
+.lt-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }

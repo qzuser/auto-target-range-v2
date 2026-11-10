@@ -319,8 +319,16 @@
           <section id="view-skill" class="resource-page" hidden></section>
           <!-- 通知分类：面板内容由 static/js/notify.js 渲染（权限状态随浏览器走） -->
           <section id="view-notify" hidden></section>
-          <!-- 本地工具索引：面板内容由 static/js/local-tools.js 渲染（目录 + 扫描结果） -->
-          <section id="view-localtools" class="resource-page" hidden></section>
+          <!-- 本地工具索引：面板由 static/js/local-tools.js 渲染；这里留个静态骨架，
+               脚本没加载/读取失败时也不会是一片空白 -->
+          <section id="view-localtools" hidden>
+            <div class="lt-head">
+              <div>
+                <h2>本地工具</h2>
+                <p class="lt-sub">正在读取工具目录配置…</p>
+              </div>
+            </div>
+          </section>
           <section id="view-about" hidden>
             <div class="set-card">
               <h2>灵枢 · SpiritScout</h2>
@@ -502,6 +510,6 @@
 <p class="muted">密钥只通过专用字段填写。聊天中不要粘贴密钥；保存的 MCP 接入对新会话生效。</p><div id="resource-save-error" role="alert"></div><button type="button" class="btn primary" id="resource-save">保存配置</button></dialog>
 <script src="/static/js/exa-settings.js?v=20261026-scroll"></script>
 <script src="/static/js/resources.js?v=20261108-localmcp"></script>
-<script src="/static/js/local-tools.js?v=20261110-localtools"></script>
+<script src="/static/js/local-tools.js?v=20261110-ltlayout"></script>
 </body>
 </html>

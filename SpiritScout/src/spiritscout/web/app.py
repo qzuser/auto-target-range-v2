@@ -173,7 +173,9 @@ def create_app(cfg: SystemConfig, models: list[ModelEntry], *,
 
     @app.get("/", response_class=HTMLResponse)
     async def index() -> HTMLResponse:
-        return HTMLResponse(_STATIC.read_text(encoding="utf-8"))
+        # 控制台外壳不进缓存：改完前端重启即生效，不用让人手动硬刷新
+        return HTMLResponse(_STATIC.read_text(encoding="utf-8"),
+                            headers={"Cache-Control": "no-store, must-revalidate"})
 
     app.mount("/static", StaticFiles(directory=_STATIC_DIR), name="static")
 
