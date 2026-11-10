@@ -130,6 +130,19 @@ class DigestBundleTests(unittest.TestCase):
 
 
 class DigestCliTests(unittest.TestCase):
+    def test_script_is_stdlib_only(self):
+        """打包环境没有项目依赖，摘要脚本不能 import 任何 spiritscout 子模块。
+
+        CI 曾经按 `python -m spiritscout.knowledge.digest` 跑，直接被
+        `knowledge/__init__.py` 的 yaml 导入绊倒；这里把这条不变量钉住。
+        """
+        source = Path(digest.__file__).read_text(encoding="utf-8")
+        for line in source.splitlines():
+            stripped = line.strip()
+            if stripped.startswith(("import ", "from ")) and not stripped.startswith("from __future__"):
+                module = stripped.split()[1]
+                self.assertFalse(module.startswith("spiritscout"), stripped)
+
     def test_rejects_directory_without_pyproject(self):
         with tempfile.TemporaryDirectory() as tmp:
             self.assertEqual(digest.main(["--repo", tmp, "--package", tmp]), 2)

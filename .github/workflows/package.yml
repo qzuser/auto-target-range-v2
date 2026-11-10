@@ -71,8 +71,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # 摘要要进 wheel / sdist / zip，所以先生成：仓库根一份、包目录各一份
-          PYTHONPATH=SpiritScout/src python -m spiritscout.knowledge.digest \
+          # 摘要要进 wheel / sdist / zip，所以先生成：仓库根一份、包目录各一份。
+          # 直接按文件路径跑：打包环境还没装本项目依赖，走 `-m` 会连带拉起 yaml/litellm。
+          python SpiritScout/src/spiritscout/knowledge/digest.py \
             --repo . --package SpiritScout --limit 60
           head -20 EXPERIENCE.md
 

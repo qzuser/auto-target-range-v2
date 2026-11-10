@@ -5,20 +5,28 @@
 生成一份 `EXPERIENCE.md`（外加机读的 `experience.json`），一起放进 wheel /
 sdist / zip——不依赖用户再去仓库里翻。
 
+**刻意只依赖标准库**：打包环境（CI 里的裸 Python）没有装本项目的运行期依赖，
+`import spiritscout.knowledge.sync` 会顺着 `knowledge/__init__.py` 把 yaml、litellm
+全拉起来然后 ModuleNotFoundError。所以这份脚本自带轻量读取器，既能 `python -m
+spiritscout.knowledge.digest`（装了依赖时），也能直接
+`python SpiritScout/src/spiritscout/knowledge/digest.py` 裸跑（CI 用这条）。
+
 两种来源都认：仓库里那份老的 `spiritscout-experience-insights`（`insights` 字段）
-与同步用的 `spiritscout.experience/v1`（`items` 字段），归一化交给
-`knowledge/sync.py` 的 `read_export`。
+与同步用的 `spiritscout.experience/v1`（`items` 字段）。
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import shutil
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Sequence
 
-from spiritscout.knowledge.sync import read_export, write_export
+FORMAT = "spiritscout.experience/v1"
+LEGACY_KIND = "spiritscout-experience-insights"
 
 # 生成的文件名：包根一份、包内数据目录一份、仓库根一份（给 zip 用）
 DIGEST_NAME = "EXPERIENCE.md"
@@ -27,23 +35,73 @@ DATA_MD = "experience.md"
 PACKAGE_DATA_DIR = Path("src/spiritscout/knowledge/data")
 
 
+def _epoch(value: Any) -> float:
+    """epoch / ISO 字符串都归一成 epoch 秒，认不出来就 0。"""
+    if isinstance(value, (int, float)):
+        return float(value)
+    text = str(value or "").strip().replace("Z", "+00:00")
+    if not text:
+        return 0.0
+    try:
+        return datetime.fromisoformat(text).timestamp()
+    except ValueError:
+        return 0.0
+
+
+def _normalize(raw: Any) -> dict[str, Any]:
+    """轻量归一化：v1 原样返回，老清单转成 v1 的 `items`。"""
+    if not isinstance(raw, dict):
+        return {"format": FORMAT, "count": 0, "items": []}
+    if str(raw.get("format") or "") == FORMAT:
+        items = raw.get("items")
+        if isinstance(items, list):
+            return raw
+        return {"format": FORMAT, "count": 0, "items": []}
+    if str(raw.get("kind") or "") != LEGACY_KIND:
+        return {"format": FORMAT, "count": 0, "items": []}
+    items: list[dict[str, Any]] = []
+    for entry in raw.get("insights") or []:
+        if not isinstance(entry, dict):
+            continue
+        insight = str(entry.get("insight") or "").strip()
+        if not insight:
+            continue
+        items.append({
+            "insight_id": str(entry.get("id") or ""),
+            "insight": insight,
+            "context": str(entry.get("context") or ""),
+            "tags": [str(tag) for tag in (entry.get("tags") or [])],
+            "source_model": str(entry.get("source_model") or ""),
+            "ts": _epoch(entry.get("captured_at")),
+        })
+    return {
+        "format": FORMAT,
+        "exported_at": _epoch(raw.get("generated_at")) or time.time(),
+        "count": len(items),
+        "items": items,
+    }
+
+
+def load_payload(path: Path) -> dict[str, Any]:
+    """读一个经验清单文件；解析不了就当成空清单，不让打包挂掉。"""
+    try:
+        return _normalize(json.loads(path.read_text(encoding="utf-8")))
+    except (OSError, ValueError):
+        return {"format": FORMAT, "exported_at": time.time(), "count": 0, "items": []}
+
+
+def _write_payload(path: Path, payload: dict[str, Any]) -> None:
+    """先写临时文件再替换，避免半截文件。"""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    tmp.replace(path)
+
+
 def _stamp(value: Any) -> str:
     """把 epoch / ISO 时间都写成 `2026-11-10 18:35` 这种能看的本地时间。"""
-    if value in (None, ""):
-        return ""
-    stamp: float
-    if isinstance(value, (int, float)):
-        stamp = float(value)
-    else:
-        text = str(value).replace("Z", "+00:00")
-        try:
-            from datetime import datetime
-
-            parsed = datetime.fromisoformat(text)
-        except ValueError:
-            return str(value)[:16]
-        stamp = parsed.timestamp()
-    return time.strftime("%Y-%m-%d %H:%M", time.localtime(stamp))
+    stamp = _epoch(value)
+    return time.strftime("%Y-%m-%d %H:%M", time.localtime(stamp)) if stamp else ""
 
 
 def _one_line(text: Any, limit: int = 160) -> str:
@@ -130,8 +188,8 @@ def write_bundle(repo: Path, package_dir: Path, *, limit: int = 60,
     - `<package>/src/spiritscout/knowledge/data/experience.{json,md}`：进 wheel
     """
     snapshot = source or (repo / "experience-export" / "experience-insights.json")
-    payload = read_export(snapshot) if snapshot.is_file() else {
-        "format": "spiritscout.experience/v1", "count": 0, "items": []}
+    payload = load_payload(snapshot) if snapshot.is_file() else {
+        "format": FORMAT, "count": 0, "items": []}
     inbox = repo / "experience-export" / "inbox"
     inbox_files = len(list(inbox.glob("*.json"))) if inbox.is_dir() else 0
     markdown = digest_markdown(payload, limit=limit, inbox_files=inbox_files)
@@ -149,7 +207,7 @@ def write_bundle(repo: Path, package_dir: Path, *, limit: int = 60,
     data_dir.mkdir(parents=True, exist_ok=True)
     if snapshot.is_file():
         json_target = data_dir / DATA_JSON
-        write_export(json_target, payload)
+        _write_payload(json_target, payload)
         written["json"] = json_target
         shutil.copyfile(pkg_md, data_dir / DATA_MD)
         written["md"] = data_dir / DATA_MD
