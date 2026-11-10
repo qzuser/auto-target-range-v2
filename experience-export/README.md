@@ -99,3 +99,18 @@ python experience-export/export_experience.py --import             # 真写回 i
 原始 `captured_at` 会转成 `ts` 保留，时间线不乱。
 
 快照与运行库脱节时先跑一次 `--check`：它说 `[最新]` 就说明两边一致，说 `[过期]` 才需要同步。
+
+## 从控制台提交 / 拉取（人人可提）
+
+除了上面的 pre-commit 钩子，「经验」页右上角还有两个按钮走同一份快照：
+
+- **提交**：把本地经验导成 `inbox/<提交人>-<UTC 时间戳>.json` 放进本目录，提交并推送。
+  **每人一个文件**，不改 `experience-insights.json`，所以谁都能提、不用先拉最新、
+  也不会顶掉别人的提交（没写权限就 fork 后推自己分支再提 PR）。
+- **拉取**：`git fetch` 之后把主清单与 `inbox/` 下所有 `*.json` 一起读进来，按内容指纹
+  只补本地缺的条目——本地已有的一律不覆盖、不删除。
+
+手工往 `inbox/` 丢一个符合格式的 JSON 同样算一次提交，可以走网页或 PR。
+格式见本目录 `experience-insights.json`（老清单格式）或
+`SpiritScout/src/spiritscout/knowledge/sync.py` 的 `FORMAT = "spiritscout.experience/v1"`；
+两种格式「拉取」都认。脱敏规则与钩子一致（URL / IP:端口 / 密钥 / flag 字面量一律替换）。
