@@ -9,7 +9,7 @@ and progress, evidence, and artifacts stay in the same session.
 
 **English · [简体中文](README.md)**
 
-[![Version](https://img.shields.io/badge/version-v0.44.0-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
+[![Version](https://img.shields.io/badge/version-v0.44.1-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
 
 [Quick start](#quick-start) · [Three modes](#three-modes) · [Interface](#interface) · [How it works](#how-it-works) · [Configuration](#configuration) · [FAQ](#faq) · [Deployment guide (中文)](docs/部署与配置.md)
 
@@ -177,7 +177,7 @@ up models, so a fixed delay would either lie or waste time. After that it report
 line every 60 seconds, so you do not need a task manager to know it is alive.
 
 ```
-灵枢 Web 控制台 v0.44.0: http://127.0.0.1:8010  (管理员登录已启用，并发上限 4，Ctrl+C 停止)
+灵枢 Web 控制台 v0.44.1: http://127.0.0.1:8010  (管理员登录已启用，并发上限 4，Ctrl+C 停止)
 
 [就绪] 浏览器可以打开了: http://127.0.0.1:8010
        每 60 秒报一次状态；Ctrl+C 停止
@@ -205,6 +205,38 @@ The shell/Python sandbox needs Linux with bubblewrap. Native Windows and macOS c
 3. **Launch**: on **Home**, choose a mode, fill in target / challenges, rules, and attachments, then start the run.
 4. **Watch**: open the session. The chat tab shows every step, the graph tab shows structure; answer or steer in the chat when needed.
 5. **Collect**: the deliverables tab gives you the artifacts, the report and write-up tabs give you the documents, all downloadable as Markdown.
+
+### Release artifacts
+
+Prefer a ready-made package over a source checkout? All three artifacts carry the
+**experience library**: wheel and sdist include `knowledge/data/experience.json`
+(machine-readable, all 342 entries) plus `experience.md`, and every package root has
+`EXPERIENCE.md`; the zip is the full repository including `experience-export/`.
+
+| Asset | What it is for |
+| --- | --- |
+| `spiritscout-0.44.1-py3-none-any.whl` | `pip install` target; ships the console assets, knowledge seeds, report templates and the experience library |
+| `spiritscout-0.44.1.tar.gz` | sdist, for inspecting or re-packaging the build |
+| `spiritscout-0.44.1.zip` | full repository source (including `skills/` and `experience-export/`), unzip and follow *Quick start* |
+| `SHA256SUMS` | checksums for the three files above |
+
+```bash
+pip install spiritscout-0.44.1-py3-none-any.whl
+spiritscout --help
+```
+
+**How the packages are produced**: pushing a `v*` tag runs
+`.github/workflows/package.yml` at the repository root. It checks the tag against
+`__version__` (and fails loudly on a mismatch), renders a fresh experience digest with
+`python -m spiritscout.knowledge.digest`, builds the wheel and sdist with
+`python -m build`, creates the repository zip with `git archive` and appends the digest
+to it, installs the wheel into a clean venv to verify `web/static/js/count.js` and
+`knowledge/data/experience.json` really shipped, then attaches all three plus
+`SHA256SUMS` to the same-named release. You can also run it by hand:
+*Actions → 打包并发布 → Run workflow* with an existing tag.
+
+> Packaging only includes git-tracked files: `.venv/`, the `.spiritscout/` workspace
+> data, and real keys in `configs/models.yaml` never end up in an artifact.
 
 ## How it works
 
@@ -321,7 +353,7 @@ Use `python deploy.py migrate` for Docker. Manually: stop the service, copy `.sp
 
 ## Docs and contributing
 
-Current code version: **v0.44.0**. The single source of the version, the bump rules, and the history: see [version management (中文)](CONTRIBUTING.md#版本管理).
+Current code version: **v0.44.1**. The single source of the version, the bump rules, and the history: see [version management (中文)](CONTRIBUTING.md#版本管理).
 
 | I want to | Read |
 | --- | --- |

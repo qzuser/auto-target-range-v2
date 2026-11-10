@@ -2,3 +2,10 @@
 # setuptools 默认只收测试目录里的 *.py，前端那套 node 测试（tests/test_*.js）
 # 一直没进 sdist——从源码包构建的人因此跑不了 AGENTS 要求的 `node tests/test_*.js`。
 recursive-include tests *.js
+
+# 随包发布的做题经验：EXPERIENCE.md 是给人看的摘要，knowledge/data/ 下的
+# experience.json / experience.md 是 wheel 里那份机读与摘要素材（由
+# `python -m spiritscout.knowledge.digest` 在打包时生成）。
+include EXPERIENCE.md
+include src/spiritscout/knowledge/data/experience.json
+include src/spiritscout/knowledge/data/experience.md

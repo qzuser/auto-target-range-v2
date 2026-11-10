@@ -57,3 +57,9 @@ sandbox/
 # 构建与验包的临时环境/日志：一次 --no-isolation 构建会在 tmpbuild 里解出 setuptools
 _work/tmpbuild/
 _work/*.log
+# 打包时生成的经验摘要（由 python -m spiritscout.knowledge.digest 现算，
+# 快照本体在 experience-export/experience-insights.json，不重复存一份）
+EXPERIENCE.md
+SpiritScout/EXPERIENCE.md
+SpiritScout/src/spiritscout/knowledge/data/experience.json
+SpiritScout/src/spiritscout/knowledge/data/experience.md

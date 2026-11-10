@@ -1,0 +1,142 @@
+name: 打包并发布
+
+# 打 tag 就自动出包：wheel + sdist + 整仓 zip + SHA256SUMS，附到同名 Release 上。
+# 三种包都带做题经验：wheel/sdist 里是 knowledge/data/experience.json(+md)，
+# 包根另有 EXPERIENCE.md 摘要；zip 是整仓（含 experience-export/ 与 EXPERIENCE.md）。
+# 也可以在 Actions 页面手动触发（填一个已存在的 tag，或留空按代码版本号推导）。
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "要附件的 tag（例如 v0.44.1）；留空则按 ref / 代码版本号推导"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: package-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    name: 构建发行包
+    runs-on: ubuntu-latest
+    steps:
+      - name: 取代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # 手动投 tag 时要能解析到该 tag 的提交
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: 装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 核对 tag 与代码版本
+        id: ver
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(python - <<'PY'
+          import pathlib, re
+          text = pathlib.Path("SpiritScout/src/spiritscout/__init__.py").read_text(encoding="utf-8")
+          print(re.search(r'__version__\s*=\s*"([^"]+)"', text).group(1))
+          PY
+          )
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+          tag="${{ github.event.inputs.tag }}"
+          if [ -z "$tag" ]; then
+            if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+              tag="${GITHUB_REF_NAME}"
+            else
+              tag="v$version"          # 手动在分支上触发：按代码版本号出包
+              echo "没填 tag，按代码版本出 v$version"
+            fi
+          fi
+          if [ "$tag" != "v$version" ]; then
+            echo "::error::tag $tag 与代码版本 v$version 不一致——先升版本号或改用正确的 tag"
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "版本 v$version，tag $tag，一致。"
+
+      - name: 生成经验摘要
+        shell: bash
+        run: |
+          set -euo pipefail
+          # 摘要要进 wheel / sdist / zip，所以先生成：仓库根一份、包目录各一份
+          PYTHONPATH=SpiritScout/src python -m spiritscout.knowledge.digest \
+            --repo . --package SpiritScout --limit 60
+          head -20 EXPERIENCE.md
+
+      - name: 构建 wheel 与 sdist
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade build
+          python -m build --outdir dist SpiritScout
+          ls -lh dist
+
+      - name: 打整仓 zip（附 EXPERIENCE.md）
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ steps.ver.outputs.version }}"
+          prefix="spiritscout-$version/"
+          zip="dist/spiritscout-$version.zip"
+          git archive --format=zip --prefix="$prefix" -o "$zip" HEAD
+          python - "$zip" "$prefix" <<'PY'
+          import sys, zipfile
+          archive, prefix = sys.argv[1], sys.argv[2]
+          with zipfile.ZipFile(archive, "a", zipfile.ZIP_DEFLATED) as zf:
+              zf.write("EXPERIENCE.md", prefix + "EXPERIENCE.md")
+          with zipfile.ZipFile(archive) as zf:
+              names = zf.namelist()
+          assert prefix + "EXPERIENCE.md" in names, "zip 里没塞进经验摘要"
+          assert any(n.startswith(prefix + "experience-export/") for n in names), "zip 里没有经验清单"
+          print(f"zip 条目 {len(names)} 个，经验已就位")
+          PY
+          ls -lh "$zip"
+
+      - name: 校验装得上（wheel 里经验与前端都在）
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m venv smoke
+          ./smoke/bin/python -m pip install --quiet --no-deps dist/*.whl
+          ./smoke/bin/python - <<'PY'
+          import pathlib, spiritscout
+          root = pathlib.Path(spiritscout.__file__).parent
+          print("版本", spiritscout.__version__)
+          for rel in ("web/static/js/count.js",
+                      "knowledge/data/experience.json",
+                      "knowledge/data/experience.md"):
+              assert (root / rel).is_file(), f"wheel 里缺 {rel}"
+              print("在包里:", rel)
+          PY
+
+      - name: 生成 SHA256
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dist && sha256sum ./*.whl ./*.tar.gz ./*.zip > SHA256SUMS && cat SHA256SUMS
+
+      - name: 附到 Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          files: |
+            dist/*.whl
+            dist/*.tar.gz
+            dist/*.zip
+            dist/SHA256SUMS
+          fail_on_unmatched_files: true
+          # Release 标题与正文由人写（CHANGELOG 摘出来的那份），这里既不覆盖也不动草稿状态。
+          draft: false
+          prerelease: false

@@ -1,6 +1,6 @@
 # 更新日志
 
-项目采用 `主版本.次版本.修订号`。当前版本为 **0.44.0**，版本唯一来源是
+项目采用 `主版本.次版本.修订号`。当前版本为 **0.44.1**，版本唯一来源是
 `src/spiritscout/__init__.py`；包构建、命令行、控制台及 MCP 握手共用该值。
 
 **历史版本说明**：0.1.0 是仓库早期已有的代码版本；0.2.0—0.11.1 根据现有
@@ -9,6 +9,32 @@ Git 历史与日期日志回溯整理，用于标识功能演进，**并非当�
 行为，部分规则后来已有调整，请以当前代码和最新条目为准。
 
 版本递增和发布记录规则见 [贡献指南](CONTRIBUTING.md#版本管理)。
+
+## [0.44.1] - 2026-11-10
+
+出包不再手工敲命令：推一个 tag，GitHub Actions 就把 wheel、sdist、整仓 zip 和
+校验和一起附到同名 Release 上，装完还会自检一遍经验库与前端资源在不在包里。
+
+### 新增
+
+- **自动打包发布**：仓库根 `.github/workflows/package.yml`。`v*` tag 推送（或
+  Actions 页面手动触发并填 tag）后依次做六件事：核对 tag 与 `__version__` 一致
+  （不一致直接失败，避免出个对不上号的包）、`python -m spiritscout.knowledge.digest`
+  现算经验摘要、`python -m build` 出 wheel 与 sdist、`git archive` 打整仓 zip
+  并把摘要塞进去、装进干净 venv 验证 `web/static/js/count.js` 与
+  `knowledge/data/experience.json` 确实进了 wheel、生成 `SHA256SUMS`；最后四个
+  附件一起挂到 Release。
+- **经验随包发布**（`knowledge/digest.py`）：把 `experience-export/` 里的快照
+  压成 `EXPERIENCE.md`（342 条的量级、标签分布、最近条目、投稿入口）与
+  `knowledge/data/experience.json`（机读全量），三种包都带上——装完就知道它攒了
+  什么，不用再翻仓库。老清单格式 `spiritscout-experience-insights` 也认。
+- **README 增「发行包」一节**：三个附件分别是什么、`pip install` 怎么装、经验在
+  包里的位置、校验和怎么对，以及手动触发打包的入口。
+
+### 修复
+
+- **workflow 之前放错位置**：`SpiritScout/.github/workflows/ci.yml` 不在仓库根，
+  GitHub 根本不会读它，所以此前一次 Action 都没跑过；打包 workflow 直接放在根上。
 
 ## [0.44.0] - 2026-11-10
 

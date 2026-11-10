@@ -9,7 +9,7 @@
 
 **简体中文 · [English](README_EN.md)**
 
-[![Version](https://img.shields.io/badge/version-v0.44.0-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
+[![Version](https://img.shields.io/badge/version-v0.44.1-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
 
 [快速开始](#快速开始) · [三种模式](#三种模式) · [界面](#界面) · [工作原理](#工作原理) · [配置参考](#配置参考) · [常见问题](#常见问题) · [部署指南](docs/部署与配置.md)
 
@@ -192,7 +192,7 @@ launch.cmd --auth password
 `[状态] 已运行 01:00 · 会话 2（运行中 0） · 内存 244 MB`，不开任务管理器也能知道它活着。
 
 ```
-灵枢 Web 控制台 v0.44.0: http://127.0.0.1:8010  (登录已关闭，本机直接进入（auth_mode=none），并发上限 4，Ctrl+C 停止)
+灵枢 Web 控制台 v0.44.1: http://127.0.0.1:8010  (登录已关闭，本机直接进入（auth_mode=none），并发上限 4，Ctrl+C 停止)
 
 [就绪] 浏览器可以打开了: http://127.0.0.1:8010
        每 60 秒报一次状态；Ctrl+C 停止
@@ -213,6 +213,36 @@ shell / Python 沙箱需要 Linux + bubblewrap；Windows 与 macOS 原生控制�
 3. **下任务**：回首页选模式，填目标 / 题目、规则与附件，点「开始执行」。
 4. **看现场**：进会话页，「会话」页签看每一步，「拓扑」页签看推进结构，需要时在对话里补充信息。
 5. **收产物**：「记录与文件」页签取交付物，「报告」与「WP」页签取成文，Markdown 可直接下载。
+
+### 发行包（Release 附件）
+
+不想拉源码自己装，就直接下打包好的。三种包都带**做题经验**：wheel 与 sdist 里是
+`knowledge/data/experience.json`（机读，342 条全量）与 `experience.md`（摘要），
+包根另有 `EXPERIENCE.md`；zip 是整仓，含 `experience-export/` 与 `EXPERIENCE.md`。
+
+| 附件 | 用途 |
+| --- | --- |
+| `spiritscout-0.44.1-py3-none-any.whl` | `pip install` 用，含前端静态页面、知识库种子、报告模板与经验库 |
+| `spiritscout-0.44.1.tar.gz` | sdist，看构建流程或做下游打包 |
+| `spiritscout-0.44.1.zip` | 整仓源码（含 `skills/` 与 `experience-export/`），解开按上面「快速开始」跑 |
+| `SHA256SUMS` | 上面三个包的校验和，装前先对一遍 |
+
+```bash
+pip install spiritscout-0.44.1-py3-none-any.whl
+spiritscout --help
+```
+
+**怎么出的包**：推一个 `v*` tag，仓库根 `.github/workflows/package.yml` 会自动
+核对 tag 与 `__version__` 是否一致（不一致直接失败）、用
+`python -m spiritscout.knowledge.digest` 现算一份经验摘要、`python -m build` 出
+wheel 与 sdist、`git archive` 打整仓 zip 并把摘要塞进去、再装进干净 venv 验证
+`web/static/js/count.js` 和 `knowledge/data/experience.json` 真在包里，最后连同
+`SHA256SUMS` 附到同名 Release。没打 tag 也能出包：Actions 页面选「打包并发布」→
+Run workflow，填一个已存在的 tag 即可。
+
+> 打包只带 git 跟踪的文件加现算的摘要：`.venv/`、`.spiritscout/` 工作区数据、
+> `configs/models.yaml` 里的真实密钥都不会进包；经验在导出时已脱敏（地址、IP、
+> flag、密钥都换成标记）。
 
 ## 工作原理
 
@@ -417,7 +447,7 @@ Docker 用 `python deploy.py migrate`；手工迁移时停服 → 拷 `.spiritsc
 
 ## 文档与贡献
 
-当前代码版本 **v0.44.0**。版本唯一来源、递增规则与历史说明见 [版本管理](CONTRIBUTING.md#版本管理)。
+当前代码版本 **v0.44.1**。版本唯一来源、递增规则与历史说明见 [版本管理](CONTRIBUTING.md#版本管理)。
 
 | 我想了解 | 阅读入口 |
 | --- | --- |
