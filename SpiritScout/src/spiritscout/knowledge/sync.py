@@ -57,8 +57,17 @@ def redact(text: str) -> str:
 
 
 def project_root() -> Path:
-    """包所在的仓库根目录（`src/spiritscout/knowledge/sync.py` 往上三层）。"""
-    return Path(__file__).resolve().parents[3]
+    """包所在的 git 仓库根目录。
+
+    仓库布局不一定「包就在根上」——本项目把包放在 `SpiritScout/` 子目录里，
+    `experience-export/` 却在仓库根。所以从本文件往上找 `.git`（目录或 worktree
+    文件），找不到才退回按包深度估算的位置。
+    """
+    here = Path(__file__).resolve()
+    for parent in here.parents:
+        if (parent / ".git").exists():
+            return parent
+    return here.parents[3]
 
 
 def fingerprint(text: str) -> str:

@@ -158,6 +158,44 @@ class PayloadTests(unittest.TestCase):
         self.assertEqual(third["added"], 0, "标点差异也算同一条")
 
 
+class ProjectRootTests(unittest.TestCase):
+    """仓库根要认 `.git`，不能按包深度硬猜——本项目的包就在 `SpiritScout/` 子目录里。"""
+
+    def test_finds_git_toplevel_above_package(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            module = repo / "SpiritScout" / "src" / "spiritscout" / "knowledge" / "sync.py"
+            module.parent.mkdir(parents=True)
+            module.write_text("", encoding="utf-8")
+            (repo / ".git").mkdir()
+            real_file = sync.__file__
+            try:
+                sync.__file__ = str(module)
+                self.assertEqual(sync.project_root(), repo.resolve())
+            finally:
+                sync.__file__ = real_file
+
+    def test_worktree_file_counts_as_git(self) -> None:
+        """`git worktree` 的 `.git` 是文件不是目录，也要认。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "wt"
+            module = repo / "pkg" / "sync.py"
+            module.parent.mkdir(parents=True)
+            module.write_text("", encoding="utf-8")
+            (repo / ".git").write_text("gitdir: /tmp/elsewhere\n", encoding="utf-8")
+            real_file = sync.__file__
+            try:
+                sync.__file__ = str(module)
+                self.assertEqual(sync.project_root(), repo.resolve())
+            finally:
+                sync.__file__ = real_file
+
+    def test_default_paths_live_under_project_root(self) -> None:
+        root = sync.project_root()
+        self.assertEqual((root / sync.DEFAULT_SYNC_PATH).name, "experience-insights.json")
+        self.assertEqual((root / sync.DEFAULT_INBOX).name, "inbox")
+
+
 class GitSyncTests(unittest.TestCase):
     """真起两个仓库（work + bare origin），跑通 提交 → 拉取。"""
 
