@@ -385,9 +385,7 @@ async function answerQuestion(qid, body, card, sessionId) {
   }
 }
 
-/* 仪表盘：实时 token 消耗与会话态势（数据面 = /state） */
-const fmtK = n => n >= 1e6 ? (n / 1e6).toFixed(2) + "M"
-  : n >= 1000 ? (n / 1000).toFixed(1) + "k" : String(n ?? 0);
+/* 仪表盘：实时 token 消耗与会话态势（数据面 = /state；计数格式走 count.js） */
 let dashRenderVersion = 0;
 async function renderDash() {
   const box = $("#dash-body");
@@ -588,7 +586,7 @@ function renderChips() {
     ["收录漏洞", v.accepted || 0], ["候选/核验中", (v.candidate || 0) + (v.verifying || 0)],
     ["Flag", flagChipValue(st.flags)],
     ["决策轮次", rounds || "—"],
-    ["Token", tokens != null ? Number(tokens).toLocaleString() : "—"],
+    ["Token", tokens != null ? fmtCount(tokens) : "—"],
   ].map(([k, x]) => `<div class="chip"><b>${x}</b>${k}</div>`).join("");
 }
 
@@ -1435,7 +1433,7 @@ function tracePush(e, {observe = true} = {}) {
             '<div class="tl-thinkchip" title="在上方子 Agent 工作台查看实时分析"></div>');
           chip = flow.lastElementChild;
         }
-        chip.textContent = `推理 ${fmtK(rec.chars)} 字`;
+        chip.textContent = `推理 ${fmtCount(rec.chars)} 字`;
         break;
       }
       const text = d.text || "";

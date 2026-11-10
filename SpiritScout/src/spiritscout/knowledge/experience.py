@@ -473,6 +473,43 @@ def _row(conn: sqlite3.Connection, insight_id: str) -> dict[str, Any] | None:
     return _normalize(row) if row else None
 
 
+def _drop_absorbed_refs(conn: sqlite3.Connection, gone: list[str]) -> int:
+    """把 `gone` 这些 id 从所有条目的 absorbed_from 里摘掉。
+
+    提炼删掉原件后，别处若还记着「我吸收过它」，那条溯源就是空指针：页面会显示
+    一条指向不存在条目的合并记录，用户也没法追溯。返回被改写的条目数。
+    """
+    targets = {str(x) for x in gone if str(x).strip()}
+    if not targets:
+        return 0
+    changed = 0
+    try:
+        rows = conn.execute(
+            "SELECT insight_id, absorbed_from FROM insights").fetchall()
+    except sqlite3.Error:
+        return 0
+    for insight_id, raw in rows:
+        keep = [str(x) for x in _json_list(raw) if str(x) not in targets]
+        if len(keep) == len(_json_list(raw)):
+            continue
+        conn.execute("UPDATE insights SET absorbed_from = ? WHERE insight_id = ?",
+                     (json.dumps(keep, ensure_ascii=False), insight_id))
+        changed += 1
+    return changed
+
+
+def _json_list(raw: Any) -> list[Any]:
+    if isinstance(raw, list):
+        return list(raw)
+    if isinstance(raw, str) and raw.strip():
+        try:
+            loaded = json.loads(raw)
+        except ValueError:
+            return []
+        return list(loaded) if isinstance(loaded, list) else []
+    return []
+
+
 def merge_candidates(db_path: str | Path, *,
                      threshold: float = merge_mod.DEFAULT_THRESHOLD,
                      limit: int = 20) -> list[dict[str, Any]]:
@@ -557,27 +594,39 @@ def merge_insights(db_path: str | Path, ids: list[str], *, audit: Any = None,
                 f"这几条不够相似（最低 {low:.2f} < 阈值 {threshold:.2f}），"
                 "为免丢掉有用信息，不合并")
         composed = merge_mod.compose(rows)
+        # 提炼会删原件，而「合并（absorb）」只在目标条目上记 absorbed_from、原件照留。
+        # 两件事撞在同一批条目上时：把被删条目「吸收过谁」搬到提炼结果上，并把别的
+        # 条目里指向被删 id 的引用清掉——否则库会留下指向空号的溯源，用户也看不出
+        # 这段内容其实是从别处并进来的（这正是「提炼和合并打架」的现场）。
+        carried = sorted({str(x) for row in rows
+                          for x in (row.get("absorbed_from") or []) if str(x).strip()
+                          and str(x) not in wanted})
         if not confirm:
             preview = {
                 "applied": False, "absorbed": wanted, "removed": [],
                 "score": round(low, 4), "insight": composed["insight"],
                 "context": composed["context"], "tags": composed["tags"],
                 "merged_from": composed["merged_from"],
+                "carried_absorbed_from": carried,
+                "warnings": ([f"这些条目是「合并」目标，提炼后会带上它们吸收过的 "
+                              f"{len(carried)} 条溯源"] if carried else []),
             }
         else:
             merged_id = new_id("exp")
             with conn:
                 conn.execute(
                     "INSERT INTO insights (insight_id, insight, context, tags,"
-                    " source_session, source_model, ts, merged_from)"
-                    " VALUES (?,?,?,?,?,?,?,?)",
+                    " source_session, source_model, ts, merged_from, absorbed_from)"
+                    " VALUES (?,?,?,?,?,?,?,?,?)",
                     (merged_id, composed["insight"], composed["context"],
                      json.dumps(composed["tags"], ensure_ascii=False),
                      composed["source_session"], "merge", time.time(),
-                     json.dumps(composed["merged_from"], ensure_ascii=False)))
+                     json.dumps(composed["merged_from"], ensure_ascii=False),
+                     json.dumps(carried, ensure_ascii=False)))
                 # 用户确认保留后，被提炼的原件就没必要占库了：同一个事务里删掉。
                 conn.executemany("DELETE FROM insights WHERE insight_id = ?",
                                  [(key,) for key in wanted])
+                _drop_absorbed_refs(conn, wanted)
     except sqlite3.Error as exc:
         raise SpiritScoutError(
             f"经验库操作失败（{type(exc).__name__}）: {str(exc)[:200]}") from exc

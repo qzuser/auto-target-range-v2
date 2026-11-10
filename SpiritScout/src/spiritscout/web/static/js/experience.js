@@ -46,6 +46,8 @@ const ExperiencePage = (() => {
           <button class="btn" data-merge-toggle title="把极其相似的经验提炼成一条">二次提炼</button>
           <button class="btn" data-absorb-toggle title="交给 AI 判断能不能并进已有的某条经验（不删任何经验）">合并</button>
           <button class="btn" data-merged-toggle hidden title="显示被合并的原件">显示已合并</button>
+          <button class="btn" data-sync-pull title="从仓库远端把经验拉回本地：只补缺，不改也不删本地条目">拉取</button>
+          <button class="btn" data-sync-push title="把本地经验导出到仓库并提交推送">提交</button>
           <button class="btn" data-refresh>刷新</button>
         </div>
       </header>
@@ -69,6 +71,8 @@ const ExperiencePage = (() => {
         </aside>
       </div>`;
     el.querySelector("[data-refresh]").onclick = () => load(true);
+    el.querySelector("[data-sync-pull]").onclick = () => syncPull();
+    el.querySelector("[data-sync-push]").onclick = () => syncPush();
     el.querySelector("[data-merge-toggle]").onclick = () => toggleMerge();
     el.querySelector("[data-absorb-toggle]").onclick = () => toggleAbsorb();
     el.querySelector("[data-merged-toggle]").onclick = () => {
@@ -112,6 +116,47 @@ const ExperiencePage = (() => {
     } catch (e) {
       status.textContent = `读取失败：${e.message}。点击刷新重试。`;
     }
+  }
+
+  /* ---- 跨机器同步：拉取（远端 → 本地，只补缺）/ 提交（本地 → 仓库 → 远端） ---- */
+
+  /* 按钮忙着的时候给个可见状态，别让人以为没点动 */
+  async function withBusy(selector, busyText, work) {
+    const btn = root().querySelector(selector);
+    const label = btn ? btn.textContent : "";
+    if (btn) { btn.disabled = true; btn.textContent = busyText; }
+    try {
+      return await work();
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = label; }
+    }
+  }
+
+  async function syncPull() {
+    await withBusy("[data-sync-pull]", "拉取中…", async () => {
+      try {
+        const data = await api("/api/experience/sync/pull", {method: "POST"});
+        toast(`已从 ${data.branch} 拉取：新增 ${data.added} 条，本地已有 ${data.skipped} 条跳过`);
+        await load(true);
+      } catch (e) {
+        toast(`拉取失败：${e.message}`, true);
+      }
+    });
+  }
+
+  async function syncPush() {
+    const total = Number(state.total || 0);
+    if (!window.confirm(`把本地 ${total || ""} 条经验提交到仓库并推送？\n（写成你自己一个文件放进 inbox，不动别人的提交）`))
+      return;
+    await withBusy("[data-sync-push]", "提交中…", async () => {
+      try {
+        const data = await api("/api/experience/sync/push", {
+          method: "POST", body: JSON.stringify({})});
+        toast(`已提交 ${data.count} 条经验到 ${data.branch}：${data.file}`);
+      } catch (e) {
+        toast(`提交失败：${e.message}`, true);
+      }
+    });
   }
 
   /* ---- 二次提炼：候选 → 提炼稿 → 用户确认保留才入库并删原件 ---- */

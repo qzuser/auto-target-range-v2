@@ -48,7 +48,7 @@ const box = { querySelectorAll: sel => sel === ".tl-turn" ? [turnEl] : [], query
 Object.assign(context, {
   traceRenderTarget: null,
   TRACE_TURNS: new Map([[ACTOR, turnEl]]),
-  $: () => box, esc: v => String(v ?? ""), actorName: a => String(a), fmtK: n => String(n),
+  $: () => box, esc: v => String(v ?? ""), actorName: a => String(a), fmtCount: n => String(n),
   fmtElapsed: n => String(n), fmtSize: n => String(n), TERMINAL: new Set(),
   S: { state: null, think: new Map() },
   SessionObserver: { push: () => {}, usageFor: () => 5, toolName: n => String(n), resultSummary: () => "", cleanText: v => String(v ?? "") },

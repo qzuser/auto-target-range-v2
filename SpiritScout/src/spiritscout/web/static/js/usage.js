@@ -4,12 +4,8 @@ const UsagePage = (() => {
                    ["7d", "近 7 天"], ["30d", "近 30 天"], ["all", "全部"]];
   let period = "7d", data = null, busy = false, error = "", mounted = false;
 
-  const fmt = n => {
-    const v = Number(n) || 0;
-    if (v >= 1e8) return (v / 1e8).toFixed(2) + " 亿";
-    if (v >= 1e4) return (v / 1e4).toFixed(1) + " 万";
-    return v.toLocaleString("zh-CN");
-  };
+  /* 计数一律走 K/M/B/T/E/P（count.js 的全局 fmtCount），不再混用「万/亿」 */
+  const fmt = n => fmtCount(n);
   const money = (usd, cnyMin, cnyMax) => {
     const parts = [];
     if (Number(cnyMin) > 0 || Number(cnyMax) > 0) {

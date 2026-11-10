@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "kind": "spiritscout-experience-insights",
-  "generated_at": "2026-11-10T06:05:07+00:00",
+  "generated_at": "2026-11-10T10:46:26+00:00",
   "source": "SpiritScout/.spiritscout/experience.db -> table insights",
   "redaction": [
     "http/https 链接",
@@ -10,96 +10,129 @@
     "sk- / ghp_ / xox 形态密钥",
     "靶场主机名归一为 local-range"
   ],
-  "total": 249,
+  "total": 342,
   "tag_frequency": {
-    "ctf": 180,
+    "ctf": 255,
     "web": 56,
-    "misc": 29,
-    "判读": 26,
-    "复盘": 26,
-    "flag": 24,
-    "reverse": 21,
-    "流程": 16,
-    "验证": 15,
+    "misc": 46,
+    "flag": 37,
+    "判读": 33,
+    "复盘": 33,
+    "reverse": 28,
+    "crypto": 21,
+    "验证": 20,
+    "流程": 17,
+    "reporting": 13,
+    "validation": 13,
     "sqli": 12,
-    "reporting": 11,
+    "recon": 10,
     "workflow": 10,
     "php": 9,
-    "recon": 9,
-    "validation": 9,
+    "度量": 9,
     "战报": 8,
+    "附件分析": 8,
+    "forensics": 7,
     "lfi": 7,
+    "process": 7,
+    "战报判读": 7,
+    "方法论": 7,
+    "reversing": 6,
+    "verification": 6,
     "中断": 6,
-    "度量": 6,
+    "判读信号": 6,
     "证据链": 6,
     "音频": 6,
-    "forensics": 5,
+    "pwn": 5,
     "session": 5,
     "signal": 5,
     "stego": 5,
+    "telemetry": 5,
     "侦察": 5,
+    "信号判读": 5,
+    "取证": 5,
     "指标": 5,
     "靶场": 5,
     "auth": 4,
+    "automation": 4,
+    "findings": 4,
     "flask": 4,
     "judgment": 4,
+    "metrics": 4,
     "rce": 4,
-    "telemetry": 4,
-    "信号判读": 4,
     "信息收集": 4,
-    "判读信号": 4,
     "命令注入": 4,
-    "方法论": 4,
+    "结果判读": 4,
+    "记录": 4,
     "证据": 4,
+    "逆向": 4,
+    "难度评估": 4,
     "验收": 4,
-    "automation": 3,
     "bypass": 3,
     "evidence": 3,
-    "findings": 3,
     "flag格式": 3,
-    "metrics": 3,
+    "lfsr": 3,
     "morse": 3,
+    "offline": 3,
     "platform": 3,
-    "process": 3,
+    "rsa": 3,
+    "source-review": 3,
+    "triage": 3,
+    "vm": 3,
+    "信号": 3,
     "信号分析": 3,
     "信息泄露": 3,
     "元数据": 3,
     "决策": 3,
-    "取证": 3,
-    "战报判读": 3,
     "收敛": 3,
+    "枚举": 3,
     "登录": 3,
     "盲注": 3,
-    "记录": 3,
+    "编码": 3,
     "过滤绕过": 3,
-    "逆向": 3,
-    "附件分析": 3,
-    "难度评估": 3,
+    "附件题": 3,
+    "隐写": 3,
     "attachment": 2,
     "audio": 2,
     "blind": 2,
+    "bruteforce": 2,
+    "encoding": 2,
+    "environment": 2,
     "ephemeral": 2,
     "filter": 2,
+    "flag-format": 2,
+    "flag校验": 2,
+    "format-string": 2,
+    "hint": 2,
     "image": 2,
     "jwt": 2,
+    "keystream": 2,
     "log-poisoning": 2,
     "login": 2,
     "methodology": 2,
     "obfuscation": 2,
+    "oracle": 2,
+    "pitfall": 2,
+    "planning": 2,
+    "retrospective": 2,
+    "rev": 2,
+    "review": 2,
+    "sage": 2,
     "scoping": 2,
-    "triage": 2,
+    "static-analysis": 2,
     "unicode": 2,
-    "verification": 2,
     "waf": 2,
-    "信号": 2,
+    "任务记录": 2,
+    "假阳性": 2,
+    "可复现性": 2,
     "提示": 2,
     "摩尔斯": 2,
     "文件包含": 2,
-    "枚举": 2,
     "样本偏差": 2,
+    "混淆": 2,
+    "源码审计": 2,
     "环境": 2,
     "目标达成": 2,
-    "编码": 2,
+    "离线分析": 2,
     "规划": 2,
     "解码": 2,
     "认证": 2,
@@ -107,65 +140,90 @@
     "越权": 2,
     "轮次": 2,
     "附件": 2,
-    "附件题": 2,
-    "隐写": 2,
     "题面": 2,
     "access-control": 1,
     "agent": 1,
+    "algebra": 1,
     "anti-debug": 1,
     "attack-surface": 1,
+    "audit": 1,
     "auth-bypass": 1,
     "availability": 1,
+    "berlekamp-massey": 1,
     "bfs": 1,
+    "binary": 1,
     "blackbox": 1,
     "blacklist": 1,
+    "checker": 1,
     "classification": 1,
     "command-injection": 1,
+    "constraint": 1,
+    "constraints": 1,
     "control-flow": 1,
     "convergence": 1,
+    "correlation-attack": 1,
     "coverage": 1,
     "debugger": 1,
     "dns": 1,
     "docker": 1,
     "dynamic-analysis": 1,
     "enumeration": 1,
-    "environment": 1,
     "error-based": 1,
+    "exploit": 1,
     "false-negative": 1,
     "file-read": 1,
     "fingerprint": 1,
-    "flag校验": 1,
+    "flag-validation": 1,
     "infra": 1,
+    "io": 1,
+    "known-plaintext": 1,
+    "leak": 1,
+    "libc": 1,
+    "linear-complexity": 1,
+    "logging": 1,
+    "math": 1,
     "maze": 1,
+    "memory-write": 1,
     "meta": 1,
     "modeling": 1,
+    "modulus": 1,
     "mysql": 1,
     "numeric": 1,
+    "offset": 1,
     "orchestration": 1,
     "pathfinding": 1,
-    "planning": 1,
+    "payload": 1,
+    "pe": 1,
     "post": 1,
+    "reproducibility": 1,
     "resume": 1,
-    "review": 1,
+    "ret2libc": 1,
     "roi": 1,
+    "rust": 1,
+    "scoring": 1,
     "secret": 1,
-    "source-review": 1,
     "spectrogram": 1,
     "stacked-query": 1,
     "state": 1,
+    "state-size": 1,
     "state-space": 1,
-    "static-analysis": 1,
+    "stream-cipher": 1,
+    "symbolic-execution": 1,
+    "symbols": 1,
     "text": 1,
     "timing": 1,
     "token": 1,
     "union": 1,
     "waf-bypass": 1,
+    "walsh": 1,
+    "windows": 1,
     "wrapper": 1,
+    "xor": 1,
     "上传": 1,
     "下载": 1,
+    "不变量": 1,
     "任务管理": 1,
     "任务编排": 1,
-    "任务记录": 1,
     "优先级": 1,
     "会话隔离": 1,
     "信号处理": 1,
@@ -173,9 +231,11 @@
     "信息筛选": 1,
     "停止条件": 1,
     "元信息": 1,
+    "共模攻击": 1,
     "内存": 1,
     "分诊": 1,
     "判分": 1,
+    "判别信号": 1,
     "判题": 1,
     "制品": 1,
     "制品分析": 1,
@@ -185,32 +245,41 @@
     "动态调试": 1,
     "单轮": 1,
     "参数估计": 1,
+    "参数复用": 1,
     "反调试": 1,
     "发现管理": 1,
-    "可复现性": 1,
     "可迁移性": 1,
     "基础设施": 1,
     "多agent": 1,
     "字典": 1,
     "完成判据": 1,
+    "密钥恢复": 1,
     "工作量": 1,
     "差异响应": 1,
+    "已知明文": 1,
     "带外": 1,
+    "平台特性": 1,
     "弱口令": 1,
     "归因": 1,
     "情报判读": 1,
     "战报分析": 1,
     "战绩判读": 1,
+    "报告质量": 1,
     "报表": 1,
     "报错泄露": 1,
     "指标判读": 1,
+    "提示判读": 1,
     "收尾": 1,
     "收手": 1,
+    "收手判定": 1,
     "收手判据": 1,
+    "收手纪律": 1,
+    "收敛信号": 1,
     "收敛判定": 1,
     "收敛判断": 1,
     "攻击面": 1,
     "故障归因": 1,
+    "效率": 1,
     "数据保真": 1,
     "文件读取": 1,
     "无线电": 1,
@@ -218,18 +287,18 @@
     "未授权": 1,
     "标签": 1,
     "校验": 1,
+    "样本质量": 1,
     "正则": 1,
     "汇报": 1,
     "注入": 1,
     "流程完整性": 1,
-    "混淆": 1,
-    "源码审计": 1,
     "源码泄露": 1,
     "爆破": 1,
     "状态": 1,
     "状态机": 1,
     "环境约束": 1,
     "白名单": 1,
+    "目标定义": 1,
     "目标建模": 1,
     "目标画像": 1,
     "目标粒度": 1,
@@ -237,23 +306,27 @@
     "知识沉淀": 1,
     "研判": 1,
     "离线": 1,
-    "离线分析": 1,
     "策略": 1,
     "线索": 1,
     "线索复用": 1,
+    "终止判据": 1,
+    "终止条件": 1,
     "经验迁移": 1,
-    "结果判读": 1,
     "结果校验": 1,
     "结果核验": 1,
     "统计": 1,
+    "脚本审计": 1,
     "自动化": 1,
     "节奏": 1,
+    "节奏判断": 1,
     "范围": 1,
     "范围界定": 1,
     "计分": 1,
     "计划": 1,
     "计划偏差": 1,
     "计划状态": 1,
+    "记录口径": 1,
+    "记录粒度": 1,
     "证据形态": 1,
     "证据验证": 1,
     "误判": 1,
@@ -265,11 +338,13 @@
     "路径遍历": 1,
     "迁移性": 1,
     "过程信号": 1,
+    "过程留痕": 1,
     "进度判读": 1,
     "连通性": 1,
     "遥测": 1,
     "配置": 1,
     "长度约束": 1,
+    "难度升级": 1,
     "静态分析": 1,
     "静态附件": 1,
     "频谱": 1,
@@ -3398,6 +3473,1164 @@
       ],
       "source_model": "master",
       "captured_at": "2026-11-10T05:58:55+00:00"
+    },
+    {
+      "id": "exp-f4bd504cad93",
+      "insight": "当目标只是一个抽象的赛题目录地址、而计划落在「任务附件」上时，真正的攻击面在离线文件里，网络侧发现计数为零属于预期信号，不能据此判断没有进展。",
+      "context": "CTF misc / 附件分析类赛题",
+      "tags": [
+        "ctf",
+        "misc",
+        "附件分析"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:29:53+00:00"
+    },
+    {
+      "id": "exp-55bb019e3977",
+      "insight": "「已提取」与「已提交/已接受」是两个独立状态，提取计数为正而提交计数为零，说明成果从未经过平台校验，该字符串可能是诱饵、格式残缺或多段拼接中的一段。",
+      "context": "以 flag / 答案字符串为交付物的比赛或测评",
+      "tags": [
+        "ctf",
+        "flag",
+        "假阳性",
+        "验证"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:29:53+00:00"
+    },
+    {
+      "id": "exp-362274a8a160",
+      "insight": "以「已解出、收手」为由的收敛是自评式的，缺少平台回执时，终止判据的可靠性完全取决于提取环节的严格程度而非外部确认。",
+      "context": "自动化解题流程的收尾与终止判定",
+      "tags": [
+        "ctf",
+        "流程",
+        "终止判据"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:29:53+00:00"
+    },
+    {
+      "id": "exp-b264c98b58ca",
+      "insight": "发现台账记录的是目标侧交互，离线分析类工作不会在其中留下条目，用发现数为零反推「一无所获」会把成功轮次误读为失败轮次。",
+      "context": "带 findings 统计的安全测试 / CTF 战报解读",
+      "tags": [
+        "判读",
+        "度量",
+        "ctf"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:29:53+00:00"
+    },
+    {
+      "id": "exp-e8a1b6640027",
+      "insight": "附件型 misc 赛题不存在可探测的网络攻击面，扫描、端点枚举、目录爆破一类手法对它完全不适用，有效信号只存在于文件本身的结构、编码与容器格式特征里，判断入口类型时应先看交付物形态，而不是默认有服务端。",
+      "context": "CTF misc、取证类赛题，目标以文件附件而非在线服务形式交付",
+      "tags": [
+        "ctf",
+        "misc",
+        "附件分析",
+        "取证"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:30:08+00:00"
+    },
+    {
+      "id": "exp-fae8850c489a",
+      "insight": "「flag 已提取但提交数为 0」是一种常见的结果不一致：提取只是本地的自我判断，提交并被接受才是平台侧的外部校验，两者的缺口意味着成功仍是未验证的假设，不应该当作已确认的结论。",
+      "context": "任何以平台判定为准的竞赛或渗透验证场景，尤其是 flag、凭据、利用效果类产出",
+      "tags": [
+        "ctf",
+        "flag",
+        "判读信号",
+        "验证"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:30:08+00:00"
+    },
+    {
+      "id": "exp-34a0d12aa111",
+      "insight": "解题轮次与 findings 数量彼此独立（如单轮解出但 finding 记录为零），说明过程留痕粒度低于结论粒度，这类战报只能证明结果发生了，无法支撑对方法有效性的复盘。",
+      "context": "安全测试或竞赛的过程记录与事后复盘，关注记录质量而非仅关注结果",
+      "tags": [
+        "复盘",
+        "记录",
+        "过程留痕"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:30:08+00:00"
+    },
+    {
+      "id": "exp-d824fa2a2d67",
+      "insight": "单轮即收尾、中间状态为空的成功，通常对应「识别即解」的低难度样本，它能说明入口识别到位，但对能力刻画的区分度远低于多轮反复、出现假设—否定循环的样本。",
+      "context": "CTF 与渗透演练的难度评估、样本价值判断",
+      "tags": [
+        "ctf",
+        "难度评估",
+        "样本质量"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:30:08+00:00"
+    },
+    {
+      "id": "exp-aa1de6111203",
+      "insight": "在 CTF 附件题中，flag 计数与 findings 计数是两套独立信号，extracted 有值而 findings 为 0 时，实际产出可能只沉淀在 flag 或任务记录里。",
+      "context": "CTF 附件题、pwn/misc 等本地分析类赛题",
+      "tags": [
+        "ctf",
+        "附件题",
+        "战报判读"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:30:26+00:00"
+    },
+    {
+      "id": "exp-a9c94e559cd3",
+      "insight": "extracted 大于 0 而 submitted 与 accepted 均为 0 时，只表明答案已被取得，不表明平台已验收，完成态与验收态是两回事。",
+      "context": "需要向平台提交 flag 的 CTF 或竞赛环境",
+      "tags": [
+        "ctf",
+        "flag",
+        "结果判读"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:30:26+00:00"
+    },
+    {
+      "id": "exp-f57d5b371dc6",
+      "insight": "任务记录数高于 findings 总数并不必然是情报缺失，附件题常以“完成某个附件或小问”为任务粒度，而漏洞发现口径未必覆盖 flag 提取。",
+      "context": "CTF 附件题、多小问或混合题型赛题",
+      "tags": [
+        "ctf",
+        "任务记录",
+        "findings"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:30:26+00:00"
+    },
+    {
+      "id": "exp-3fce89fa292d",
+      "insight": "stop_reason 明确为 flag 已解出且轮次很少时，通常是入口与题型匹配良好的收敛信号，而不应被误读为覆盖不足。",
+      "context": "CTF 单题或限时赛的完成态判读",
+      "tags": [
+        "ctf",
+        "收敛信号",
+        "战报判读"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:30:26+00:00"
+    },
+    {
+      "id": "exp-797eb9dbff35",
+      "insight": "目标为抽象赛题目录而非真实业务系统时，可探测面集中在附件与本地环境，findings 为空并不代表战报没有可复用信息。",
+      "context": "CTF 平台抽象入口、附件下载型赛题",
+      "tags": [
+        "ctf",
+        "附件分析",
+        "平台特性"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:30:26+00:00"
+    },
+    {
+      "id": "exp-0bad14a40540",
+      "insight": "同时拿到生成脚本与密钥流输出时，关键判断在于「非线性」是作用在状态转移上还是仅作用在输出函数上：仅作用于输出的非线性不会破坏内部状态的线性可推演性，因此不构成实质强度。",
+      "context": "CTF/自研流密码题，随题提供生成脚本与输出数据",
+      "tags": [
+        "crypto",
+        "lfsr",
+        "stream-cipher",
+        "source-review"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:30:50+00:00"
+    },
+    {
+      "id": "exp-c56316b9a99a",
+      "insight": "手写的非线性组合器/滤波函数常与某个输入 LFSR 保持强相关（Walsh 谱存在大系数），这种相关性使多寄存器耦合问题可被降维成单个线性寄存器的还原问题。",
+      "context": "LFSR 组合或滤波生成器，已知部分密钥流",
+      "tags": [
+        "crypto",
+        "correlation-attack",
+        "lfsr",
+        "walsh"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:30:50+00:00"
+    },
+    {
+      "id": "exp-0a1c205920a7",
+      "insight": "对未知结构的密钥流做 Berlekamp–Massey 线性复杂度测量是低成本的结构探针，实测复杂度远低于设计宣称的非线性强度时，说明非线性被抵消或实现退化。",
+      "context": "密钥流已知、内部结构未知或半知的流密码分析",
+      "tags": [
+        "crypto",
+        "berlekamp-massey",
+        "linear-complexity",
+        "keystream"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:30:50+00:00"
+    },
+    {
+      "id": "exp-fdd45d5ecec0",
+      "insight": "密钥流的比特/字节粒度、截断方式与端序若与假设不符，线性约束依然成立但解出的状态是错位版本，表现为局部匹配而整体校验失败——这是格式假设错误的典型信号，而非方法本身失效。",
+      "context": "按位输出、以文件形式给出密钥流的密码题",
+      "tags": [
+        "crypto",
+        "encoding",
+        "keystream",
+        "pitfall"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:30:51+00:00"
+    },
+    {
+      "id": "exp-9fbb089a4887",
+      "insight": "总状态位数不大的 LFSR 类设计即便叠加非线性输出，状态枚举（含中间相遇）仍属可行路径，非线性只带来常数级开销而非指数级安全增益。",
+      "context": "轻量级自研流密码的安全性评估与破解",
+      "tags": [
+        "crypto",
+        "bruteforce",
+        "state-size",
+        "lfsr"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:30:51+00:00"
+    },
+    {
+      "id": "exp-be7e876147ac",
+      "insight": "当战报中 flags.extracted>0 但 submitted 与 accepted 均为 0 时，所谓成功只是解题方自己作出的判断，并未经平台确认，提取到的字符串仍可能是诱饵值或格式不完整的片段，因此结论可靠度需要降低，依据不能算充分。",
+      "context": "CTF 解题类任务，尤其是答案需人工提交或平台侧校验滞后的离线题型",
+      "tags": [
+        "ctf",
+        "flag",
+        "验证"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:31:08+00:00"
+    },
+    {
+      "id": "exp-6a48b5b2b373",
+      "insight": "stop_reason 声称已解出与平台 accepted 计数是两个独立信号，两者不一致说明结束工作的依据来自本地自我判断而非外部回执，这类收尾在复盘时不能当作已验证的成功案例引用。",
+      "context": "自动化攻防/CTF 任务的收尾判读",
+      "tags": [
+        "ctf",
+        "复盘",
+        "判读"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:31:08+00:00"
+    },
+    {
+      "id": "exp-6f339e4ffc4f",
+      "insight": "以附件形式下发的赛题，全部可利用信息都封闭在本地文件里，解题过程不会在目标环境留下任何探测痕迹，因此 findings 为零并不代表没有有效工作，只代表工作成果没有沉淀成结构化发现。",
+      "context": "附件/离线分析为主的 misc、取证类赛题",
+      "tags": [
+        "ctf",
+        "misc",
+        "取证"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:31:08+00:00"
+    },
+    {
+      "id": "exp-212793b7dc67",
+      "insight": "回合数极少却直接到达答案的场次，往往只保留终点结论而缺少中间观测，任务记录条数多于 findings 条数正是这种只记录做了什么、未记录看到了什么的信号，其复用价值远低于过程完整的战报。",
+      "context": "短回合速通型 CTF 挑战与事后复盘",
+      "tags": [
+        "ctf",
+        "复盘",
+        "方法论"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:31:08+00:00"
+    },
+    {
+      "id": "exp-cb1154ebcbf0",
+      "insight": "当报告里 extracted>0 但 submitted=0、accepted=0 时，「完成」只说明本地拿到了疑似 flag，并不代表平台校验通过——提取与验收是两条独立的证据链，完成状态词本身不构成 flag 有效的证据。",
+      "context": "带 flag 提取/提交计数与完成状态的 CTF 及评测平台",
+      "tags": [
+        "ctf",
+        "flag",
+        "结果判读"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:31:26+00:00"
+    },
+    {
+      "id": "exp-09fecc259635",
+      "insight": "以附件为中心的 misc 类任务可以全程不触达远程目标就结束，此时 findings 为空、目标侧零信号与「没有产出」并不等价，关键证据留在本地离线分析过程中。",
+      "context": "CTF misc / 附件分析类赛题，离线取证与逆向场景",
+      "tags": [
+        "ctf",
+        "misc",
+        "离线分析"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:31:26+00:00"
+    },
+    {
+      "id": "exp-307f16230895",
+      "insight": "当记录体系只登记 findings 而不登记本地分析动作时，findings 数量会系统性低估附件型任务的实际投入与进展。",
+      "context": "安全测试过程记录与度量体系设计",
+      "tags": [
+        "复盘",
+        "度量",
+        "记录粒度"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:31:26+00:00"
+    },
+    {
+      "id": "exp-404f0741b85e",
+      "insight": "轮次极少却标记为完成的报告，推理轨迹基本未被捕获，结论不可复现，从中能抽象出的可复用规律显著少于过程完整的报告。",
+      "context": "战后复盘与知识沉淀场景",
+      "tags": [
+        "复盘",
+        "可复现性",
+        "报告质量"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:31:26+00:00"
+    },
+    {
+      "id": "exp-6584b9767933",
+      "insight": "停止条件写「已解出」而提交计数为 0，说明停止判断来自解题者自身的确信而非外部确认，两者不一致时「完成」这一状态词的证据权重很低。",
+      "context": "自动化/半自动化安全测试的收手判定与结果核验",
+      "tags": [
+        "ctf",
+        "结果判读",
+        "收手判定"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:31:26+00:00"
+    },
+    {
+      "id": "exp-932f8f90200e",
+      "insight": "密码题题面若给出“较小参数下可由某个困难问题直接攻破，而更大参数下如何”的对比，往往暗示预期攻击面在实现细节或输出结构中，而不是正面硬解规模更大的同一困难问题。",
+      "context": "带源码和输出的公钥/数论类 CTF 密码题",
+      "tags": [
+        "crypto",
+        "ctf",
+        "sage",
+        "难度升级"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:32:31+00:00"
+    },
+    {
+      "id": "exp-00ba1db25938",
+      "insight": "当模数规模已大到不可分解时，仍可能通过同一秘密的多组输出、线性或代数关系、小范围采样等泄漏绕开分解；模数不可分解并不等于方案不可破。",
+      "context": "RSA 类或基于模运算的密码方案",
+      "tags": [
+        "crypto",
+        "modulus",
+        "leak",
+        "algebra"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:32:31+00:00"
+    },
+    {
+      "id": "exp-2990c26d7aca",
+      "insight": "Sage 生成脚本中的位长、采样范围、运算顺序和重复使用关系常是可解性的关键约束，描述文字与实现不一致时，代码体现的代数结构更接近真实攻击面。",
+      "context": "提供 Sage/Python 生成器的 CTF 密码题",
+      "tags": [
+        "crypto",
+        "sage",
+        "source-review",
+        "constraints"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:32:31+00:00"
+    },
+    {
+      "id": "exp-003709ea37bf",
+      "insight": "自动化 flag 校验返回格式失败并不必然表示结果错误，尤其当实际 flag 很长或校验器采用长度/字符集启发式时；包装前缀匹配的候选仍值得保留为真实解。",
+      "context": "CTF 自动化解题与 flag 校验流水线",
+      "tags": [
+        "ctf",
+        "automation",
+        "flag-validation"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:32:31+00:00"
+    },
+    {
+      "id": "exp-cad257c65845",
+      "insight": "当题目描述以自嘲或玩笑口吻强调「加了没必要的复杂度」时，这些额外层次通常与真正的弱点无关，投入精力去逆向复杂层往往不如回到标准方案本身的已知弱配置（小指数、无填充、参数复用）上验证更划算。",
+      "context": "CTF 密码题 / 自带提示语的 RSA 类赛题",
+      "tags": [
+        "ctf",
+        "crypto",
+        "rsa",
+        "提示判读"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:33:09+00:00"
+    },
+    {
+      "id": "exp-225ef491c3a0",
+      "insight": "在给出多个 RSA 公钥参数的输出中，参数之间是否存在共享因子或关联（同模、共享素数、指数复用、明文相关）比参数规模或加密轮数更能决定可解性，因为前者是可计算的突破口而后者只是噪声。",
+      "context": "多组公钥/密文输出的 RSA 赛题",
+      "tags": [
+        "ctf",
+        "crypto",
+        "rsa",
+        "共模攻击"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:33:10+00:00"
+    },
+    {
+      "id": "exp-fddb993f0370",
+      "insight": "附带生成脚本的密码题里，脚本真正有价值的信息是哪些参数被固定、取小或在多次实例间复用，而不是外围的循环、填充与包装逻辑，因为攻击面由这些常量决定，外围逻辑只影响复现时对字节和编码约定的精确还原。",
+      "context": "提供 chall 脚本与输出文件的密码赛题",
+      "tags": [
+        "ctf",
+        "crypto",
+        "脚本审计",
+        "参数复用"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:33:10+00:00"
+    },
+    {
+      "id": "exp-817841be2b9e",
+      "insight": "解题方报告的 flag 未通过格式校验时，更常见的成因是解码链路中的填充、字节序或外层包装未被剥净，而非解本身错误，因此恢复出的明文的内部结构比外部格式规则更值得作为判定依据。",
+      "context": "CTF 收尾阶段的 flag 校验与结果判读",
+      "tags": [
+        "ctf",
+        "flag",
+        "判读",
+        "编码"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:33:10+00:00"
+    },
+    {
+      "id": "exp-8b3eb4e4230a",
+      "insight": "对确定性代数方案叠加迭代或多层加密不会破坏明文与密文之间的代数关系，检验复合运算是否可归约为某种已知关系，比尝试逐层逆推整个循环更可行。",
+      "context": "带迭代/多层包装的 RSA 及其他代数型密码题",
+      "tags": [
+        "ctf",
+        "crypto",
+        "rsa",
+        "不变量"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:33:10+00:00"
+    },
+    {
+      "id": "exp-66350d818922",
+      "insight": "赛题名带 revenge／续作／轮次编号等系列标记时，核心机制通常沿用前作，而防护强度或参数被加码，前作公开解法中对输入规模与校验严格度的假设在新作里未必成立。",
+      "context": "CTF 逆向／杂项类系列赛题（同一出题人跨轮次出题）",
+      "tags": [
+        "ctf",
+        "reverse",
+        "misc"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:33:34+00:00"
+    },
+    {
+      "id": "exp-4c4b76174237",
+      "insight": "同时提供可执行程序与其运行产物的赛题，产物一般是该程序或同源版本实际执行的结果，程序行为与产物数据之间的偏差是还原算法细节的主要依据。",
+      "context": "CTF 逆向／杂项，附带二进制与生成的数据文件",
+      "tags": [
+        "ctf",
+        "reverse",
+        "misc"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:33:34+00:00"
+    },
+    {
+      "id": "exp-682a1a9ed2c4",
+      "insight": "自定义虚拟机类题目的关键结构是取指—译码—执行的分派循环与操作码表；一旦定位到分派结构，指令语义可以脱离逐条动态跟踪来恢复。",
+      "context": "CTF 杂项／逆向中的自定义字节码或虚拟机保护题",
+      "tags": [
+        "ctf",
+        "vm",
+        "reverse"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:33:34+00:00"
+    },
+    {
+      "id": "exp-d973be81d2ad",
+      "insight": "以二进制文件形式输出结果的赛题，flag 常以变换后形式存在，局部子串匹配容易误报，只有整段输出比对一致才能确认还原正确。",
+      "context": "CTF 杂项／逆向，提供生成数据作为验证依据的题目",
+      "tags": [
+        "ctf",
+        "misc",
+        "验证"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:33:34+00:00"
+    },
+    {
+      "id": "exp-e0bfd1020994",
+      "insight": "自动判分报格式不符而字符串的长度与前缀看似吻合时，通常意味着还存在编码、填充或分段等包装层未被剥离，并不代表解法方向错误。",
+      "context": "CTF 平台 flag 提取与提交校验环节",
+      "tags": [
+        "ctf",
+        "flag",
+        "判读"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:33:34+00:00"
+    },
+    {
+      "id": "exp-74f4cffcf0c2",
+      "insight": "附件型 misc/取证类赛题的解题重心在于本地对制品的离线分析；这类题目通常不与远端服务交互，因此战报中 findings 为空、交互轮次很少并不代表覆盖不足或任务失败。",
+      "context": "CTF misc/取证类附件题，制品为文件、流量或镜像，无活体目标",
+      "tags": [
+        "ctf",
+        "misc",
+        "forensics"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:33:54+00:00"
+    },
+    {
+      "id": "exp-973adf5d11b6",
+      "insight": "「拿到形似 flag 的字符串」与「平台判定通过」是两个独立状态，extracted 大于 0 而 submitted/accepted 为 0 的战报只能证明前者，把提取成功等同于得分会产生假阳性。",
+      "context": "任意 CTF 或自动化解题流程的收尾判读与计分确认",
+      "tags": [
+        "ctf",
+        "flag",
+        "validation"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:33:54+00:00"
+    },
+    {
+      "id": "exp-21a96134c07a",
+      "insight": "轮次、findings 这类指标度量的是与活体目标的交互量，而离线分析型任务的工作量落在制品处理上，用交互指标横向比较不同题型会系统性低估其成本。",
+      "context": "战报复盘与流程度量，样本混合了交互型与离线型赛题",
+      "tags": [
+        "ctf",
+        "metrics",
+        "retrospective"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:33:54+00:00"
+    },
+    {
+      "id": "exp-7f1cbc704d73",
+      "insight": "有任务记录却没有任何结构化发现，意味着成功路径没有被沉淀为可检索的知识，这类「沉默的成功」对后续同类场景无法复用，其经验价值低于同样成功但有发现记录的过程。",
+      "context": "自动化渗透/CTF 执行平台的记录规范与知识沉淀",
+      "tags": [
+        "ctf",
+        "logging",
+        "process"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:33:54+00:00"
+    },
+    {
+      "id": "exp-486f88b042da",
+      "insight": "以目标达成而非资源耗尽或中断作为停止原因的战报才具备正向参考价值，中断或失败收尾的样本若未单独标注失败点，与成功样本混在一起会污染经验提炼。",
+      "context": "战报归档与跨成功/失败样本的经验提炼",
+      "tags": [
+        "ctf",
+        "retrospective",
+        "process"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:33:54+00:00"
+    },
+    {
+      "id": "exp-31aedbcd0ba7",
+      "insight": "附件型（离线）赛题的全部推演发生在本地制品上，因此没有与真实目标交互、没有网络侧发现都属于正常现象，不能作为失败信号；进展的证据是解码出的产物本身，而不是服务端行为。",
+      "context": "CTF 中 crypto/misc/forensics 类附件题，纯离线分析，无存活目标",
+      "tags": [
+        "ctf",
+        "crypto",
+        "misc",
+        "offline"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:35:04+00:00"
+    },
+    {
+      "id": "exp-6a1362f212ca",
+      "insight": "提取 flag 与提交 flag 是两个独立生命周期事件：战报里 extracted>0 而 submitted=0、accepted=0 时并不携带任何计分证据，与未解出的一次运行在结果上不可区分，因为 accepted 才是唯一闭环信号。",
+      "context": "任何带外部提交/判分权威的 flag 制演练或竞赛",
+      "tags": [
+        "ctf",
+        "flag",
+        "scoring",
+        "verification"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:35:04+00:00"
+    },
+    {
+      "id": "exp-8b042a5bf3b5",
+      "insight": "findings 为 0 却同时存在已完成任务与已提取 flag，说明推理过程完全发生在发现台账之外，这类记录事后不可复现，真正的缺口是缺失的证据链而非答案本身。",
+      "context": "单轮快速收尾的离线赛题分析，过程记录稀疏",
+      "tags": [
+        "ctf",
+        "reporting",
+        "audit",
+        "process"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:35:04+00:00"
+    },
+    {
+      "id": "exp-5870686373e6",
+      "insight": "离线附件题没有外部 oracle 可校验，结论置信度只能建立在内部一致性上（输出符合预期 flag 格式且解码后语义成立），这种证据强度天然弱于远端接受响应，二者在战报中不可混为一谈。",
+      "context": "离线 crypto/misc/forensics 分析，缺乏远端校验通道",
+      "tags": [
+        "ctf",
+        "verification",
+        "crypto",
+        "forensics"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:35:04+00:00"
+    },
+    {
+      "id": "exp-c985b3606f78",
+      "insight": "以赛题类别而非具体假设命名的计划条目（仅标 crypto/misc 之类）在收尾后不携带任何可复用信息，计划文字的信息量取决于它是否记录了当时的假设而不是题目标签。",
+      "context": "CTF 赛题规划与赛后复盘，计划粒度评估",
+      "tags": [
+        "ctf",
+        "planning",
+        "review"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:35:04+00:00"
+    },
+    {
+      "id": "exp-c53973600b87",
+      "insight": "以附件形式下发的 misc 赛题，攻击面在文件本身而不在远程端点，网络侧探测对这类目标几乎不产生新信息。",
+      "context": "CTF misc / 附件分析类赛题",
+      "tags": [
+        "ctf",
+        "misc",
+        "附件分析"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:35:41+00:00"
+    },
+    {
+      "id": "exp-e606511d7f1b",
+      "insight": "flag 的「提取」与「被平台接受」是两个独立状态，战报中 submitted/accepted 为 0 时所谓已解出仅代表本地格式匹配，而附件里的示例串、模板占位符同样能通过格式判断，构成假阳性。",
+      "context": "CTF 及一切以固定格式串为交付物的验证场景",
+      "tags": [
+        "ctf",
+        "flag",
+        "假阳性",
+        "判读"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:35:41+00:00"
+    },
+    {
+      "id": "exp-6e0f493cdd1d",
+      "insight": "findings 计数反映的是结构化发现的登记行为而非实际工作量，零 finding 配单轮完成既不说明题目简单也不说明分析不足，用该字段衡量覆盖度会误判。",
+      "context": "自动化或半自动化测试战报的复盘与度量",
+      "tags": [
+        "复盘",
+        "度量",
+        "telemetry"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:35:41+00:00"
+    },
+    {
+      "id": "exp-c93b19992ca0",
+      "insight": "CTF 的终止条件是出现符合 flag 格式的字符串而非形成完整利用链，达到即收手；真实渗透的终止条件需要证明影响面，两者混用会导致赛题内过度深入或实战中过早收工。",
+      "context": "CTF 与真实渗透在目标定义上的差异",
+      "tags": [
+        "ctf",
+        "目标定义",
+        "收手纪律"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:35:41+00:00"
+    },
+    {
+      "id": "exp-66cbe668a8ff",
+      "insight": "单轮即完成通常意味着关键信息在首次接触面上已可见，而轮次持续增加却无可判读信号，更可能指向方向偏差而非题目本身需要更多轮次。",
+      "context": "CTF 赛题节奏与方向判断",
+      "tags": [
+        "ctf",
+        "节奏判断",
+        "信号"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:35:41+00:00"
+    },
+    {
+      "id": "exp-ca4390ff78f7",
+      "insight": "在附件型赛题中，flag 往往由本地工件与利用过程直接产出，而「已提取、未提交、未通过」这类计数只反映与判题平台的交互记录，不构成解题失败的证据。",
+      "context": "CTF 附件型赛题（pwn/misc），离线工件、未接入或未使用远程判题",
+      "tags": [
+        "ctf",
+        "pwn",
+        "misc",
+        "信号判读"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:36:49+00:00"
+    },
+    {
+      "id": "exp-38afbc74d26e",
+      "insight": "在计分只取决于 flag 正确性的场景里，本地可复现、可验证的 flag 本身就构成终止条件，提交或通过计数的缺失不改变这一判据。",
+      "context": "CTF 计分模型 / 离线可验证 flag 的比赛",
+      "tags": [
+        "ctf",
+        "终止条件",
+        "判读"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:36:49+00:00"
+    },
+    {
+      "id": "exp-311df91dd1de",
+      "insight": "当赛题把二进制与配套数据一并下发时，从侦察到利用的链路在单机内闭合，因此整题在一轮内收敛是常见形态，轮次少并不代表覆盖面不足。",
+      "context": "CTF 附件题 / 可完全离线复现的目标",
+      "tags": [
+        "ctf",
+        "方法论",
+        "效率"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:36:49+00:00"
+    },
+    {
+      "id": "exp-3c7e243136c8",
+      "insight": "任务记录非空而漏洞发现类条目为空，说明分析产出停留在工件交互层，没有落入漏洞发现的登记口径；在这种情况下，发现数量无法反推进展，只有可复现的 flag 才是可靠的进度信号。",
+      "context": "工件驱动型评估中记账口径与实际产出不一致的场景",
+      "tags": [
+        "ctf",
+        "记录口径",
+        "判读"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:36:49+00:00"
+    },
+    {
+      "id": "exp-62254c090ea7",
+      "insight": "在赛题包中，按漏洞类别并列下发的任务彼此独立，类别标签只描述工件形态，不约束可行的分析路径，因此把类别当作固定入口容易误判难度与所需时间。",
+      "context": "多类别混合下发的 CTF 赛题包",
+      "tags": [
+        "ctf",
+        "pwn",
+        "misc",
+        "方法论"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:36:49+00:00"
+    },
+    {
+      "id": "exp-4c1d901a4862",
+      "insight": "战报显示提取数大于 0 而提交数与接受数均为 0 时，说明 flag 的格式与正确性在本次运行内并未得到外部确认，「已解出」只是自判的收手条件，与平台判定是两回事。",
+      "context": "CTF 赛题、自判收手的自动化解题流程",
+      "tags": [
+        "ctf",
+        "flag校验",
+        "战报判读"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:37:06+00:00"
+    },
+    {
+      "id": "exp-76226e9873a0",
+      "insight": "纯附件型 misc 赛题的解题空间完全落在附件内部（内容、文件结构、元数据、编码或隐写层），解题不需要与在线目标交互；这类战报的典型形态是轮次极少且 findings 为零，而 findings 为零只说明探索发生在本地工件而非目标端点，并不代表信息量低。",
+      "context": "CTF misc、提供离线附件的取证与隐写类题目",
+      "tags": [
+        "ctf",
+        "misc",
+        "附件分析",
+        "隐写"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:37:06+00:00"
+    },
+    {
+      "id": "exp-6f3cc0f0f62f",
+      "insight": "单轮即完成的赛题在战报里几乎不留中间状态（无 findings、无失败尝试、无中断记录），事后能复用的通用信息主要来自题目类别本身的属性，而非该次运行留下的具体痕迹。",
+      "context": "CTF 复盘、低轮次快速收手的解题过程",
+      "tags": [
+        "ctf",
+        "复盘",
+        "战报判读"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:37:06+00:00"
+    },
+    {
+      "id": "exp-9f7387e0caec",
+      "insight": "当赛题描述本身是一段畸形的格式化文本、而不是叙述文字时，它更像是漏洞原语的样本：把它当作 payload 来解析，可以直接得到漏洞类别；当作提示叙事来解析，则几乎得不到有用信息。",
+      "context": "CTF pwn/二进制题，描述字段含 %c/%n/%hhn 等 printf 控制符",
+      "tags": [
+        "ctf",
+        "pwn",
+        "format-string",
+        "recon"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:39:06+00:00"
+    },
+    {
+      "id": "exp-1d2f6915169d",
+      "insight": "附件同时给出 libc.so.6，意味着利用链依赖 libc 内部偏移（符号、gadget、environ 等）；在本机 libc 下算出的偏移即使本地跑通，也不代表在目标 libc 上成立，两者差异是「本地成功、远端失败」的主要来源。",
+      "context": "随题提供 libc 的 pwn 题与二进制漏洞利用",
+      "tags": [
+        "pwn",
+        "libc",
+        "ret2libc",
+        "offset"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:39:06+00:00"
+    },
+    {
+      "id": "exp-c288243a0b6e",
+      "insight": "格式化字符串写原语的输出计数是整个 payload 的全局滚动状态，按 256 取模；任何一处填充偏移算错，都会静默地污染其后所有写入而不触发崩溃，因此错误的表现是「个别字节没有变成期望值」，而不是报错。",
+      "context": "格式化字符串任意地址写（%n/%hn/%hhn 系列）",
+      "tags": [
+        "format-string",
+        "exploit",
+        "memory-write"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:39:06+00:00"
+    },
+    {
+      "id": "exp-494565f622da",
+      "insight": "输入层对换行、空白和 NUL 的截断发生在漏洞触发之前；目标地址中恰好含有终止符字节时，表现是 payload 被静默截短而非报错，所以地址能否送达，取决于输入读取方式，而不只取决于内存布局。",
+      "context": "经行缓冲 stdin 或命令行参数投递二进制 payload 的 pwn 题",
+      "tags": [
+        "pwn",
+        "io",
+        "payload",
+        "pitfall"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:39:06+00:00"
+    },
+    {
+      "id": "exp-2bcbbead1213",
+      "insight": "自动格式校验（正则、长度、字符集）失败不等于结果错误：从进程内存或程序输出中泄漏出的 flag 可能因尾部 NUL、截断或不可打印字节而不符合预期格式，但其内容前缀与闭合括号仍然指向正确结果，仅凭格式校验失败就丢弃一个候选结果，是判读上的误判。",
+      "context": "CTF 自动化解题与 flag 提取判定",
+      "tags": [
+        "ctf",
+        "flag",
+        "validation"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T08:39:06+00:00"
+    },
+    {
+      "id": "exp-cb825ef4b252",
+      "insight": "仅提供附件且题干强调源码可见的 CTF 题，可信攻击面通常在本地生成器与输出样本，而不是远程服务；缺少 URL 或接口本身就是按离线题建模的信号，继续假设存在远程反馈会导致分析空转。",
+      "context": "CTF 离线附件题（rev/crypto）",
+      "tags": [
+        "ctf",
+        "offline",
+        "rev",
+        "crypto"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T10:34:13+00:00"
+    },
+    {
+      "id": "exp-4858f5b4e4ff",
+      "insight": "源码加输出样本的题型中，源码定义变换、样本固定实例参数，二者表示层不一致（进制、字节序、分组、填充、分隔、截断）会让数学上正确的解表现为不匹配，是常见的假失败来源。",
+      "context": "CTF crypto/rev，生成器与输出快照配对出现",
+      "tags": [
+        "ctf",
+        "crypto",
+        "rev",
+        "encoding"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T10:34:13+00:00"
+    },
+    {
+      "id": "exp-9268bc2f548a",
+      "insight": "数学标签明显的 crypto/rev 混血题，代码控制流往往不是主要障碍，难点集中在可逆关系、约束与代数结构；只做逐行逆向而忽略数据关系，通常难以推进。",
+      "context": "CTF 数学型 crypto/rev 混合题",
+      "tags": [
+        "ctf",
+        "math",
+        "reverse",
+        "constraint"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T10:34:13+00:00"
+    },
+    {
+      "id": "exp-b2516f9aea0d",
+      "insight": "自动 flag 格式校验可能因长度、字符集、编码或截断规则比可见前缀更严格，format 不通过只是复核候选串编码与长度的信号，不等同于解不存在。",
+      "context": "CTF 提交与结果校验环节",
+      "tags": [
+        "ctf",
+        "flag",
+        "validation"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T10:34:13+00:00"
+    },
+    {
+      "id": "exp-4ec505542272",
+      "insight": "题面中的自嘲或元话语（例如对某类数学的抱怨）常透露作者放置难点的类别，属于弱分类信号，可用于调整分析视角，但不能替代对工件的实际验证。",
+      "context": "CTF 赛题描述与提示判读",
+      "tags": [
+        "ctf",
+        "hint",
+        "triage"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T10:34:13+00:00"
+    },
+    {
+      "id": "exp-7109c6365c10",
+      "insight": "题面叙事中的具名意象（动物、器物、地点）往往是技术栈或编码约定的双关，这类词的检索价值高于其字面情节，因为出题人常用它们在不给出直接位置的情况下限定解法方向。",
+      "context": "带叙事性 flavor text 的 CTF 逆向/misc 题",
+      "tags": [
+        "ctf",
+        "reversing",
+        "hint",
+        "misc"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T10:34:20+00:00"
+    },
+    {
+      "id": "exp-539e71dab618",
+      "insight": "以本地文件为唯一入口的题目没有服务端反馈通道，任何推断都只能靠可复现的本地计算来证实或证伪，凭「看起来对」的猜测在缺少 oracle 的条件下无法收敛。",
+      "context": "本地附件型 CTF（逆向/取证/密码）",
+      "tags": [
+        "ctf",
+        "offline",
+        "verification"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T10:34:20+00:00"
+    },
+    {
+      "id": "exp-646745cecc71",
+      "insight": "Windows PE 样本在非 Windows 环境里动态运行时常因缺少依赖库或反调试而静默退出，这种「无输出」不等于样本无行为，导入表、节区布局与编译器指纹等静态特征才是稳定的判读面。",
+      "context": "跨平台分析本地 PE 附件的逆向场景",
+      "tags": [
+        "reversing",
+        "pe",
+        "windows",
+        "static-analysis"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T10:34:20+00:00"
+    },
+    {
+      "id": "exp-7c2a5b08e896",
+      "insight": "二进制题的分析是增量推进的（解包、解密、算法还原），当过程记录只有任务计数而 findings 为空时，说明中间结论没有被外化，「已完成」状态与零 flag 提取并存更可能是记录缺口而非题目无内容。",
+      "context": "二进制逆向类任务的过程记录与复盘",
+      "tags": [
+        "reversing",
+        "process",
+        "reporting",
+        "ctf"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T10:34:20+00:00"
+    },
+    {
+      "id": "exp-466fbcf0dc22",
+      "insight": "赛题同时给出自定义解释器源码与字节码/数据文件时，字节码不携带自描述语义，其全部含义由解释器源码定义，因此语义恢复的可信依据在解释器一侧而非数据一侧。",
+      "context": "CTF 杂项/逆向，自定义 VM 或脚本引擎类附件题",
+      "tags": [
+        "ctf",
+        "reverse",
+        "vm",
+        "misc"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T10:34:33+00:00"
+    },
+    {
+      "id": "exp-9c4fce59c97f",
+      "insight": "题面强调「低效」「臃肿」的虚拟机，通常对应校验逻辑被展开成大量重复指令，这类冗余在解释器层做指令级插桩或符号执行会折叠成远少于指令数的独立约束。",
+      "context": "CTF 逆向/杂项，自定义字节码与虚拟机",
+      "tags": [
+        "ctf",
+        "vm",
+        "symbolic-execution",
+        "reverse"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T10:34:33+00:00"
+    },
+    {
+      "id": "exp-860603d37be5",
+      "insight": "逐段比对并在首个不匹配处中止的校验程序，其停止位置与错误输出构成一个可观测预言机，使输入能按段恢复而无需一次求解全部约束。",
+      "context": "CTF 逆向/密码学，checker 型程序与离线判定",
+      "tags": [
+        "ctf",
+        "reverse",
+        "oracle",
+        "checker"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T10:34:33+00:00"
+    },
+    {
+      "id": "exp-456ba6d2686c",
+      "insight": "求解结果结构看似合理却未通过格式校验时，常见原因是语义核心已正确而差异落在包装层（前缀大小写、花括号、填充或长度），这类失败与解法路线是否正确无关。",
+      "context": "CTF 各方向，flag 格式校验与自动判题",
+      "tags": [
+        "ctf",
+        "flag-format",
+        "verification"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T10:34:33+00:00"
+    },
+    {
+      "id": "exp-84b1f81a77e1",
+      "insight": "纯附件、无远端服务的赛题中，本地运行环境（解释器版本、依赖库、随机化开关）本身参与语义，同一份数据在不同运行时下可能给出不同结果，复现结论需与环境绑定。",
+      "context": "CTF 杂项/逆向，离线附件题与脚本运行时",
+      "tags": [
+        "ctf",
+        "environment",
+        "reproducibility"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T10:34:33+00:00"
+    },
+    {
+      "id": "exp-f4972ec3939a",
+      "insight": "赛题同时给出加密程序和其输岀密文时，任务的本质是求「产生该密文的明文」的前像/逆变换问题，而不是对密文本身做解码；因此密文是否可读、是否符合某种编码，都不构成有效线索。",
+      "context": "CTF misc/crypto：附件含自定义加密的可执行程序与输出密文文件",
+      "tags": [
+        "ctf",
+        "crypto",
+        "reversing"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T10:34:56+00:00"
+    },
+    {
+      "id": "exp-054ea245cd0d",
+      "insight": "Rust 二进制即使经过 release 优化，panic/unwrap 消息、源文件路径与函数符号仍大多保留，这些字符串的交叉引用常常直接标示出自定义加密核心的位置。",
+      "context": "Rust 编写的逆向/密码学赛题二进制（静态链接、release 构建）",
+      "tags": [
+        "rust",
+        "reversing",
+        "symbols",
+        "binary"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T10:34:56+00:00"
+    },
+    {
+      "id": "exp-a38f987f763e",
+      "insight": "自定义加密若按块或按状态推进，而明文带有已知前缀（如平台 flag 头）和受限字符集，则候选明文之间的差异只影响其后有限的输出块，因此可以把搜索从整个明文缩小到单个位置，明文越短越明显。",
+      "context": "自定义分组/流式加密的逆向题，明文为短 flag",
+      "tags": [
+        "crypto",
+        "known-plaintext",
+        "bruteforce",
+        "ctf"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T10:34:56+00:00"
+    },
+    {
+      "id": "exp-9be2848e949f",
+      "insight": "当加密程序可执行且行为确定、没有副作用时，程序本身就是一个可以反复查询的加解密 oracle，用它验证候选明文，比完整复原算法更快得到确定结论。",
+      "context": "附带可执行加密器的 CTF 逆向/密码题",
+      "tags": [
+        "oracle",
+        "reversing",
+        "ctf"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T10:34:56+00:00"
+    },
+    {
+      "id": "exp-5a04bd2866ce",
+      "insight": "当自动格式校验器给出的不合规判定与逆向得到的明文冲突时，更强的判据是「该明文重新通过同一加密路径后与给定密文完全一致」，外层格式检查器可能因平台封装差异而误判。",
+      "context": "CTF 提交与 flag 校验环节，存在多层格式检查的平台",
+      "tags": [
+        "ctf",
+        "validation",
+        "flag"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T10:34:56+00:00"
+    },
+    {
+      "id": "exp-f28bc3b5ebfa",
+      "insight": "在「提供生成脚本 + 输出文件」的逆向类题目里，脚本的字面语义（运算符优先级、模运算位宽、字节序、类型转换）才是规范，按数学意图而非按代码字面实现的逆变换往往产出「看着像成功、实际是乱码」的结果，这种伪成功比直接报错更危险。",
+      "context": "CTF misc/crypto 类，附件含编码/加密脚本与输出产物",
+      "tags": [
+        "ctf",
+        "misc",
+        "crypto",
+        "逆向"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T10:35:14+00:00"
+    },
+    {
+      "id": "exp-592f5281c4d3",
+      "insight": "只用双射原语（XOR、循环移位、模加、置换）搭建的混淆是无密钥可逆的，配合长度保持特性与已知结构约束（前缀、括号、字符集），足以在不知道参数的情况下把变换反推出来，无需对最终密文做密码分析。",
+      "context": "自称「奇怪魔法操作」的混淆/编码类赛题",
+      "tags": [
+        "crypto",
+        "已知明文",
+        "xor",
+        "混淆"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T10:35:14+00:00"
+    },
+    {
+      "id": "exp-f2e6318bbb0e",
+      "insight": "当题面点名某个具体秘密（如「密钥」）被混淆时，脚本里的密钥派生路径通常是最省力的攻击面——在本地复现派生过程即可拿到秘密，绕过了对最终密文的破解。",
+      "context": "叙述中显式提到 key/secret 被处理的密码学赛题",
+      "tags": [
+        "crypto",
+        "密钥恢复",
+        "源码审计"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T10:35:14+00:00"
+    },
+    {
+      "id": "exp-74234fe65bc6",
+      "insight": "混淆脚本的解释歧义（字节还是整数、大小端、结合顺序）通常只有少数几种读法，正确读法靠输出可读性而非任何内部信号来判别，因此歧义空间小到可以穷举并按可读性排序。",
+      "context": "语义含糊或写法刁钻的编码脚本逆向场景",
+      "tags": [
+        "ctf",
+        "misc",
+        "枚举",
+        "判别信号"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T10:35:14+00:00"
+    },
+    {
+      "id": "exp-1f2c4a7ab96b",
+      "insight": "自动化的 flag 格式校验只是正则启发式而非 oracle：语义连贯、结构自洽的恢复明文即使前缀不符合平台预期模式，其证据强度也高于一次格式校验失败，这种不一致应当上报而不是当作失败丢弃后重新盲试。",
+      "context": "带平台侧 flag 格式校验的 CTF 解题收尾阶段",
+      "tags": [
+        "ctf",
+        "flag-format",
+        "验证",
+        "判读信号"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-10T10:35:14+00:00"
     }
   ]
 }

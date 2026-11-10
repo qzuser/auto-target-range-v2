@@ -7,6 +7,9 @@ const vm = require("node:vm");
 
 const source = fs.readFileSync(
   path.join(__dirname, "../src/spiritscout/web/static/js/usage.js"), "utf8");
+// 计数格式由 count.js 提供（页面里就是先加载它），测试里照同样的顺序执行
+const countSource = fs.readFileSync(
+  path.join(__dirname, "../src/spiritscout/web/static/js/count.js"), "utf8");
 
 function fakeEl() {
   const children = new Map();
@@ -31,6 +34,7 @@ const context = vm.createContext({
   console,
 });
 
+vm.runInContext(countSource, context);
 vm.runInContext(source, context);
 const Page = vm.runInContext("UsagePage", context);
 assert.equal(typeof Page.load, "function", "模块应导出 load");
@@ -57,7 +61,8 @@ const fixture = {
   const html = page.innerHTML;
   assert.ok(html.includes("cn:glm-5.3-flash"), "模型名要出现");
   assert.ok(html.includes("prism-ml/bonsai-27b"), "第二个模型也要出现");
-  assert.ok(html.includes("4.0 万"), "合计 token 要按万显示");
+  assert.ok(html.includes("45K"), "合计 token 要按 K/M/B/T/E/P 显示");
+  assert.ok(!html.includes("万"), "不再混用「万」这种口径");
   assert.ok(html.includes("88.9%"), "占比要显示");
   assert.ok(html.includes("¥1.20~1.60"), "人民币区间要显示");
   assert.ok(html.includes("没有价格信息"), "未定价调用要说明");
@@ -82,6 +87,7 @@ const fixture = {
     encodeURIComponent,
     console,
   });
+  vm.runInContext(countSource, failing);
   vm.runInContext(source, failing);
   const Failing = vm.runInContext("UsagePage", failing);
   await Failing.load();

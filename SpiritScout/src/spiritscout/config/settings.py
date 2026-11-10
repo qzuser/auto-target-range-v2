@@ -250,6 +250,17 @@ class ExperienceConfig(ValidatedConfig):
         default=0.95, ge=0.5, le=1.0,
         description="入库判重阈值：与库里任一有效经验相似度达到该比例就不再存一条新的"
                     "（0.95 只放过标点/虚词的差异；二次提炼合并用的是更宽松的 0.85）")
+    sync_path: str = Field(
+        default="experience-export/experience-insights.json",
+        description="经验同步的主清单路径（仓库里的公共快照；拉取时与 inbox 一起读）")
+    sync_inbox: str = Field(
+        default="experience-export/inbox",
+        description="经验提交目录：每人每次提交写自己一个文件，谁都能提、互不覆盖")
+    sync_branch: str = Field(default="main", description="经验同步用的远端分支")
+    sync_user: str = Field(
+        default="", description="提交人名字（进文件名）；空=git user.name，再空=系统用户名")
+    sync_repo: str = Field(
+        default="", description="经验同步用的 git 仓库目录；空=项目根目录（复用它的 remote 与凭据）")
 
 
 class SearchConfig(ValidatedConfig):

@@ -76,6 +76,12 @@ class MergeRestorePayload(BaseModel):
     merged_id: str = Field(min_length=1, max_length=80)
 
 
+class ExperienceSyncPushPayload(BaseModel):
+    """把经验推到仓库：提交信息可留空（按条数自动写一条）。"""
+
+    message: str = Field(default="", max_length=200)
+
+
 def _iso_ts(value: Any) -> str:
     """经验库里存的是 Unix 秒，前端按 ISO 字符串截前 19 位显示，统一转过去。"""
     try:
@@ -337,6 +343,76 @@ def create_app(cfg: SystemConfig, models: list[ModelEntry], *,
         try:
             return apply_absorb(
                 shared_db_path(cfg), payload.groups,
+                audit=AuditLogger(cfg.audit_log_path))
+        except SpiritScoutError as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+    @app.get("/api/experience/sync")
+    def experience_sync_status() -> dict[str, Any]:
+        """经验同步现状：本地多少条、仓库里的主清单与提交目录在哪、用哪个分支。"""
+        from spiritscout.knowledge.experience import shared_db_path
+        from spiritscout.knowledge.sync import (
+            DEFAULT_BRANCH,
+            DEFAULT_INBOX,
+            DEFAULT_SYNC_PATH,
+            export_payload,
+            project_root,
+        )
+
+        rel = str(getattr(cfg.experience, "sync_path", "") or DEFAULT_SYNC_PATH)
+        inbox = str(getattr(cfg.experience, "sync_inbox", "") or DEFAULT_INBOX)
+        repo = str(getattr(cfg.experience, "sync_repo", "") or "")
+        branch = str(getattr(cfg.experience, "sync_branch", "") or DEFAULT_BRANCH)
+        root = Path(repo).expanduser() if repo.strip() else project_root()
+        file = root / rel
+        return {"local_count": export_payload(shared_db_path(cfg))["count"],
+                "repo": str(root), "path": str(file), "inbox": str(root / inbox),
+                "exists": file.is_file(), "branch": branch,
+                "synced_at": file.stat().st_mtime if file.is_file() else 0}
+
+    @app.post("/api/experience/sync/pull")
+    def experience_sync_pull() -> dict[str, Any]:
+        """拉取：把远端主清单 + 所有人提交的经验并进本地库——只补缺，不改不删。"""
+        from spiritscout.knowledge.experience import shared_db_path
+        from spiritscout.knowledge.sync import (
+            DEFAULT_BRANCH,
+            DEFAULT_INBOX,
+            DEFAULT_SYNC_PATH,
+            pull,
+        )
+
+        try:
+            return pull(
+                shared_db_path(cfg),
+                repo=str(getattr(cfg.experience, "sync_repo", "") or ""),
+                sync_path=str(getattr(cfg.experience, "sync_path", "") or DEFAULT_SYNC_PATH),
+                inbox=str(getattr(cfg.experience, "sync_inbox", "") or DEFAULT_INBOX),
+                branch=str(getattr(cfg.experience, "sync_branch", "") or DEFAULT_BRANCH),
+                audit=AuditLogger(cfg.audit_log_path))
+        except SpiritScoutError as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+    @app.post("/api/experience/sync/push")
+    def experience_sync_push(payload: ExperienceSyncPushPayload | None = None) -> dict[str, Any]:
+        """提交：本地经验导成自己一个文件放进 inbox → 提交 → 推送到远端。
+
+        写成「每人一个文件」而不是改主清单：任何人有写权限就能提，不会互相冲突。
+        """
+        from spiritscout.knowledge.experience import shared_db_path
+        from spiritscout.knowledge.sync import (
+            DEFAULT_BRANCH,
+            DEFAULT_INBOX,
+            submit,
+        )
+
+        try:
+            return submit(
+                shared_db_path(cfg),
+                repo=str(getattr(cfg.experience, "sync_repo", "") or ""),
+                inbox=str(getattr(cfg.experience, "sync_inbox", "") or DEFAULT_INBOX),
+                branch=str(getattr(cfg.experience, "sync_branch", "") or DEFAULT_BRANCH),
+                message=(payload.message if payload else ""),
+                user=str(getattr(cfg.experience, "sync_user", "") or ""),
                 audit=AuditLogger(cfg.audit_log_path))
         except SpiritScoutError as exc:
             raise HTTPException(400, str(exc)) from exc

@@ -9,7 +9,7 @@
 
 **简体中文 · [English](README_EN.md)**
 
-[![Version](https://img.shields.io/badge/version-v0.43.0-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
+[![Version](https://img.shields.io/badge/version-v0.44.0-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
 
 [快速开始](#快速开始) · [三种模式](#三种模式) · [界面](#界面) · [工作原理](#工作原理) · [配置参考](#配置参考) · [常见问题](#常见问题) · [部署指南](docs/部署与配置.md)
 
@@ -192,7 +192,7 @@ launch.cmd --auth password
 `[状态] 已运行 01:00 · 会话 2（运行中 0） · 内存 244 MB`，不开任务管理器也能知道它活着。
 
 ```
-灵枢 Web 控制台 v0.43.0: http://127.0.0.1:8010  (登录已关闭，本机直接进入（auth_mode=none），并发上限 4，Ctrl+C 停止)
+灵枢 Web 控制台 v0.44.0: http://127.0.0.1:8010  (登录已关闭，本机直接进入（auth_mode=none），并发上限 4，Ctrl+C 停止)
 
 [就绪] 浏览器可以打开了: http://127.0.0.1:8010
        每 60 秒报一次状态；Ctrl+C 停止
@@ -356,6 +356,15 @@ shell / Python 沙箱需要 Linux + bubblewrap；Windows 与 macOS 原生控制�
 
 两个按钮互斥（同时只开一个面板），勾选状态共用，所以「先看候选、再决定用哪种整理方式」的操作是连贯的。
 
+**跨机器共享：提交 / 拉取**
+
+经验库本身是本地 SQLite，不跟着仓库走。「经验」页右上角另有两个按钮，靠仓库里的一份文本清单同步：
+
+- **提交**：把本地经验导出成 `experience-export/inbox/<提交人>-<时间戳>.json`，提交并推送。**每人一个文件**，不改公共主清单——所以谁都能提，不用先拉最新，也不会覆盖别人的提交（没有推送权限时 fork 后推自己的分支再提单即可）。
+- **拉取**：`git fetch` 之后把主清单 `experience-insights.json` 与 `inbox/` 下所有人的文件一起读，按**内容指纹**（去标点空白后的 sha1）只补本地缺的条目——本地已有的原样保留，不覆盖、不删除。
+
+清单里每条只带 `insight / context / tags / source_model / ts` 与溯源字段，不含会话正文、审计原文或凭据；导出前统一脱敏（URL、`IP:端口`、密钥、flag 字面量），并跳过老口径「已合并」的隐藏原件。两种格式都认：本功能的 `spiritscout.experience/v1` 与目录里既有的 `spiritscout-experience-insights` 快照。
+
 ### 命令行
 
 ```bash
@@ -408,7 +417,7 @@ Docker 用 `python deploy.py migrate`；手工迁移时停服 → 拷 `.spiritsc
 
 ## 文档与贡献
 
-当前代码版本 **v0.43.0**。版本唯一来源、递增规则与历史说明见 [版本管理](CONTRIBUTING.md#版本管理)。
+当前代码版本 **v0.44.0**。版本唯一来源、递增规则与历史说明见 [版本管理](CONTRIBUTING.md#版本管理)。
 
 | 我想了解 | 阅读入口 |
 | --- | --- |

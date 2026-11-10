@@ -66,6 +66,11 @@ experience:                    # 共享经验库：会话结束后提炼，开�
   root: ""                     # 空=跟随工作区；Web 控制台自动指向共享目录
   distill_timeout_seconds: 45  # 经验提炼调用的超时时间（秒）
   recall_limit: 6              # 会话开工注入的经验条数上限
+  sync_repo: ""                # 经验同步用的 git 仓库；空=项目根目录（复用其 remote 与凭据）
+  sync_branch: main            # 提交/拉取走哪个远端分支
+  sync_path: experience-export/experience-insights.json   # 公共主清单（拉取时与 inbox 一起读）
+  sync_inbox: experience-export/inbox                     # 每人提交写自己一个文件，谁都能提
+  sync_user: ""                # 提交人名字；空=git user.name，再空=系统用户名
 
 report:
   template: src_standard       # 报告模板

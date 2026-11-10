@@ -6,7 +6,7 @@ const path = require("node:path");
 const vm = require("node:vm");
 
 const source = fs.readFileSync(path.join(__dirname, "../src/spiritscout/web/static/js/views.js"), "utf8");
-const renderer = source.slice(source.indexOf("const fmtK ="), source.indexOf("function renderSessionHead()"));
+const renderer = source.slice(source.indexOf("let dashRenderVersion"), source.indexOf("function renderSessionHead()"));
 const nodes=new Map();
 const node=selector=>{
   if(!nodes.has(selector)) nodes.set(selector,{innerHTML:"",textContent:"",hidden:false,dataset:{},querySelector:node,querySelectorAll:()=>[]});
@@ -23,6 +23,7 @@ const context = vm.createContext({
   S: state, $: () => box, api: async () => metrics,
   esc: value => String(value), toast: () => {}, MODE_CN:{}, STATUS_CN:{},
 });
+vm.runInContext(fs.readFileSync(path.join(__dirname,"../src/spiritscout/web/static/js/count.js"),"utf8"),context);
 vm.runInContext(fs.readFileSync(path.join(__dirname,"../src/spiritscout/web/static/js/dashboard.js"),"utf8"),context);
 vm.runInContext(renderer, context);
 

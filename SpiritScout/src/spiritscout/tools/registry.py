@@ -161,9 +161,13 @@ class ToolRegistry:
             try:
                 action = ActionCategory(raw_action).value
             except (ValueError, TypeError):
+                # 纠错要说清「你给的是哪个词」——只说合法清单，模型分不清是拼错、
+                # 还是自己心里那个近义词不在表里，容易原地重试把回合烧光。
                 return ToolResult(tool=name, ok=False, returncode=-4,
-                                  error="action 类别未知，请如实声明："
-                                  + ", ".join(a.value for a in ActionCategory))
+                                  error="action 类别未知（收到 "
+                                  + repr(str(raw_action)[:40]) + "），请如实声明："
+                                  + ", ".join(a.value for a in ActionCategory)
+                                  + "；纯静态分析、读文件、跑只读脚本请填 analysis")
         if required and action is None:
             return ToolResult(tool=name, ok=False, returncode=-4,
                               error=f"缺少 {spec.action_param} 行为声明，请根据本次实际操作补充后重试")

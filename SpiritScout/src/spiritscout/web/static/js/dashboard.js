@@ -6,7 +6,7 @@ const Dashboard = (() => {
   const periods={hour:"最近一小时",today:"今天", "7d":"近七天", "30d":"近三十天",all:"全部记录"};
   const phases={planning:"灵枢规划中",queued:"等待调度",starting:"准备启动",model_preflight:"检查模型",platform_profile:"读取平台规则",runtime_starting:"初始化工具",executing:"执行中",master_reply:"灵枢回复中",scope_confirmation:"等待范围确认",intent_routing:"理解任务",mode_routing:"确认模式"};
   const num=n=>Number(n || 0).toLocaleString("zh-CN");
-  const compact=n=>n>=1e6 ? (n/1e6).toFixed(2)+"M" : n>=1000 ? (n/1000).toFixed(1)+"k" : num(n);
+  const compact=n=>fmtCount(n);
   const percent=n=>n == null ? "未提供" : (n*100).toFixed(1)+"%";
   const clock=(ts,day=false)=>ts ? new Intl.DateTimeFormat("zh-CN",{timeZone:"Asia/Shanghai",year:"numeric",month:"2-digit",day:"2-digit",...(day ? {} : {hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false})}).format(new Date(ts*1000)) : "未记录";
   const money=(c,precise=false)=>{

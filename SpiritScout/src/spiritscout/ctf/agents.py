@@ -400,6 +400,19 @@ class _ToolOutcome:
     final_text: str = ""       # stop=True 时的确定性短回执
 
 
+def _missing_exec_param(name: str, param: str, args: dict[str, Any]) -> str:
+    """执行类工具缺内容时的纠错提示：说清该填哪个键，并回显本次实际给了什么。
+
+    `python`/`shell` 是模型最容易「自创键名」的两个入口（比如把代码塞进
+    `script`、`arguments` 里）。只说「需要 code 参数」，模型无法判断是键名
+    写错了还是根本没传，往往连续重试同样的载荷，把回合烧在无效调用上。
+    """
+    what = "Python 代码" if param == "code" else "shell 命令"
+    received = "、".join(sorted(args)) or "（空参数）"
+    return (f'{name} 工具需要 {param} 参数：把要执行的{what}放进 "{param}" 字段，'
+            f"本次收到的字段是：{received}。")
+
+
 def _fn(name: str, description: str, properties: dict[str, Any],
         required: list[str] | None = None) -> dict[str, Any]:
     """OpenAI 形态的函数工具 schema（网关统一转译到各协议）。"""
@@ -2136,7 +2149,7 @@ class CTFBaseAgent(SubAgent):
         param = "command" if name == "shell" else "code"
         code = str(args.get(param, "") or "").strip()
         if not code:
-            return _ToolOutcome(ok=False, text=f"{name} 工具需要 {param} 参数。")
+            return _ToolOutcome(ok=False, text=_missing_exec_param(name, param, args))
         # 行为类别须模型如实自报（通用执行入口无法确认性质就不执行——
         # 不以 readonly 自动放行）；危险语义由策略门即时请示用户
         action = str(args.get("action", "") or "").strip()
