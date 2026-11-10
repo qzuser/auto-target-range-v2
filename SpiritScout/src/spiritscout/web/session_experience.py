@@ -20,6 +20,7 @@ from typing import Any
 from spiritscout.blackboard import Blackboard
 from spiritscout.core.audit import AuditLogger
 from spiritscout.core.models import BlackboardLayer
+from spiritscout.core.sqlite_ro import ro_uri
 from spiritscout.knowledge.experience import (
     DEFAULT_DUPLICATE_THRESHOLD,
     ExperienceStore,
@@ -42,7 +43,7 @@ def read_session_insights(db_path: str | Path, session_id: str, *,
     if not session_id or not path.exists():
         return []
     try:
-        conn = sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)
+        conn = sqlite3.connect(ro_uri(path), uri=True)
         try:
             rows = conn.execute(
                 "SELECT insight_id, insight, context, tags, source_session, "

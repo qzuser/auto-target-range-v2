@@ -316,6 +316,8 @@ def _build_builtin_context(
         # 开放会话产物目录（[]/空 = 无额外遮蔽，CLI 直连场景）
         "guard_root": str(getattr(cfg.workspace, "guard_root", "") or ""),
         "resources": resources,
+        # 本地工具索引的配置与工作根目录：索引清单存在工作区，工具由用户设置
+        "cfg": cfg,
     }
     from spiritscout.tools.web_search import (
         SEARCH_SPEC,
@@ -693,6 +695,10 @@ async def _build_infra(
                          ("tcp_scan", tcp_scan), ("file_analyze", file_analyze),
                          ("sandbox_exec", sandbox_exec)):
             registry.register_builtin(name, fn, BUILTIN_SPECS[name])
+        # 本地工具索引：只在用户设置了目录并打开开关后才真的能检索/运行
+        from spiritscout.tools.local_tool import LOCAL_TOOL_SPEC, local_tool
+
+        registry.register_builtin("local_tool", local_tool, LOCAL_TOOL_SPEC)
         # 移除已从注册表删除的角色模型指派，并记录审计。
         bound = dict(agent_models or {})
         known = {m.model for m in models}

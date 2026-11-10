@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, BinaryIO
 
 from spiritscout.core.audit import sanitize_record, tool_preview
+from spiritscout.core.sqlite_ro import ro_uri
 
 _KINDS = {"fact", "hypothesis", "evidence", "finding", "asset", "file", "outcome"}
 _REPARSE_POINT = 0x400          # FILE_ATTRIBUTE_REPARSE_POINT：链接/junction 都算
@@ -127,7 +128,7 @@ def read_deliverables(workspace: Path, *, kind: str = "all", query: str = "",
     items: list[dict[str, Any]] = []
     db = workspace / "bb.db"
     if db.is_file():
-        with closing(sqlite3.connect(db.resolve().as_uri() + "?mode=ro", uri=True)) as conn:
+        with closing(sqlite3.connect(ro_uri(db), uri=True)) as conn:
             conn.row_factory = sqlite3.Row
             exists = conn.execute("SELECT 1 FROM sqlite_master WHERE name='bb_records'").fetchone()
             rows = conn.execute("SELECT * FROM bb_records WHERE layer IN "
@@ -212,7 +213,7 @@ def read_record_history(workspace: Path, layer: str, record_id: str,
     db = workspace / "bb.db"
     if not db.is_file():
         return {"items": [], "has_more": False}
-    with closing(sqlite3.connect(db.resolve().as_uri() + "?mode=ro", uri=True)) as conn:
+    with closing(sqlite3.connect(ro_uri(db), uri=True)) as conn:
         conn.row_factory = sqlite3.Row
         if not conn.execute("SELECT 1 FROM sqlite_master WHERE name='bb_record_history'").fetchone():
             return {"items": [], "has_more": False}
@@ -231,7 +232,7 @@ def read_vulnerability_page(workspace: Path, offset: int = 0, limit: int = 50) -
     db = workspace / "bb.db"
     if not db.is_file():
         return {"items": [], "total": 0}
-    with closing(sqlite3.connect(db.resolve().as_uri() + "?mode=ro", uri=True)) as conn:
+    with closing(sqlite3.connect(ro_uri(db), uri=True)) as conn:
         if not conn.execute("SELECT 1 FROM sqlite_master WHERE name='bb_records'").fetchone():
             return {"items": [], "total": 0}
         total = conn.execute("SELECT COUNT(*) FROM bb_records WHERE layer='vuln'").fetchone()[0]

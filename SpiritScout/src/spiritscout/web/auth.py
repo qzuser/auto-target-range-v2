@@ -22,6 +22,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from spiritscout.core.exceptions import ConfigurationError
+from spiritscout.core.sqlite_ro import ro_uri
 
 _LOG = logging.getLogger(__name__)
 
@@ -134,7 +135,7 @@ class AdminStore:
         """
         if not self.db_path.exists():
             return None
-        return sqlite3.connect(f"{self.db_path.resolve().as_uri()}?mode=ro",
+        return sqlite3.connect(ro_uri(self.db_path),
                                uri=True, timeout=5)
 
     def has_admins(self) -> bool:

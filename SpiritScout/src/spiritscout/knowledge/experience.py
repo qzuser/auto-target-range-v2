@@ -14,6 +14,7 @@ from typing import Any
 from spiritscout.core.audit import NullAuditLogger
 from spiritscout.core.exceptions import SpiritScoutError
 from spiritscout.core.ids import new_id
+from spiritscout.core.sqlite_ro import ro_uri
 from spiritscout.knowledge import merge as merge_mod
 
 _INSIGHT_CAP = 600
@@ -116,7 +117,7 @@ def absorb_session_dbs(target: str | Path, sessions_dir: str | Path) -> int:
 def _read_all(db_path: Path) -> list[dict[str, Any]]:
     """全量读取一个经验库文件；损坏或没有表一律当空库。"""
     try:
-        conn = sqlite3.connect(db_path.resolve().as_uri() + "?mode=ro", uri=True)
+        conn = sqlite3.connect(ro_uri(db_path), uri=True)
         try:
             rows = conn.execute("SELECT * FROM insights").fetchall()
         finally:
@@ -193,7 +194,7 @@ def read_recent(db_path: str | Path, *, limit: int = 6) -> dict[str, Any]:
     if not path.exists():
         return {"total": 0, "items": []}
     try:
-        conn = sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)
+        conn = sqlite3.connect(ro_uri(path), uri=True)
         try:
             clause = _active_clause(conn)
             total = conn.execute(
@@ -226,7 +227,7 @@ def read_page(db_path: str | Path, *, q: str = "", tag: str = "",
     if not path.exists():
         return empty
     try:
-        conn = sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)
+        conn = sqlite3.connect(ro_uri(path), uri=True)
         try:
             has_merge = _has_column(conn, "merged_into")
             where, args = [], []
@@ -483,7 +484,7 @@ def merge_candidates(db_path: str | Path, *,
     if not path.exists():
         return []
     try:
-        conn = sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)
+        conn = sqlite3.connect(ro_uri(path), uri=True)
         try:
             rows = [_normalize(row) for row in conn.execute(
                 "SELECT * FROM insights").fetchall()]

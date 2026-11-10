@@ -15,6 +15,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from spiritscout.core.sqlite_ro import ro_uri
 from spiritscout.gateway.cache import cache_summary
 
 
@@ -105,7 +106,7 @@ class UsageLedger:
 
 
 def _load_ledger(path: Path) -> dict[str, Any]:
-    with closing(sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)) as conn:
+    with closing(sqlite3.connect(ro_uri(path), uri=True)) as conn:
         conn.execute("BEGIN")
         base = UsageSnapshot.model_validate_json(conn.execute("SELECT data FROM baseline WHERE id=1").fetchone()[0]).model_dump()
         rows = [UsageCall.model_validate_json(row[0]).model_dump()
@@ -121,6 +122,19 @@ def _load_ledger(path: Path) -> dict[str, Any]:
     base["call_series"].extend(rows)
     base["calls"] = max(base["calls"], len(base["call_series"]) - len(rows)) + len(rows)
     return base
+
+
+@lru_cache(maxsize=512)
+def _cache_key(path: Path) -> str:
+    """账本缓存键：真实路径字符串。
+
+    ``Path.resolve()`` 在 Windows 上要一次系统调用；同一个账本会被反复读，
+    这里按原始路径记住归一化结果（工作区内路径不会变）。
+    """
+    try:
+        return str(path.resolve())
+    except OSError:                     # 还没建出来的账本按原样当键
+        return str(path)
 
 
 class _FileCache:
@@ -147,19 +161,31 @@ def _cached_read(path: str, ledger: bool, version: tuple[Any, ...]) -> dict[str,
         return cache.snapshot
 
 
-def read_usage(legacy: Path, *, ledger: Path | None = None) -> dict[str, Any] | None:
-    """原子替换、WAL 追加和同长度改写都会失效；不让调用方修改缓存本体。"""
+def read_usage(legacy: Path, *, ledger: Path | None = None,
+               readonly: bool = False) -> dict[str, Any] | None:
+    """原子替换、WAL 追加和同长度改写都会失效；默认不让调用方修改缓存本体。
+
+    ``readonly=True`` 直接把缓存本体交出去，**调用方不得改动返回值**（也不要嵌进
+    会被后续修改的结构里）。深拷贝一份上百笔的调用序列要 8 ms 左右，而统计页、
+    仪表盘、状态面这些地方只是读一遍就序列化——纯读的地方传 ``readonly=True``，
+    轮询时的开销从毫秒级掉到微秒级。会长期持有或改写的调用（如把结果存进会话
+    摘要）必须用默认的拷贝语义。
+    """
     ledger = ledger or legacy.with_suffix(".db")
-    if ledger.is_file():
-        path = ledger
-        version = (file_version(path), file_version(Path(str(path) + "-wal")))
-        is_ledger = True
-    elif legacy.is_file():
-        path, version, is_ledger = legacy, (file_version(legacy),), False
+    # 先看新式账本，没有再退回旧 JSON：每次只 stat 该 stat 的那个文件，
+    # 附加的 -wal 也只在账本存在时才去量（轮询时的系统调用能省一半）
+    version = file_version(ledger)
+    if version:
+        version = (version, file_version(Path(str(ledger) + "-wal")))
+        path, is_ledger = ledger, True
     else:
-        return None
+        legacy_version = file_version(legacy)
+        if not legacy_version:
+            return None
+        path, version, is_ledger = legacy, (legacy_version,), False
     try:
-        return copy.deepcopy(_cached_read(str(path.resolve()), is_ledger, version))
+        snapshot = _cached_read(_cache_key(path), is_ledger, version)
+        return snapshot if readonly else copy.deepcopy(snapshot)
     except (OSError, ValueError, sqlite3.Error, TypeError):
         return None
 
@@ -221,7 +247,7 @@ def _read_ledger_rows(path: Path) -> list[dict[str, Any]]:
     """读一本旧账本里的逐笔记录；读不动就当没有（不拖累启动）。"""
     rows: list[dict[str, Any]] = []
     try:
-        with closing(sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True)) as conn:
+        with closing(sqlite3.connect(ro_uri(path), uri=True)) as conn:
             for (data,) in conn.execute("SELECT data FROM calls ORDER BY seq"):
                 try:
                     entry = json.loads(data)

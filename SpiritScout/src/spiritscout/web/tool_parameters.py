@@ -16,6 +16,8 @@ from typing import Any
 
 from cryptography.fernet import Fernet, InvalidToken
 
+from spiritscout.core.sqlite_ro import ro_uri
+
 
 def read_tool_parameters(workspace: Path, tool: str, digest: str) -> dict[str, Any]:
     """按工具名与参数摘要精确关联；相同摘要的历史调用拥有相同参数。"""
@@ -27,7 +29,7 @@ def read_tool_parameters(workspace: Path, tool: str, digest: str) -> dict[str, A
         return unavailable
     try:
         key_bytes = key.read_bytes()
-        with closing(sqlite3.connect(db.resolve().as_uri() + "?mode=ro", uri=True)) as conn:
+        with closing(sqlite3.connect(ro_uri(db), uri=True)) as conn:
             tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
             if not {"tool_invocations", "execution_owner"}.issubset(tables):
                 return unavailable

@@ -9,7 +9,7 @@
 
 **简体中文 · [English](README_EN.md)**
 
-[![Version](https://img.shields.io/badge/version-v0.41.0-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
+[![Version](https://img.shields.io/badge/version-v0.42.0-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
 
 [快速开始](#快速开始) · [三种模式](#三种模式) · [界面](#界面) · [工作原理](#工作原理) · [配置参考](#配置参考) · [常见问题](#常见问题) · [部署指南](docs/部署与配置.md)
 
@@ -86,6 +86,7 @@
 | 解题思路（WP） | 按赛方模板成文，**只讲解题过程**：生成前确认团队信息与题目分章（可留空、下次带出），按方向分章、逐题写清看到什么现象、怎么判断、打了什么、最后拿到什么 Flag，命令与脚本贴原文；不写验证环节（判定/提交回执）、不写经验复盘、不写内部编排；可下载 Markdown |
 | 浏览器与工具 | 接入 MCP、Skill 与 shell/Python 沙箱；SRC 可复用登录态并人工处理验证码 |
 | 本地模型 | 把本机推理端点（LM Studio / Ollama）接成 MCP 工具：看状态、列模型、单轮提问；不出网不计费，适合摘要改写这类廉价活 |
+| 本地工具索引 | 在「设置 → 本地工具」里添加几个工具目录，Agent 就能按名字检索本机现成的 exe / 脚本并运行；运行时先把工具目录复制到工作区暂存副本、隔离临时目录与 HOME，跑完对账（新增删掉、改动还原）、核对清单一致后销毁副本——**用完不留残留文件**，超上限或还原不了就拒跑 |
 | 模型与用量 | 配置供应商、编队与模型，查看费用估算、Token、端点返回的输入缓存用量 |
 | 经验沉淀 | 把验证过的判断写回经验库，后续同类任务可直接取用 |
 
@@ -191,7 +192,7 @@ launch.cmd --auth password
 `[状态] 已运行 01:00 · 会话 2（运行中 0） · 内存 244 MB`，不开任务管理器也能知道它活着。
 
 ```
-灵枢 Web 控制台 v0.41.0: http://127.0.0.1:8010  (登录已关闭，本机直接进入（auth_mode=none），并发上限 4，Ctrl+C 停止)
+灵枢 Web 控制台 v0.42.0: http://127.0.0.1:8010  (登录已关闭，本机直接进入（auth_mode=none），并发上限 4，Ctrl+C 停止)
 
 [就绪] 浏览器可以打开了: http://127.0.0.1:8010
        每 60 秒报一次状态；Ctrl+C 停止
@@ -407,7 +408,7 @@ Docker 用 `python deploy.py migrate`；手工迁移时停服 → 拷 `.spiritsc
 
 ## 文档与贡献
 
-当前代码版本 **v0.41.0**。版本唯一来源、递增规则与历史说明见 [版本管理](CONTRIBUTING.md#版本管理)。
+当前代码版本 **v0.42.0**。版本唯一来源、递增规则与历史说明见 [版本管理](CONTRIBUTING.md#版本管理)。
 
 | 我想了解 | 阅读入口 |
 | --- | --- |

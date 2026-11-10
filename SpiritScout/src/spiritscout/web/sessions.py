@@ -32,7 +32,6 @@ from spiritscout.core.exceptions import SpiritScoutError
 from spiritscout.core.models import RunMode
 from spiritscout.core.pause import PauseGate
 from spiritscout.gateway.usage import UsageSnapshot as _UsageSnapshot
-from spiritscout.gateway.usage import read_usage
 from spiritscout.launch import (
     LaunchPlan,
     LaunchRequest,
@@ -998,22 +997,31 @@ class Session:
     def meta_path(self) -> Path:
         return self.workspace / "meta.json"
 
-    def model_usage(self) -> dict[str, Any]:
-        """列表、状态页与仪表盘共用的用量视图；损坏快照回退到已保存汇总。"""
-        live = read_usage(self.workspace / "usage.json")
-        if live is not None:
-            return live
-        run = self.summary.get("run") if isinstance(self.summary, dict) else None
-        stored = run.get("model_usage") if isinstance(run, dict) else None
-        try:
-            usage = _UsageSnapshot.model_validate(stored).model_dump()
-        except ValidationError:
-            usage = {}
-        if usage.get("call_series"):
-            from spiritscout.gateway.cache import cache_summary
+    def model_usage(self, *, readonly: bool = False) -> dict[str, Any]:
+        """本会话的用量视图：会话账本 ∪ 共享账本里属于本会话的调用。
 
-            usage["cache"] = cache_summary(usage["call_series"])
-        return usage
+        运行期的逐笔记录大多落在工作区共享账本里，只读会话账本会把整场任务的
+        消耗显示成几百 token（用量页却是几十万上百万）。归属凭据是本会话审计里
+        的 call_id，见 `web/session_usage.py`；账本缺失时用运行汇总快照兜底。
+
+        ``readonly=True`` 用于「拿来看一眼就序列化」的地方（brief、状态面、仪表盘），
+        省掉整份调用序列的深拷贝；要把结果存进摘要长期持有的调用方保持默认。
+        """
+        from spiritscout.web.session_usage import session_usage
+
+        stored: dict[str, Any] | None = None
+        run = self.summary.get("run") if isinstance(self.summary, dict) else None
+        if isinstance(run, dict):
+            try:
+                stored = _UsageSnapshot.model_validate(run.get("model_usage")).model_dump()
+            except (ValidationError, TypeError):
+                stored = None
+            if stored and stored.get("call_series"):
+                from spiritscout.gateway.cache import cache_summary
+
+                stored["cache"] = cache_summary(stored["call_series"])
+        usage = session_usage(self.workspace, self.audit_path, fallback=stored)
+        return usage if readonly else copy.deepcopy(usage)
 
     def report_path(self) -> Path | None:
         """最新报告文件（未生成 → None）。"""
@@ -1036,7 +1044,9 @@ class Session:
             return first[:42] + ("…" if len(first) > 42 else "")
         return self.target or self.session_id
 
-    def brief(self, *, include_summary: bool = True) -> dict[str, Any]:
+    def brief(self, *, include_summary: bool = True,
+              usage: dict[str, Any] | None = None) -> dict[str, Any]:
+        """轻量视图；``usage`` 给了就复用（状态面已经读过一次，别读第二遍）。"""
         out: dict[str, Any] = {
             "session_id": self.session_id, "mode": self.mode,
             "title": self.display_title(), "renamed": bool(self.title),
@@ -1058,7 +1068,7 @@ class Session:
                 "actor": source.get("actor")}
         # 仪表盘总览的轻量指标（从运行摘要提取，不走完整 summary）
         run = (self.summary or {}).get("run", {}) if isinstance(self.summary, dict) else {}
-        usage = self.model_usage()
+        usage = usage if usage is not None else self.model_usage(readonly=True)
         out["tokens"] = usage.get("used_tokens", 0)
         out["cost_usd"] = usage.get("used_usd", 0.0)
         # 运行中实时用量优先：网关逐笔持久化的 usage.db（兼容旧 usage.json）（列表/仪表盘随轮询跳动）

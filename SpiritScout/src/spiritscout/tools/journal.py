@@ -21,6 +21,7 @@ from cryptography.fernet import Fernet, InvalidToken
 
 from spiritscout.blackboard.store import Blackboard
 from spiritscout.core.exceptions import ConfigurationError
+from spiritscout.core.sqlite_ro import ro_uri
 from spiritscout.tools.invocation import ExecutionScope
 from spiritscout.tools.run_lock import ExecutionRunLock
 from spiritscout.tools.spec import ToolResult
@@ -355,7 +356,7 @@ def read_execution_page(db_path: Path, *, events: bool = False,
     empty: dict[str, Any] = {"items": [], "next_cursor": after, "has_more": False}
     if not db_path.exists():
         return empty
-    conn = sqlite3.connect(db_path.resolve().as_uri() + "?mode=ro", uri=True)
+    conn = sqlite3.connect(ro_uri(db_path), uri=True)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA busy_timeout=5000")
     conn.execute("BEGIN")
@@ -392,7 +393,7 @@ def read_recovery_view(db_path: Path, *, include_inflight: bool = False) -> dict
                             "unresolved_count": 0, "mode": "history_replan"}
     if not db_path.exists():
         return view
-    conn = sqlite3.connect(db_path.resolve().as_uri() + "?mode=ro", uri=True)
+    conn = sqlite3.connect(ro_uri(db_path), uri=True)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA busy_timeout=5000")
     conn.execute("BEGIN")

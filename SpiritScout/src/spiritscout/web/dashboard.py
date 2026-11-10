@@ -237,7 +237,7 @@ class DashboardReader:
 
         for session in sessions:
             sid = session.session_id
-            usage = session.model_usage()
+            usage = session.model_usage(readonly=True)
             all_rows = [{**r, "session_id": sid} for r in usage.get("call_series", []) if timestamp(r.get("ts"))]
             calls.extend(all_rows)
             total_tokens += usage.get("used_tokens", 0)
@@ -337,7 +337,7 @@ class DashboardReader:
         # 在仪表盘上是隐形的——「用量」页有数字、仪表盘却是 0。
         if usage_root is not None:
             seen = {r.get("call_id") for r in calls}
-            shared = read_usage(Path(usage_root) / "usage.json") or {}
+            shared = read_usage(Path(usage_root) / "usage.json", readonly=True) or {}
             for row in shared.get("call_series", []):
                 if row.get("call_id") in seen:
                     continue

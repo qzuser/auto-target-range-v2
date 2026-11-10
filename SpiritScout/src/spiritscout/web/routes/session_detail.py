@@ -172,9 +172,10 @@ def _read_state(session: Session) -> dict[str, Any]:
 
     run_summary: dict[str, Any] = session.summary.get("run", {})
     # 实时用量：运行中由网关逐笔持久化（usage.db，兼容旧 usage.json），终态回退运行汇总
-    live_usage = session.model_usage()
+    live_usage = session.model_usage(readonly=True)
     state: dict[str, Any] = {
-        "session": session.brief(include_summary=False),
+        # 状态面自己也要一份用量：让 brief 复用同一份只读视图，别读两次账本
+        "session": session.brief(include_summary=False, usage=live_usage),
         "recovery": read_recovery_view(session.bb_path, include_inflight=session.status != "running"),
         "layers": {}, "tasks": [],
         "vulns": {"by_status": {}, "items": []},

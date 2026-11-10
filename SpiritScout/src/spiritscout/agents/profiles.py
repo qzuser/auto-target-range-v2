@@ -100,7 +100,7 @@ PROFILES: tuple[AgentProfile, ...] = (
         "先理解题目应用怎么用，不从预设考点清单开始猜。",
         ("体验正常功能", "记录请求/响应与状态", "根据异常提假设", "用最少步骤验证 Flag"),
         ("HTTP 请求", "本地沙箱", "附件分析", "知识库", "Yakit MCP"),
-        ("http_probe", "sandbox_exec", "file_analyze", "mcp__yakit__*"),
+        ("http_probe", "sandbox_exec", "local_tool", "file_analyze", "mcp__yakit__*"),
     ),
     AgentProfile(
         AgentType.CTF_PWN, "破壳", "CTF Pwn：二进制保护、攻击面和利用原语的证据驱动分析",
@@ -108,7 +108,7 @@ PROFILES: tuple[AgentProfile, ...] = (
         "先做文件识别、保护与危险函数审计，再按实际原语构建利用，不套通用 payload。",
         ("识别架构与保护", "定位可控输入和崩溃证据", "构建最小 PoC", "稳定化并提取 Flag"),
         ("本地沙箱", "checksec", "危险函数", "IDA MCP", "pwntools"),
-        ("http_probe", "sandbox_exec", "file_analyze", "mcp__ida__*"),
+        ("http_probe", "sandbox_exec", "local_tool", "file_analyze", "mcp__ida__*"),
     ),
     AgentProfile(
         AgentType.CTF_REVERSE, "回溯", "CTF 逆向：从文件结构、字符串、输入校验和控制流还原程序语义",
@@ -116,7 +116,7 @@ PROFILES: tuple[AgentProfile, ...] = (
         "以程序真实行为为准；静态线索和动态输出相互验证。",
         ("识别格式与架构", "提取关键字符串/函数", "还原校验算法", "脚本化验证结果"),
         ("附件分析", "本地沙箱", "算法线索", "IDA MCP"),
-        ("http_probe", "sandbox_exec", "file_analyze", "mcp__ida__*"),
+        ("http_probe", "sandbox_exec", "local_tool", "file_analyze", "mcp__ida__*"),
     ),
     AgentProfile(
         AgentType.CTF_CRYPTO, "译码", "CTF 密码：识别编码层、算法结构、密钥关系与可验证数学弱点",
@@ -124,7 +124,7 @@ PROFILES: tuple[AgentProfile, ...] = (
         "先区分编码、加密和压缩，再根据题面参数选择攻击，不无依据枚举算法。",
         ("完整读题与参数", "识别数据层级", "推导可验证弱点", "用代码重现明文/Flag"),
         ("递归解码", "古典密码", "Python 沙箱", "z3/sympy/pycryptodome"),
-        ("http_probe", "sandbox_exec", "file_analyze"),
+        ("http_probe", "sandbox_exec", "local_tool", "file_analyze"),
     ),
     AgentProfile(
         AgentType.CTF_MISC, "拾遗", "CTF Misc：文件、流量、图像、音频和多层容器的取证式分析",
@@ -132,7 +132,7 @@ PROFILES: tuple[AgentProfile, ...] = (
         "保留原始文件，先识别格式和层次，每次解包/解码都记录输入与产物。",
         ("文件类型与元数据", "字符串/嵌套文件", "流量与隐写分析", "产物交叉验证"),
         ("附件分析", "深层字符串", "本地沙箱", "scapy/binwalk/PIL"),
-        ("http_probe", "sandbox_exec", "file_analyze"),
+        ("http_probe", "sandbox_exec", "local_tool", "file_analyze"),
     ),
     AgentProfile(
         AgentType.REPORT, "书记", "只读报告编纂：仅收录通过核验的结论并保留复现链",

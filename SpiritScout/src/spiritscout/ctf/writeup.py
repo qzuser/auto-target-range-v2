@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from pathlib import Path
 from typing import Any
@@ -51,7 +52,12 @@ def wp_dir(workspace: Path) -> Path:
 
 
 def wp_candidates(workspace: Path) -> list[Path]:
-    """两处来源的 WP 文件，新的在前（同一次运行里别重复列的按真实路径去重）。"""
+    """两处来源的 WP 文件，新的在前。
+
+    状态面每轮都会问一次「有没有 WP」，所以这里不调 ``Path.resolve()``（一次
+    0.26 ms 的系统调用）：两个来源都由同一个 workspace 拼出来，不会出现同一文件
+    的两种写法，按路径字符串去重就够了；mtime 直接取 ``os.stat`` 一次。
+    """
     workspace = Path(workspace)
     found: list[Path] = []
     folder = wp_dir(workspace)
@@ -63,11 +69,15 @@ def wp_candidates(workspace: Path) -> list[Path]:
                      if "writeup" in p.name.lower())
     unique: dict[str, Path] = {}
     for path in found:
+        unique.setdefault(str(path).lower(), path)
+    stamped: list[tuple[float, Path]] = []
+    for path in unique.values():
         try:
-            unique.setdefault(str(path.resolve()).lower(), path)
-        except OSError:
+            stamped.append((os.stat(path).st_mtime, path))
+        except OSError:                 # 刚被删掉/正在替换：这一轮先不列
             continue
-    return sorted(unique.values(), key=lambda p: p.stat().st_mtime, reverse=True)
+    stamped.sort(key=lambda item: item[0], reverse=True)
+    return [path for _, path in stamped]
 
 
 def latest_wp(workspace: Path) -> Path | None:

@@ -1,7 +1,6 @@
 """从有界审计窗口投影执行过程；不调用模型，不把观察冒充已验证发现。"""
 from __future__ import annotations
 
-import copy
 import json
 import threading
 from collections import OrderedDict
@@ -123,16 +122,21 @@ def project_process(events: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def read_process_graph(path: Path) -> dict[str, Any]:
-    """最多保留最近 320 个完整活动；按文件版本缓存，避免轮询重复解码。"""
+    """最多保留最近 320 个完整活动；按文件版本缓存，避免轮询重复解码。
+
+    返回值是**只读视图**：命中缓存时直接把缓存本体交出去（状态面只拿它序列化，
+    不往里改）。每 3 秒轮询一次时，深拷贝一张 320 节点的图比解码本身还贵。
+    """
     try:
         stat = path.stat()
     except OSError:
         return {'nodes': [], 'edges': [], 'has_more': False}
-    key = (str(path.resolve()), stat.st_ino, stat.st_size, stat.st_mtime_ns)
+    # 缓存键用路径字符串即可：resolve() 在 Windows 上是一次系统调用，轮询里不划算
+    key = (str(path), stat.st_ino, stat.st_size, stat.st_mtime_ns)
     with _LOCK:
         cached = _CACHE.get(key)
         if cached is not None:
-            return copy.deepcopy(cached)
+            return cached
     page = read_activity_page(path, limit=320)
     graph = {**project_process([row['event'] for row in page['items']]),
              'has_more': page['has_more']}
@@ -144,4 +148,4 @@ def read_process_graph(path: Path) -> dict[str, Any]:
         _CACHE[key] = graph
         while len(_CACHE) > 16:
             _CACHE.popitem(last=False)
-    return copy.deepcopy(graph)
+    return graph

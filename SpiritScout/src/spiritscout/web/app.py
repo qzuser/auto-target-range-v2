@@ -29,6 +29,7 @@ from spiritscout.core.exceptions import (
 from spiritscout.web import auth as web_auth
 from spiritscout.web import vault
 from spiritscout.web.routes.auth import mount_auth
+from spiritscout.web.routes.local_tools import mount_local_tools
 from spiritscout.web.routes.maintenance import mount_maintenance
 from spiritscout.web.routes.models import mount_models
 from spiritscout.web.routes.notify import mount_notify
@@ -182,6 +183,7 @@ def create_app(cfg: SystemConfig, models: list[ModelEntry], *,
     mount_models(app, cfg=cfg)
     mount_notify(app, manager=manager)
     mount_preferences(app, cfg=cfg)
+    mount_local_tools(app, cfg=cfg)
     mount_session_detail(app, manager=manager, cfg=cfg, require=_require)
 
 

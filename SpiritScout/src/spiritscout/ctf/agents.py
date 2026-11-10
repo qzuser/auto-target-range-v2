@@ -529,6 +529,25 @@ class CTFBaseAgent(SubAgent):
                            "即时请示用户；其余如实注明即可。"
                            "缺声明的副作用请求会被退回。"},
             }),
+        _fn("local_tool",
+            "在本机「用户设置的本地工具目录」里找工具并运行。operation=search 按关键词"
+            "查索引（返回名字/路径/大小），operation=describe 看详情，operation=run 执行。"
+            "运行器会把工具目录复制到暂存副本里跑，跑完核对并还原原目录、销毁副本——"
+            "所以正则可以随便试，但每次都要给 action 如实声明本次行为类别。"
+            "索引没配置时会直接告诉你先去控制台设置目录。",
+            {"operation": {"type": "string", "enum": ["search", "describe", "run"],
+                           "description": "操作类型，默认 search"},
+             "query": {"type": "string", "description": "search 的关键词（名字或路径片段）"},
+             "name": {"type": "string", "description": "describe/run 的工具名（索引里的 name）"},
+             "args": {"type": "array", "items": {"type": "string"},
+                      "description": "run 的命令行参数，逐个给"},
+             "timeout": {"type": "number", "description": "run 的超时秒数，缺省用设置里的值"},
+             "action": {"type": "string",
+                        "description": "本次行为类别：analysis=只是查询/读取；"
+                                       "reverse_shell / webshell_upload / brute_force / "
+                                       "intrusive_write / delete_files / container_escape "
+                                       "按实际动作如实声明"}},
+            ["operation"]),
         _fn("shell",
             "在隔离沙箱里执行一条 shell 命令（bash -c），拿到输出与退出码。"
             "适合 HTTP 交互、socket 通信、文件检索与处理等命令行动作；"
@@ -1425,6 +1444,8 @@ class CTFBaseAgent(SubAgent):
                 out = await self._tool_http(task, route, state, args)
             elif name in ("shell", "python"):
                 out = await self._tool_sandbox(task, route, state, name, args)
+            elif name == "local_tool":
+                out = await self._tool_local_tool(task, route, state, args)
             elif name == "analyze_text":
                 out = await self._tool_analyze_text(task)
             elif name == "analyze_attachments":
@@ -2059,6 +2080,49 @@ class CTFBaseAgent(SubAgent):
             findings=[],
             note=f"{desc} → {status}",
             text=_obs_text(obs))
+
+    async def _tool_local_tool(self, task: Task, route, state: dict[str, Any],
+                               args: dict[str, Any]) -> _ToolOutcome:
+        """本地工具：检索或运行用户设置目录里的工具。
+
+        运行由 `local_runner` 负责「复制→跑→对账→还原→删副本」，这里只把结果
+        折成观察：`clean=false`（没能还原）本身就是需要停手报告的异常，
+        不能当成普通执行成功继续往下推。
+        """
+        operation = str(args.get("operation") or "search").strip().lower()
+        payload = {
+            "operation": operation,
+            "query": str(args.get("query") or ""),
+            "name": str(args.get("name") or ""),
+            "args": [str(a) for a in (args.get("args") or [])] if isinstance(args.get("args"), list) else [],
+            "action": str(args.get("action") or "analysis"),
+        }
+        if args.get("timeout") not in (None, ""):
+            try:
+                payload["timeout"] = float(args["timeout"])
+            except (TypeError, ValueError):
+                return _ToolOutcome(ok=False, text="timeout 需要是秒数。")
+        res = await self.ctx.tools.call("local_tool", payload, **self._tool_ctx(task))
+        desc = f"local_tool {operation}"
+        if operation == "run":
+            clean = bool(res.parsed.get("clean"))
+            state["observations"].append({
+                "action": desc,
+                "result": (f"{res.parsed.get('tool')} 退出码 {res.parsed.get('exit_code')}"
+                           + ("（目录已还原）" if clean else "（未能还原，已中止）"))[:160]})
+            if not clean:
+                return _ToolOutcome(
+                    ok=False, note=f"{desc} → 目录未能还原",
+                    text=("本地工具运行后目录未能完全还原，已停止使用该工具。\n"
+                          + (res.stdout or res.error or "")[:1500]))
+            return _ToolOutcome(ok=res.ok, note=f"{desc} → 退出码 {res.parsed.get('exit_code')}",
+                                text=(res.stdout or res.error or "")[:4000],
+                                metadata=res.parsed)
+        state["observations"].append({"action": desc,
+                                      "result": (res.stdout or res.error or "")[:160]})
+        return _ToolOutcome(ok=res.ok, note=f"{desc} → {res.parsed.get('count', '')}".strip(),
+                            text=(res.stdout or res.error or "")[:4000],
+                            metadata=res.parsed)
 
     async def _tool_sandbox(self, task: Task, route, state: dict[str, Any],
                             name: str, args: dict[str, Any]) -> _ToolOutcome:

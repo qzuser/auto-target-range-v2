@@ -9,6 +9,7 @@ from typing import Any
 from spiritscout.agents.profiles import get_profile
 from spiritscout.core.exceptions import SpiritScoutError
 from spiritscout.core.models import AgentType, RunMode
+from spiritscout.core.sqlite_ro import ro_uri
 
 
 def side_session_source(session: Any, actor: str, task_id: str) -> dict[str, Any]:
@@ -17,7 +18,7 @@ def side_session_source(session: Any, actor: str, task_id: str) -> dict[str, Any
         raise SpiritScoutError("该模式不支持子 Agent 旁路会话")
     if not session.bb_path.exists():
         raise SpiritScoutError("尚无可用于旁路会话的子 Agent 任务")
-    with sqlite3.connect(f"file:{session.bb_path}?mode=ro", uri=True) as conn:
+    with sqlite3.connect(ro_uri(session.bb_path), uri=True) as conn:
         row = conn.execute("SELECT data,updated_by FROM bb_records WHERE layer='task_state' AND record_id=?",
                            (task_id,)).fetchone()
         user_context = conn.execute("SELECT data FROM bb_records WHERE layer='target_auth' AND record_id='user-context'").fetchone()

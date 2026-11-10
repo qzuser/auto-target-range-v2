@@ -20,9 +20,12 @@ class ProcessGraphTests(unittest.TestCase):
             graph = read_process_graph(path)
             self.assertTrue(graph['has_more'])
             self.assertEqual(len(graph['nodes']), 320)
+            # 缓存命中必须零拷贝、零重读：返回的是只读视图（模块文档已写明调用方
+            # 不许原地改）。这里钉住「同一个对象 + 不重扫审计」这条性能契约。
             with patch('spiritscout.web.process_graph.read_activity_page', side_effect=AssertionError):
-                graph['nodes'].clear()
-                self.assertEqual(len(read_process_graph(path)['nodes']), 320)
+                again = read_process_graph(path)
+                self.assertEqual(len(again['nodes']), 320)
+                self.assertIs(again, read_process_graph(path))
         graph = project_process([
             {'seq': 1, 'actor': 'a', 'type': 'agent.tool_call', 'detail': {
                 'task_id': 't', 'route_id': 'r', 'calls': [{'id': 'internal', 'name': 'investigate'}]}},

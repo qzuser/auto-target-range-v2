@@ -23,6 +23,7 @@ from spiritscout.config.settings import McpServerConfig
 from spiritscout.core.audit import sanitize_record
 from spiritscout.core.exceptions import SpiritScoutError
 from spiritscout.core.ids import new_id
+from spiritscout.core.sqlite_ro import ro_uri
 
 # 资源配置里的凭据字段：资源页/提案展示不回显（用户自己填的 key，
 # 与会话页 agent 数据流的原文监控是两回事）
@@ -1187,7 +1188,7 @@ class ResourceStore:
         with self.connection() as catalog:
             previous = catalog.execute("SELECT * FROM resource_imports WHERE source=?", (source,)).fetchone()
         cursor = previous["high_water"] if previous and previous["identity"] == identity and not full else -1
-        conn = sqlite3.connect(db.resolve().as_uri() + "?mode=ro", uri=True)
+        conn = sqlite3.connect(ro_uri(db), uri=True)
         try:
             conn.execute("BEGIN")
             tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}

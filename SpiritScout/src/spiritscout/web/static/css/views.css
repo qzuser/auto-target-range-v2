@@ -1485,3 +1485,20 @@ dialog.panel { width: min(880px, 94vw); padding: 0; overflow: hidden; max-height
 .usage-empty { margin: 18px 0; font-size: 13px; color: var(--ink-3); }
 .usage-error { margin: 0 0 14px; font-size: 13px; color: #c0392b; }
 .u-note { margin: 12px 0 0; font-size: 12px; color: var(--ink-3); }
+
+/* 本地工具：目录清单、扫描结果与「用完还原」的提示 */
+.lt-dirs { margin: 16px 0 0; }
+.lt-dirs h3 { margin: 0 0 8px; font-size: 13px; color: var(--ink-2); }
+.lt-dir { display: flex; align-items: center; gap: 10px; padding: 6px 0;
+  border-bottom: 1px dashed var(--line, #ececf2); }
+.lt-dir code { flex: 1; font-size: 12px; overflow-wrap: anywhere; }
+.lt-add { display: flex; gap: 8px; margin: 12px 0 0; }
+.lt-add input { flex: 1; }
+.lt-actions { display: flex; align-items: center; gap: 10px; margin: 18px 0 0; flex-wrap: wrap; }
+.lt-error { margin: 12px 0 0; font-size: 13px; color: #c0392b; }
+.lt-search { margin: 14px 0 8px; }
+.lt-search input { width: 100%; }
+.lt-table-wrap { overflow-x: auto; }
+.lt-table td code { font-size: 12px; overflow-wrap: anywhere; }
+.lt-table td small { display: block; color: var(--ink-3); font-size: 11px; }
+.set-toggle { display: flex; align-items: center; gap: 8px; margin: 14px 0 0; font-size: 13px; }

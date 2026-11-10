@@ -25,6 +25,7 @@ from spiritscout.blackboard.layers import can_write
 from spiritscout.bus.base import EventBus
 from spiritscout.core.exceptions import PolicyViolation, VersionConflict
 from spiritscout.core.models import AgentType, BlackboardLayer, Event
+from spiritscout.core.sqlite_ro import ro_uri
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS bb_records (
@@ -60,7 +61,7 @@ class Blackboard:
         if not readonly:
             self._path.parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(
-            self._path.resolve().as_uri() + "?mode=ro" if readonly else str(self._path),
+            ro_uri(self._path) if readonly else str(self._path),
             uri=readonly, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         if not readonly:

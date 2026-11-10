@@ -131,7 +131,8 @@ const VIEWS = { home: "#view-home", session: "#view-session", dash: "#view-dash"
                 agents: "#view-agents", projects: "#view-projects", exp: "#view-exp",
                 settings: "#view-settings" };
 const SET_TABS = { models: "#view-models", mcp: "#view-mcp", skill: "#view-skill",
-                   notify: "#view-notify", about: "#view-about" };
+                   notify: "#view-notify", localtools: "#view-localtools",
+                   about: "#view-about" };
 const SET_FIRST = "models";
 
 function show(view) {
@@ -149,6 +150,7 @@ function show(view) {
   if (view === "agents") loadAgents();
   if (view === "models") loadModels();
   if (view === "notify" && typeof ConsoleNotify !== "undefined") ConsoleNotify.open();
+  if (view === "localtools" && typeof LocalToolsPage !== "undefined") LocalToolsPage.open();
   if (view === "about") { renderAbout();
     if (typeof Maintenance !== "undefined") Maintenance.open(); }
   if (view === "dash") renderDash();

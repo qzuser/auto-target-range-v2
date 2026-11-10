@@ -13,6 +13,7 @@
 """
 from __future__ import annotations
 
+import os
 import time
 from datetime import datetime
 from pathlib import Path
@@ -37,19 +38,26 @@ def _ledger_files(cfg: Any) -> list[Path]:
     if not root.is_dir():
         return []
     files: list[Path] = []
-    for candidate in [root / "usage.json", root / "usage.db"]:
-        if candidate.is_file():
-            files.append(candidate.with_suffix(".json"))
-            break
+    if (root / "usage.db").is_file() or (root / "usage.json").is_file():
+        files.append(root / "usage.json")
     sessions = root / "sessions"
-    if sessions.is_dir():
-        for child in sorted(sessions.iterdir()):
-            if not child.is_dir():
+    if not sessions.is_dir():
+        return files
+    # 用 scandir：目录项的 stat 在扫描时就带回来了，别对每个会话再 is_file 两次
+    # （每轮统计要做几十次系统调用，Windows 上一次 stat 就是 0.08 ms 量级）
+    try:
+        entries = list(os.scandir(sessions))
+    except OSError:
+        return files
+    for entry in entries:
+        try:
+            if not entry.is_dir():
                 continue
-            for name in ("usage.json", "usage.db"):
-                if (child / name).is_file():
-                    files.append(child / "usage.json")
-                    break
+            names = {item.name for item in os.scandir(entry.path)}
+        except OSError:
+            continue
+        if names & {"usage.json", "usage.db"}:
+            files.append(Path(entry.path) / "usage.json")
     return files
 
 
@@ -115,7 +123,7 @@ def collect(cfg: Any, *, period: str = "7d", now: float | None = None) -> dict[s
     seen: set[str] = set()
     duplicated = 0
     for path in _ledger_files(cfg):
-        snapshot = read_usage(path)
+        snapshot = read_usage(path, readonly=True)   # 只读遍历，不必深拷贝整份序列
         if not snapshot:
             continue
         calls = snapshot.get("call_series") or []
