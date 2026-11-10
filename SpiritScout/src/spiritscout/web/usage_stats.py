@@ -1,9 +1,15 @@
 """按模型汇总 token 用量：把各处的用量账本合成一张表。
 
 用量按「谁记谁家账」落在多个 SQLite 账本里：控制台的命名/提炼/对话记在
-``<工作区>/usage.json``，每个会话记在自己的 ``sessions/<id>/usage.json``。
+``<工作区>/usage.db``，每个会话一开始也记在自己的 ``sessions/<id>/usage.db``，
+并库之后同一笔会同时出现在两处——所以这里**按 ``call_id`` 去重**，同一笔只算一次。
 统计页只读这些账本，按模型聚合调用次数、token（输入/输出/缓存读）与费用，
 不参与调度、不改任何账。
+
+口径（页面表头也这么写）：
+- ``input`` 是本次调用的输入（**含**缓存命中部分），``cached`` 是其中命中提示词缓存
+  的那一截；``new_input = input - cached`` 才是按原价计费的增量输入；
+- ``tokens = input + output``，别把 ``cached`` 再加一遍，否则三列加不出合计。
 """
 from __future__ import annotations
 
@@ -49,7 +55,7 @@ def _ledger_files(cfg: Any) -> list[Path]:
 
 def _empty_bucket(model: str) -> dict[str, Any]:
     return {"model": model, "calls": 0, "tokens": 0, "input": 0, "output": 0,
-            "cached": 0, "usd": 0.0, "cny_min": 0.0, "cny_max": 0.0,
+            "cached": 0, "new_input": 0, "usd": 0.0, "cny_min": 0.0, "cny_max": 0.0,
             "priced_calls": 0, "first_ts": 0.0, "last_ts": 0.0}
 
 
@@ -59,7 +65,11 @@ def _add(bucket: dict[str, Any], call: dict[str, Any]) -> None:
     bucket["tokens"] += tokens
     bucket["input"] += int(call.get("input_tokens") or 0)
     bucket["output"] += int(call.get("output_tokens") or 0)
-    bucket["cached"] += int(call.get("cached_input_tokens") or 0)
+    cached = int(call.get("cached_input_tokens") or 0)
+    bucket["cached"] += cached
+    # 增量输入：按原价计费的那部分（缓存命中另算），保证 输入+输出=合计 之外
+    # 还有一列能看出「这次真花了多少新 token」
+    bucket["new_input"] += max(0, int(call.get("input_tokens") or 0) - cached)
     usd = float(call.get("cost_usd") or 0)
     bucket["usd"] += usd
     low = call.get("estimated_cost_cny_min")
@@ -102,6 +112,8 @@ def collect(cfg: Any, *, period: str = "7d", now: float | None = None) -> dict[s
     daily: dict[str, dict[str, int]] = {}
     ledgers = 0
     total_calls = 0
+    seen: set[str] = set()
+    duplicated = 0
     for path in _ledger_files(cfg):
         snapshot = read_usage(path)
         if not snapshot:
@@ -111,6 +123,13 @@ def collect(cfg: Any, *, period: str = "7d", now: float | None = None) -> dict[s
             continue
         ledgers += 1
         for call in calls:
+            # 并库后同一笔会同时挂在会话账本和工作区账本上：按 call_id 只算一次
+            call_id = str(call.get("call_id") or "")
+            if call_id:
+                if call_id in seen:
+                    duplicated += 1
+                    continue
+                seen.add(call_id)
             ts = float(call.get("ts") or 0)
             if ts and ts < start:
                 continue
@@ -136,12 +155,17 @@ def collect(cfg: Any, *, period: str = "7d", now: float | None = None) -> dict[s
         models.append(item)
 
     series = [{"date": day, **daily[day]} for day in sorted(daily)]
+    input_tokens = sum(b["input"] for b in buckets.values())
+    cached_tokens = sum(b["cached"] for b in buckets.values())
     totals = {
         "calls": total_calls,
         "tokens": total_tokens,
-        "input": sum(b["input"] for b in buckets.values()),
+        "input": input_tokens,
         "output": sum(b["output"] for b in buckets.values()),
-        "cached": sum(b["cached"] for b in buckets.values()),
+        # 含在 input 里的那部分，单列出来免得「输入+缓存」被误当成两笔
+        "cached": cached_tokens,
+        "new_input": sum(b["new_input"] for b in buckets.values()),
+        "cache_rate": round(cached_tokens / input_tokens, 4) if input_tokens else 0.0,
         "usd": round(sum(b["usd"] for b in buckets.values()), 6),
         "cny_min": round(sum(b["cny_min"] for b in buckets.values()), 6),
         "cny_max": round(sum(b["cny_max"] for b in buckets.values()), 6),
@@ -156,6 +180,8 @@ def collect(cfg: Any, *, period: str = "7d", now: float | None = None) -> dict[s
         "generated_at": now,
         "timezone": "Asia/Shanghai",
         "ledgers": ledgers,
+        # 并库里重复出现的笔数（去重后不计入上面的合计），排查账本问题时有据可查
+        "duplicated_calls": duplicated,
         "totals": totals,
         "models": models,
         "daily": series[-DAILY_POINTS_CAP:],

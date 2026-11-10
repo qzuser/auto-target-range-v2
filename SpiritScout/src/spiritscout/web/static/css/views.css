@@ -1473,6 +1473,10 @@ dialog.panel { width: min(880px, 94vw); padding: 0; overflow: hidden; max-height
 .u-num { text-align: right; font-variant-numeric: tabular-nums; }
 .u-total { font-weight: 700; }
 .u-share { min-width: 130px; }
+/* 表头小字与缓存列：说明「输入含缓存」，别让人把两列加一遍 */
+.u-table thead th small { display: block; font-weight: 400; font-size: 10.5px;
+  color: var(--ink-3); letter-spacing: 0; margin-top: 1px; }
+.u-table td.u-cached small { margin-left: 4px; font-size: 11px; color: var(--ink-3); }
 .u-bar { display: inline-block; width: 82px; height: 6px; border-radius: 3px;
   background: var(--line, #ececf2); overflow: hidden; vertical-align: middle; }
 .u-bar i { display: block; height: 100%; background: var(--accent, #4f6ef7); }

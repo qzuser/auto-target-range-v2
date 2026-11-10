@@ -139,13 +139,15 @@ async function refreshState() {
   }
 }
 
-/* WP 页签只在 CTF 解题模式出现：只有那类会话才有"题目 + 过程 + Flag"可写。 */
+/* WP 页签：CTF 解题模式可写；别的模式只要已经生成过 WP（比如跑完一轮自动写的那份）
+   也要能看——不然「交付物里有 WP、页签却找不到」就是这条判断漏的。 */
 function renderWriteUpTab() {
   const button = document.querySelector('[data-tab="writeup"]');
   if (!button) return;
   const ctf = S.state?.session?.mode === "ctf";
-  button.hidden = !ctf;
-  if (!ctf && S.tab === "writeup") {     // 换了会话别停在已经不该存在的页签
+  const hasWp = !!S.state?.writeup?.exists;
+  button.hidden = !(ctf || hasWp);
+  if (!ctf && !hasWp && S.tab === "writeup") {   // 换了会话别停在已经不该存在的页签
     S.tab = "chat";
     for (const t of TABS) $("#tab-" + t).hidden = t !== "chat";
     document.querySelectorAll("#s-tabs button").forEach(b => {

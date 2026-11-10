@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from pathlib import Path
 from typing import Any
 
 from spiritscout.core.audit import AuditLogger, NullAuditLogger
@@ -36,6 +37,54 @@ _WRITER_SYSTEM = (
     "- 中文，Markdown，直接输出完整文档正文（不要代码块包裹，不要 JSON，"
     "不要寒暄）。"
 )
+
+
+# --------------------------------------------------------------- WP 落盘位置
+# WP 有两处来源，找的时候必须一起看，否则「报告里明明有、WP 页签却说没有」：
+#   1) ``<workspace>/writeup/wp-*.md``      —— 页面上点「生成 WP」写的（规范位置）
+#   2) ``<workspace>/reports/*writeup*.md`` —— 跑完一轮自动生成的战报（交付物里能看到）
+# 读取端一律走 :func:`latest_wp`，别各写各的 glob。
+
+def wp_dir(workspace: Path) -> Path:
+    """WP 的规范目录（手动生成写这里）。"""
+    return Path(workspace) / "writeup"
+
+
+def wp_candidates(workspace: Path) -> list[Path]:
+    """两处来源的 WP 文件，新的在前（同一次运行里别重复列的按真实路径去重）。"""
+    workspace = Path(workspace)
+    found: list[Path] = []
+    folder = wp_dir(workspace)
+    if folder.is_dir():
+        found.extend(folder.glob("wp-*.md"))
+    reports = workspace / "reports"
+    if reports.is_dir():
+        found.extend(p for p in reports.glob("*.md")
+                     if "writeup" in p.name.lower())
+    unique: dict[str, Path] = {}
+    for path in found:
+        try:
+            unique.setdefault(str(path.resolve()).lower(), path)
+        except OSError:
+            continue
+    return sorted(unique.values(), key=lambda p: p.stat().st_mtime, reverse=True)
+
+
+def latest_wp(workspace: Path) -> Path | None:
+    """最新一份 WP（手动/自动不限），没有则 None。"""
+    try:
+        files = wp_candidates(workspace)
+    except OSError:
+        return None
+    return files[0] if files else None
+
+
+def wp_source(path: Path) -> str:
+    """这份 WP 是页面上生成的（manual）还是跑完自动写的（auto）。"""
+    try:
+        return "manual" if path.parent.name == "writeup" else "auto"
+    except AttributeError:
+        return "auto"
 
 
 def run_facts(audit: AuditLogger | None) -> dict[str, int]:
@@ -115,15 +164,11 @@ def build_digest(
         ],
         # 未解的题必须点名：不点名时写手会替它圆成「其实解了、只是没登记」
         "unsolved_ids": [cid for cid in all_ids if cid and cid not in solved],
+        # 只给 flag 值：判定/提交状态属于平台侧验证，写进 WP 就成了「验证环节」
         "flags": [
-            {"value": getattr(f, "value", ""), "challenge_id": getattr(f, "challenge_id", ""),
-             "found_by": getattr(f, "found_by", ""), "submitted": getattr(f, "submitted", False),
-             "accepted": getattr(f, "accepted", None)}
+            {"value": getattr(f, "value", ""), "challenge_id": getattr(f, "challenge_id", "")}
             for f in flags
         ],
-        "rounds": run_summary.get("rounds_executed", 0),
-        # 真实计数：同一节点多次运行是「重复验证」还是「真失败」，看这里而不是猜
-        "run_facts": facts or {},
         "dag": [
             {"title": n.get("title"), "status": n.get("status")}
             for n in run_summary.get("dag_nodes", [])
@@ -188,9 +233,10 @@ async def writeup_body(
             prompt = [
                 {"role": "system", "content": _WRITER_SYSTEM},
                 {"role": "user", "content": (
-                    f"刚才那版写成了「{marker}」这类对材料本身的审查，不是 WriteUp。"
-                    "现在只按结构写：全场总览 + 每题一节（题面要点 / 关键过程 / "
-                    "Flag 与验证状态 / 经验或未竟方向），不要任何审查、问题清单、建议。"
+                    f"刚才那版写成了「{marker}」这类对材料本身的审查，不是解题思路。"
+                    "现在只按骨架写：全场概览 + 每题一节（题目 / 思路 / 过程 / Flag），"
+                    "讲清看到什么、怎么判断、打了什么、拿到什么；"
+                    "不要审查、问题清单、建议，也不要写验证状态、经验总结或下一步计划。"
                     "材料如下：\n" + material)},
             ]
         audit.log("report.writeup", "master", {"result": "off_task_give_up"})
@@ -220,15 +266,16 @@ _DIRECTION_ALIASES = {
 }
 
 _WP_SYSTEM = (
-    "你是灵枢，智能体集群的总负责人。比赛已经结束，现在由你按赛方要求的模板"
-    "撰写**解题思路**（WriteUp）。\n"
-    "接下来那条消息是**材料**（本次会话的题目、过程记录、发现台账与 Flag，JSON），"
+    "你是灵枢，智能体集群的总负责人。比赛结束了，现在写一份**给队友看的解题思路**"
+    "（WriteUp）：读者是没做过这道题的人，看完要能自己复现一遍。\n"
+    "接下来那条消息是**材料**（题目、过程记录、发现台账与 Flag，JSON），"
     "不是队员对你说话——不要回答它、不要评论材料本身、不要给它挑错或提改进建议。\n"
-    "这份文档交的是「这道题怎么解」：题目怎么读、看到了什么、据此怎么判断、"
-    "打了什么、怎么拿到 Flag，读者照着能复现。\n"
-    "**不要写系统内部怎么组织这次作业**：谁派发了任务、有几个子 Agent、跑了几个回合、"
-    "用了哪个模型、工作台怎么显示、路线怎么并行——这些是工具细节，不是解题思路。\n"
-    "输出必须严格是这个骨架（Markdown，直接输出正文，不要代码块包裹）：\n"
+    "只写解题过程。下面这些一律不写：\n"
+    "- **验证环节**：flag 是否通过平台校验、提交次数或回执、✅/❌、「未判定」「待核对」；\n"
+    "- **经验与复盘**：经验沉淀、心得、教训、改进建议、未竟方向、下一步计划；\n"
+    "- **内部编排**：主 Agent／子 Agent／派发／回合／路线／健康度／步数／模型／"
+    "提示词／工作台这些工具细节。\n"
+    "输出必须严格是这个骨架（Markdown，直接输出正文，不要把整篇包进代码块）：\n"
     "```\n"
     "# <团队名称>-解题思路\n"
     "## 团队信息\n"
@@ -238,36 +285,32 @@ _WP_SYSTEM = (
     "- 参赛赛事：…（材料 team.contest 有值才写这行，没有就整行省略）\n"
     "（材料 team.notes 有值时，在这里补一行引用：> 补充说明：<原话>）\n"
     "## 解题情况\n"
-    "- 本场题目数与解出数、整体打法一段（讲怎么破的，不讲怎么排的班）\n"
+    "一段话：本场几道题、各是什么类型、分别靠什么手法拿下的（只讲题，不讲怎么排的班）。\n"
     "## 具体WP\n"
     "### <方向>\n"          # 只写材料里真有题的方向，顺序 WEB/PWN/REVERSE/MISC/CRYPTO/DS/IOT
     "#### <题目名称>\n"
-    "- **题面要点**：…\n"
-    "- **信息收集与判断**：看到什么现象/回显，据此判断这是哪类问题\n"
-    "- **解题步骤**：分步写，一步一条，含实际执行过的命令、载荷、脚本原文\n"
-    "- **获取 Flag**：…\n"
-    "- **工具与关键命令**：一个工具一条，写「工具名 — 用途 — 关键命令」\n"
-    "- > [截图：这里该配什么图]\n"
+    "**题目**：题面讲了什么、给了什么附件或入口（一两句，地址照抄）。\n"
+    "**思路**：先看到什么现象或回显 → 据此判断这是哪类问题 → 决定从哪儿切。\n"
+    "**过程**：\n"
+    "1. 具体动作：执行的命令／发出的请求／脚本原文（用代码块），紧跟一句「为什么这么打」。\n"
+    "2. 关键回显或报错照抄（只留支撑判断的那几行），并写清由此得出什么结论。\n"
+    "3. 一步步推到拿到结果；中间试错也要写，写清为什么试、排除了什么。\n"
+    "**Flag**：`flag{...}`（只写值；没拿到就写「未获取到」）\n"
     "```\n"
-    "写作纪律（赛方对无效 WP 的判定依据，逐条遵守）：\n"
+    "写作纪律（赛方按这些判 WP 有效无效，逐条遵守）：\n"
     "- **全文中文**：命令、载荷、路径、工具名、专有名词保留原文，不翻译；\n"
-    "- **必须写工具**：`tools` 是本次真正调用过的工具清单（含调用次数），"
-    "把它与步骤里出现过的命令对上；材料里没有的工具、命令一律不许编；\n"
-    "- 每一步都要能照着复现：写清目标/输入、发了什么请求或命令、返回的关键片段；\n"
-    "- **不写内部过程**：正文里不出现「主 Agent / 子 Agent / 灵枢 / 派发 / 编排 /"
-    " 回合 / 路线 / 工作台 / 模型调用 / 提示词」这类字眼，把过程素材改写成解题动作；\n"
-    "- `team` 里给了团队名称、队员、单位、赛事就照抄，没给的一律写「（待填写）」；\n"
-    "- 单位与赛事是两块可省略的行：`team` 里有值就必须写出来，一个字都不许漏；\n"
+    "- **按人话写**：完整句子叙述，一句解释一句动作，读起来是故事不是清单；\n"
+    "- **每一步都要能照着复现**：写清目标、发了什么、回了什么、据此做了什么决定；\n"
+    "- **必须写工具**：`tools` 是本次真正调用过的工具清单，用到哪个写哪个；"
+    "材料里没有的工具、命令一律不许编；\n"
     "- 每题的 `#### <题目名称>` 照抄材料里的 title，不要追加 URL、编号或自己的注解；\n"
-    "- `team.notes` 是队员的补充交代（比赛约定、要强调或回避的内容），必须遵守；\n"
     "- 分章以 `chapters` 为准（队员可能手改过方向），不要按自己的判断重新归类；\n"
-    "- 关键步骤不可省略、不可含糊其辞、不可一笔带过；\n"
+    "- 材料里没有的方向不写那一章；一题都没有时，「具体WP」下写明本场未解出题目；\n"
+    "- `team` 里给了团队名称、队员、单位、赛事就照抄，没给的一律写「（待填写）」；\n"
+    "- `team.notes` 是队员的补充交代（比赛约定、要强调或回避的内容），必须遵守；\n"
     "- 凡是本次自己写的脚本，必须贴原文（太长就贴关键函数，并说明其余部分作用）；\n"
     "- 只使用材料里的事实：材料没有的步骤、命令、数字一律不写，不得编造；\n"
-    "- `unsolved_ids` 里的题一律写成「未完成」，不得推测它「其实解了、只是没登记」；\n"
-    "- 材料里没有的方向不写那一章；一题都没有时，「具体WP」下写明本场未解出题目；\n"
-    "- 截图用 `> [截图：<该截什么>]` 占位，不要编造截图文件名或图片内容；\n"
-    "- 不要产出「日志审查」「质量问题清单」「改进建议」这类章节。"
+    "- 截图用 `> [截图：<该截什么>]` 占位，不要编造截图文件名或图片内容。"
 )
 
 
@@ -317,7 +360,7 @@ def build_wp_digest(
     run_summary: dict[str, Any],
     blackboard: Any,
     team: dict[str, Any] | None = None,
-    facts: dict[str, int] | None = None,
+    facts: dict[str, int] | None = None,   # 兼容旧调用；内部计数不进材料
     direction_overrides: dict[str, Any] | None = None,
     tools: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
@@ -335,11 +378,9 @@ def build_wp_digest(
     by_challenge: dict[str, list[dict[str, Any]]] = {}
     for f in flags:
         cid = str(getattr(f, "challenge_id", "") or "")
+        # 只给 flag 值：判定与提交结果是平台侧的状态，写进 WP 就变成「验证环节」
         by_challenge.setdefault(cid, []).append({
             "value": str(getattr(f, "value", "") or ""),
-            "accepted": getattr(f, "accepted", None),
-            "submitted": bool(getattr(f, "submitted", False)),
-            "found_by": str(getattr(f, "found_by", "") or ""),
         })
 
     # 路线笔记按题名/题号归堆，归不上的进公共池——写手仍能据此补全"怎么推的"
@@ -377,8 +418,11 @@ def build_wp_digest(
         cid = str(c.get("id") or "")
         title = str(c.get("title") or cid or "未命名题目")
         mine = by_challenge.get(cid, [])
-        # accepted is False 的是错 flag，不算解出；None（未判定）按已提取处理
-        is_solved = any(f["accepted"] is not False for f in mine)
+        # accepted is False 的是错 flag，不算解出；None（未判定）按已提取处理。
+        # 结论只落在 solved 上，材料里不带判定值（见上）
+        is_solved = any(getattr(f, "accepted", None) is not False
+                        for f in flags
+                        if str(getattr(f, "challenge_id", "") or "") == cid)
         if is_solved:
             solved.add(cid)
         entry = {
@@ -415,7 +459,6 @@ def build_wp_digest(
         "total": len(entries),
         "shared_notes": routes[:40],
         "findings": findings[-60:],
-        "run_facts": facts or {},
         # 工具清单：解题思路里「用了什么工具」只能从这里取，不许凭空补
         "tools": list(tools or []),
     }
@@ -522,23 +565,18 @@ def wp_fallback(digest: dict[str, Any], *, reason: str = "") -> str:
             else:
                 lines.append("  1. （材料中未记录到可复现的分步过程）")
             flags = item.get("flags") or []
-            if flags:
-                for f in flags:
-                    verdict = ("✅ 正确" if f.get("accepted")
-                               else ("❌ 错误" if f.get("accepted") is False
-                                     else "⏳ 未判定"))
-                    lines.append(f"- **获取 Flag**：`{f.get('value', '')}` — {verdict}")
+            values = [str(f.get("value") or "") for f in flags if f.get("value")]
+            if values:
+                lines.append("- **Flag**：" + "、".join(f"`{v}`" for v in values))
             elif item.get("solved"):
-                lines.append("- **获取 Flag**：（已解出，材料中未记录 flag 值）")
+                lines.append("- **Flag**：（已解出，材料中未记录 flag 值）")
             else:
-                lines.append("- **获取 Flag**：未完成")
+                lines.append("- **Flag**：未获取到")
             inventory = digest.get("tools") or []
             if inventory:
-                lines.append("- **工具与关键命令**：")
-                for entry in inventory[:12]:
-                    lines.append(f"  - `{entry.get('tool', '')}` — "
-                                 f"本次调用 {entry.get('calls', 0)} 次")
+                names = "、".join(f"`{e.get('tool', '')}`" for e in inventory[:12])
+                lines.append(f"- **用到的工具**：{names}")
             else:
-                lines.append("- **工具与关键命令**：（材料中未记录工具调用）")
+                lines.append("- **用到的工具**：（材料中未记录工具调用）")
             lines += ["- > [截图：解题关键步骤]", "- > [截图：获取 flag]", ""]
     return "\n".join(lines).rstrip() + "\n"

@@ -61,7 +61,8 @@ const sandbox = {
     return saved;
   },
   toast: (message, bad) => calls.push(["toast", message, Boolean(bad)]),
-  S: { cur: "sess-wp" },
+  // 页签与按钮都按会话模式走：这里给一个 CTF 会话，非 CTF 的情形在末尾单独验
+  S: { cur: "sess-wp", state: { session: { mode: "ctf" } } },
   document: {
     addEventListener: (name, fn) => listeners.push([name, fn]),
     createElement: () => ({ className: "", textContent: "", remove() {} }),
@@ -139,13 +140,30 @@ const click = (want) => {
   WriteUp.reset();
   assert.equal(box.innerHTML, "");
 
+  // 非 CTF 会话：没有 WP 时不给生成入口（后端也只认 CTF），已有 WP 时只给看与下载
+  sandbox.S.state.session.mode = "src";
+  saved = null;                      // 清掉上一步 POST 留下的那份
+  await WriteUp.load();
+  assert.doesNotMatch(box.innerHTML, /data-wp="open"/, "非 CTF 模式不该出现生成按钮");
+  assert.match(box.innerHTML, /不是 CTF 解题模式/);
+  saved = { path: "reports/ctf_writeup_x.md", source: "auto",
+            markdown: "# 自动战报\n\nflag{a}", updated_at: "2026-11-10 09:31:12" };
+  await WriteUp.load();
+  assert.match(box.innerHTML, /flag\{a\}/, "自动生成的那份要能读");
+  assert.match(box.innerHTML, /由本场自动生成/);
+  assert.doesNotMatch(box.innerHTML, /data-wp="open"/, "非 CTF 模式不给重新生成");
+  assert.match(box.innerHTML, /下载 Markdown/, "下载始终可用");
+  sandbox.S.state.session.mode = "ctf";
+
   // 接线：页签、分发、重置、脚本加载顺序，缺一项功能就点不到
   const views = fs.readFileSync('src/spiritscout/web/static/js/views.js', 'utf8');
   assert.match(views, /const TABS = \[[^\]]*"writeup"/);
   assert.ok(views.includes('if (S.tab === "writeup") WriteUp.load();'));
   assert.ok(views.includes('renderWriteUpTab();'));
   assert.ok(views.includes('WriteUp.reset();'));
-  assert.match(views, /function renderWriteUpTab\(\)[\s\S]{0,400}button\.hidden = !ctf/);
+    // 页签可见性：CTF 模式可写；非 CTF 但已经生成过 WP 也要显示（否则「报告里有、页签没有」）
+  assert.match(views, /function renderWriteUpTab\(\)[\s\S]{0,600}writeup\?\.exists/);
+  assert.match(views, /button\.hidden = !\(ctf \|\| hasWp\)/);
 
   const html = fs.readFileSync('src/spiritscout/web/static/index.html', 'utf8');
   assert.ok(html.includes('data-tab="writeup"'), '页签按钮要在页面上');

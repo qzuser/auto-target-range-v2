@@ -18,10 +18,14 @@ const WriteUp = (() => {
   const splitMembers = (text) =>
     text.split(/[,，、;；\n]/).map((item) => item.trim()).filter(Boolean);
 
+  /* 只有 CTF 解题模式能重新生成（后端同样只认这个模式）；自动战报那份只给看和下载 */
+  const canWrite = () => S.state?.session?.mode === "ctf";
+
   const shell = (data) => `<div class="wp-head">
-      <span class="muted">${data.updated_at ? `生成于 ${esc(data.updated_at)}` : "尚无记录"}</span>
+      <span class="muted">${data.updated_at ? `生成于 ${esc(data.updated_at)}` : "尚无记录"}${
+        data.source === "auto" ? " · 由本场自动生成" : ""}</span>
       <span class="wp-acts">
-        <button class="btn sm" type="button" data-wp="open">重新生成</button>
+        ${canWrite() ? `<button class="btn sm" type="button" data-wp="open">重新生成</button>` : ""}
         <a class="btn sm" href="/api/sessions/${S.cur}/writeup/download" download>下载 Markdown</a>
       </span>
     </div>
@@ -29,9 +33,10 @@ const WriteUp = (() => {
 
   const empty = () => `<div class="card wp-empty">
       <h3>还没有解题思路</h3>
-      <p>点下面的按钮，灵枢会按赛方模板为这次解答的题目写一份 WP：
-         题目按方向分章，每题给题面要点、关键步骤和获取 Flag 的过程。</p>
-      <button class="btn primary" type="button" data-wp="open">生成 WP</button>
+      <p>${canWrite()
+        ? "点下面的按钮，灵枢会按赛方模板为这次解答的题目写一份 WP：题目按方向分章，每题讲清怎么看出问题、怎么利用、最后拿到什么。"
+        : "这个会话不是 CTF 解题模式，也没有自动生成过 WP；换到 CTF 解题模式的会话再生成。"}</p>
+      ${canWrite() ? `<button class="btn primary" type="button" data-wp="open">生成 WP</button>` : ""}
     </div>`;
 
   const form = (data) => {

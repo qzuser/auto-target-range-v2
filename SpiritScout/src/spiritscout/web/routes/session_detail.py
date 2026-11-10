@@ -143,6 +143,24 @@ def _read_challenge_progress(session: Session) -> dict[str, Any] | None:
             "updated_at": progress.get("updated_at")}
 
 
+def _writeup_brief(session: Session) -> dict[str, Any]:
+    """WP 的轻量摘要（不读正文）：有没有、什么时候生成、哪条路径写的。"""
+    from spiritscout.ctf.writeup import latest_wp, wp_source
+
+    try:
+        path = latest_wp(session.workspace)
+    except OSError:
+        path = None
+    if path is None:
+        return {"exists": False, "path": None, "updated_at": None, "source": None}
+    try:
+        stamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(path.stat().st_mtime))
+    except OSError:
+        stamp = None
+    return {"exists": True, "path": str(path), "updated_at": stamp,
+            "source": wp_source(path)}
+
+
 def _read_state(session: Session) -> dict[str, Any]:
     """数据面快照：短连接只读打开会话黑板（WAL 下与写入侧不互堵）。
 
@@ -172,6 +190,9 @@ def _read_state(session: Session) -> dict[str, Any]:
         "business_context": None,
         "topology": {"dag_nodes": [], "tasks": [],
                      "process": read_process_graph(session.audit_path)},
+        # WP 是否存在只看这一处（手动生成 + 跑完自动生成的都算），
+        # 前端页签可见性也靠它，别再去猜 mode
+        "writeup": _writeup_brief(session),
     }
     if not session.bb_path.exists():
         # 黑板未建（排队中）：终态摘要兜底（重开历史会话）
@@ -728,26 +749,35 @@ def mount_session_detail(app: FastAPI, *, manager: SessionManager,
             return list(manager.models or [])
 
     def _wp_dir(session: Session) -> Path:
-        """WP 独立目录：不与 reports/*.md 混放（报告取最新一份，混放会串）。"""
-        return session.workspace / "writeup"
+        """WP 规范目录：手动生成写这里，不跟 reports/*.md 混放。"""
+        from spiritscout.ctf.writeup import wp_dir
+
+        return wp_dir(session.workspace)
 
     def _latest_wp(session: Session) -> Path | None:
-        folder = _wp_dir(session)
-        if not folder.is_dir():
-            return None
-        files = sorted(folder.glob("wp-*.md"),
-                       key=lambda p: p.stat().st_mtime, reverse=True)
-        return files[0] if files else None
+        """最新一份 WP：手动生成的和跑完自动生成的都算（见 ctf.writeup.latest_wp）。
+
+        只看 ``writeup/wp-*.md`` 会把自动战报漏掉——那种会话在「交付物／报告」里
+        明明能看到 WP，WP 页签却说「还没有」，正是这条路径分叉造成的。
+        """
+        from spiritscout.ctf.writeup import latest_wp
+
+        return latest_wp(session.workspace)
 
     def _wp_payload(session: Session) -> dict[str, Any]:
+        from spiritscout.ctf.writeup import wp_source
+
         path = _latest_wp(session)
         if path is None:
-            return {"path": None, "markdown": None, "updated_at": None}
+            return {"path": None, "markdown": None, "updated_at": None,
+                    "source": None, "exists": False}
         return {
             "path": str(path),
             "markdown": path.read_text(encoding="utf-8"),
             "updated_at": time.strftime("%Y-%m-%d %H:%M:%S",
                                         time.localtime(path.stat().st_mtime)),
+            "source": wp_source(path),
+            "exists": True,
         }
 
     def _session_challenges(session: Session, *,

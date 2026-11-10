@@ -58,8 +58,10 @@ class DigestTests(unittest.TestCase):
             blackboard=board,
         )
         self.assertEqual(digest["challenges"][0]["id"], "web-01")
-        self.assertEqual(digest["flags"][0]["accepted"], True)
-        self.assertEqual(digest["rounds"], 2)
+        # 只留 flag 值与归属：判定/提交和回合数都是内部状态，不进 WP 材料
+        self.assertEqual(digest["flags"][0],
+                         {"value": "flag{x}", "challenge_id": "web-01"})
+        self.assertNotIn("rounds", digest)
         self.assertEqual(digest["routes_notes"][0]["routes"][0]["notes"], ["注释泄露后端语句"])
         self.assertEqual(digest["findings"][0]["text"], "flag{x}")
 
@@ -96,11 +98,13 @@ class RunFactsTests(unittest.TestCase):
     def test_missing_audit_yields_empty(self) -> None:
         self.assertEqual(run_facts(None), {})
 
-    def test_digest_includes_run_facts(self) -> None:
+    def test_digest_keeps_internal_counters_out(self) -> None:
+        """模型调用/失败次数是内部指标：进了材料就会被写成复盘与验证环节。"""
         digest = build_digest(challenges=[], flags=[], run_summary={},
                               blackboard=_FakeBlackboard([], []),
                               facts={"model_failures": 0})
-        self.assertEqual(digest["run_facts"], {"model_failures": 0})
+        self.assertNotIn("run_facts", digest)
+        self.assertNotIn("rounds", digest)
 
 
 class OffTaskTests(unittest.IsolatedAsyncioTestCase):

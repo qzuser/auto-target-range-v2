@@ -124,9 +124,17 @@ class DigestTests(unittest.TestCase):
         entry = digest["challenges"][0]
         self.assertEqual(entry["routes"][0]["notes"], ["抓包发现 role 参数可改"])
 
-    def test_run_facts_pass_through(self) -> None:
+    def test_internal_counters_stay_out_of_the_material(self) -> None:
+        """调用/失败计数不进材料：写手拿到它就会写成复盘与验证环节。"""
         digest = _digest([_challenge("c1", "题一")])
-        self.assertEqual(digest["run_facts"], {"model_calls": 12})
+        self.assertNotIn("run_facts", digest)
+
+    def test_flag_material_carries_no_verdict(self) -> None:
+        """只留 flag 值；判定/提交状态属于平台侧验证，不进 WP 材料。"""
+        digest = _digest([_challenge("c1", "题一")],
+                         [_flag("flag{a}", "c1", True)])
+        flags = digest["challenges"][0]["flags"]
+        self.assertEqual(flags, [{"value": "flag{a}"}])
 
 
 class PromptTests(unittest.TestCase):
@@ -135,17 +143,23 @@ class PromptTests(unittest.TestCase):
     def test_prompt_asks_for_the_solution_not_the_pipeline(self) -> None:
         self.assertIn("解题思路", _WP_SYSTEM)
         self.assertIn("全文中文", _WP_SYSTEM)
-        self.assertIn("工具与关键命令", _WP_SYSTEM)
-        self.assertIn("不写内部过程", _WP_SYSTEM)
+        self.assertIn("必须写工具", _WP_SYSTEM)
+        self.assertIn("内部编排", _WP_SYSTEM)
         # 这些词只出现在「不许写」的纪律里，素材本身不再往编排上引
         for word in ("子 Agent", "派发", "编排", "回合"):
             with self.subTest(word=word):
                 self.assertIn(word, _WP_SYSTEM)
 
     def test_prompt_keeps_the_contest_skeleton(self) -> None:
-        for heading in ("## 团队信息", "## 解题情况", "## 具体WP", "获取 Flag"):
+        for heading in ("## 团队信息", "## 解题情况", "## 具体WP", "**Flag**", "**过程**"):
             with self.subTest(heading=heading):
                 self.assertIn(heading, _WP_SYSTEM)
+
+    def test_prompt_bans_verification_and_retro_sections(self) -> None:
+        """验证环节与经验复盘都不写：这是「只讲解题过程」的硬口径。"""
+        for banned in ("验证环节", "经验与复盘", "未判定", "改进建议"):
+            with self.subTest(banned=banned):
+                self.assertIn(banned, _WP_SYSTEM)
 
 
 class ToolTests(unittest.TestCase):
@@ -160,7 +174,16 @@ class ToolTests(unittest.TestCase):
                          tools=[{"tool": "sqlmap", "calls": 2}])
         body = wp_fallback(digest)
         self.assertIn("sqlmap", body)
-        self.assertIn("工具与关键命令", body)
+        self.assertIn("用到的工具", body)
+        self.assertNotIn("本次调用", body, "调用次数是内部计数，不进 WP")
+
+    def test_fallback_has_no_flag_verdicts(self) -> None:
+        digest = _digest([_challenge("c1", "题一")], [_flag("flag{a}", "c1", True)])
+        body = wp_fallback(digest)
+        self.assertIn("`flag{a}`", body)
+        for verdict in ("✅", "❌", "未判定", "正确"):
+            with self.subTest(verdict=verdict):
+                self.assertNotIn(verdict, body)
 
     def test_inventory_counts_the_audit_tool_calls(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -192,7 +215,7 @@ class FallbackTests(unittest.TestCase):
     def test_fallback_marks_unsolved_challenge_as_unfinished(self) -> None:
         digest = _digest([_challenge("c2", "栈溢出", "pwn")])
         body = wp_fallback(digest)
-        self.assertIn("未完成", body)
+        self.assertIn("未获取到", body)
         # 没解出来就不许出现像 flag 的内容
         self.assertNotIn("flag{", body)
 

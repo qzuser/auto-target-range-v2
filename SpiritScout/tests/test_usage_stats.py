@@ -96,6 +96,46 @@ class CollectTests(unittest.TestCase):
         total = sum(d["tokens"] for d in data["daily"])
         self.assertEqual(total, 22)
 
+    def test_no_cache_means_new_input_equals_input(self) -> None:
+        _write(self.root, "", [
+            {"ts": self.now - 5, "tokens": 300, "input_tokens": 300,
+             "output_tokens": 0, "model": "cn:glm-5.3-flash"},
+        ])
+        totals = collect(self.cfg, period="today", now=self.now)["totals"]
+        self.assertEqual(totals["new_input"], 300)
+        self.assertEqual(totals["cache_rate"], 0.0)
+
+    def test_same_call_in_two_ledgers_counts_once(self) -> None:
+        """并库后同一笔会同时挂在会话账本和工作区账本上：只能算一次。
+
+        真实症状是「token 用量比实际高出一截」——一个 call_id 被数了两遍。
+        """
+        row = {"ts": self.now - 30, "tokens": 500, "input_tokens": 400,
+               "output_tokens": 100, "model": "cn:glm-5.3-flash",
+               "call_id": "call-dup-1"}
+        _write(self.root, "", [row])
+        _write(self.root, "sess.dup", [row])
+        data = collect(self.cfg, period="today", now=self.now)
+        self.assertEqual(data["totals"]["calls"], 1)
+        self.assertEqual(data["totals"]["tokens"], 500)
+        self.assertEqual(data["duplicated_calls"], 1)
+
+    def test_cached_tokens_are_part_of_input_not_an_extra_column(self) -> None:
+        """口径：input 含缓存命中，新增输入 = input − cached，合计 = input + output。"""
+        _write(self.root, "", [
+            {"ts": self.now - 10, "tokens": 1000, "input_tokens": 800,
+             "output_tokens": 200, "cached_input_tokens": 700,
+             "model": "cn:glm-5.3-flash"},
+        ])
+        data = collect(self.cfg, period="today", now=self.now)
+        totals = data["totals"]
+        self.assertEqual(totals["tokens"], 1000)
+        self.assertEqual(totals["input"], 800)
+        self.assertEqual(totals["cached"], 700)
+        self.assertEqual(totals["new_input"], 100)
+        self.assertAlmostEqual(totals["cache_rate"], 0.875, places=3)
+        self.assertEqual(data["models"][0]["new_input"], 100)
+
     def test_bad_period_falls_back_to_week(self) -> None:
         data = collect(self.cfg, period="nonsense", now=self.now)
         self.assertEqual(data["period"], "7d")
