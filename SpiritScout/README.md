@@ -9,7 +9,7 @@
 
 **简体中文 · [English](README_EN.md)**
 
-[![Version](https://img.shields.io/badge/version-v0.44.3-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
+[![Version](https://img.shields.io/badge/version-v0.45.0-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
 
 [快速开始](#快速开始) · [三种模式](#三种模式) · [界面](#界面) · [工作原理](#工作原理) · [配置参考](#配置参考) · [常见问题](#常见问题) · [部署指南](docs/部署与配置.md)
 
@@ -174,6 +174,30 @@ launch.cmd
 
 访问 <http://127.0.0.1:8000>，`Ctrl+C` 停止。改端口：`./launch.sh --port 10010` 或 `launch.cmd --port 10010`。
 
+**Windows 桌面版（带自己的窗口）**
+
+不想开黑窗口、也不想在浏览器标签页里跑控制台，用桌面版：`launcher/SpiritScoutDesktop.cs`
+编译成一个约 824 KB 的 exe，WinForms 窗口 + 内嵌 WebView2，关窗口即停服务。
+
+```powershell
+powershell -ExecutionPolicy Bypass -File launcher\build-desktop.ps1
+```
+
+首次会下 WebView2 SDK（约 8 MB，缓存到 `launcher/.cache/`，之后加 `-SkipDownload` 可离线）。
+用 Windows 自带的 `csc.exe` 编译，**不需要 .NET SDK**；三个 WebView2 DLL 作为资源编进 exe，
+首次运行时解到 `%LOCALAPPDATA%\SpiritScout\lib`（写不进去退程序目录、再退临时目录）。
+窗口里能做四件事：环境自检 / 一键修复（调 `scripts/bootstrap.py`）、启动与停止服务（端口被占
+自动换下一个）、内嵌页面、看日志（同时写 `logs\desktop-<日期>.log`）。没有 WebView2 运行时
+时自动退到 Edge 的 `--app=` 独立窗口。
+
+命令行排障用同一个脚本，不必开窗口：
+
+```powershell
+python scripts/bootstrap.py            # 体检：解释器、venv、缺哪些依赖、可用端口
+python scripts/bootstrap.py --fix      # 一键补齐（清华 → 阿里 → 官方逐源重试）
+python scripts/bootstrap.py --json     # 给脚本/GUI 消费
+```
+
 **默认没有登录**：控制台直接进（`web.auth_mode: none`）。`launch.cmd` / `launch.sh`
 不会逼你设密码（它们不碰管理员账号），库里以前留下的账号也不会把界面重新锁上；
 仓库根那套本机启动器（`启动服务.cmd` → `start-local.ps1`）首次启动会问一次，回车两次
@@ -196,7 +220,7 @@ launch.cmd --auth password
 `[状态] 已运行 01:00 · 会话 2（运行中 0） · 内存 244 MB`，不开任务管理器也能知道它活着。
 
 ```
-灵枢 Web 控制台 v0.44.3: http://127.0.0.1:8010  (登录已关闭，本机直接进入（auth_mode=none），并发上限 4，Ctrl+C 停止)
+灵枢 Web 控制台 v0.45.0: http://127.0.0.1:8010  (登录已关闭，本机直接进入（auth_mode=none），并发上限 4，Ctrl+C 停止)
 
 [就绪] 浏览器可以打开了: http://127.0.0.1:8010
        每 60 秒报一次状态；Ctrl+C 停止
@@ -225,13 +249,13 @@ shell / Python 沙箱需要 Linux + bubblewrap；Windows 与 macOS 原生控制�
 
 | 附件 | 带什么 |
 | --- | --- |
-| `spiritscout-0.44.3-py3-none-any.whl` | `pip install` 用：前端静态页面、知识库种子、报告模板、206 条内置安全技能（`knowledge/data/security_skills.json`）、342 条经验（`knowledge/data/experience.json` + `experience.md`）。**不含** `skills/` 那套自定义技能包（它有 5669 个文件，塞进 wheel 太重） |
-| `spiritscout-0.44.3.tar.gz` | sdist（约 24 MB）：整份源码 + `skills/` 技能包的文本素材（4549 个文件，插图与演示视频留在 zip 里）+ 配置模板（`skills.yaml`、`models.example.yaml`、`models.mock.yaml`、`system.example.yaml`）+ 经验。真实 `models.yaml` / `system.yaml` 不在里面 |
-| `spiritscout-0.44.3.zip` | 整仓源码：代码、`skills/`、`configs/`、`experience-export/`、`EXPERIENCE.md`，解开就按上面「快速开始」跑 |
+| `spiritscout-0.45.0-py3-none-any.whl` | `pip install` 用：前端静态页面、知识库种子、报告模板、206 条内置安全技能（`knowledge/data/security_skills.json`）、342 条经验（`knowledge/data/experience.json` + `experience.md`）。**不含** `skills/` 那套自定义技能包（它有 5669 个文件，塞进 wheel 太重） |
+| `spiritscout-0.45.0.tar.gz` | sdist（约 24 MB）：整份源码 + `skills/` 技能包的文本素材（4549 个文件，插图与演示视频留在 zip 里）+ 配置模板（`skills.yaml`、`models.example.yaml`、`models.mock.yaml`、`system.example.yaml`）+ 经验。真实 `models.yaml` / `system.yaml` 不在里面 |
+| `spiritscout-0.45.0.zip` | 整仓源码：代码、`skills/`、`configs/`、`experience-export/`、`EXPERIENCE.md`，解开就按上面「快速开始」跑 |
 | `SHA256SUMS` | 上面三个包的校验和，装前先对一遍 |
 
 ```bash
-pip install spiritscout-0.44.3-py3-none-any.whl
+pip install spiritscout-0.45.0-py3-none-any.whl
 spiritscout --help
 ```
 
@@ -464,7 +488,7 @@ Docker 用 `python deploy.py migrate`；手工迁移时停服 → 拷 `.spiritsc
 
 ## 文档与贡献
 
-当前代码版本 **v0.44.3**。版本唯一来源、递增规则与历史说明见 [版本管理](CONTRIBUTING.md#版本管理)。
+当前代码版本 **v0.45.0**。版本唯一来源、递增规则与历史说明见 [版本管理](CONTRIBUTING.md#版本管理)。
 
 | 我想了解 | 阅读入口 |
 | --- | --- |

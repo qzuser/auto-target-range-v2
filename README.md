@@ -59,6 +59,35 @@ py -3.11 -m venv SpiritScout\.venv
 只要界面点一遍、不真解题：把 `SpiritScout/configs/models.mock.yaml` 复制成 `models.yaml`，
 模拟模型是确定性应答、不消耗 token。
 
+## 桌面版：带自己窗口的那种开法
+
+不想开黑窗口、也不想在浏览器标签页里跑控制台，就双击 **`灵枢桌面版.exe`**：左边是环境自检
+与一键修复，右边是嵌在本窗口里的控制台页面（WebView2，不是外部标签页），关窗口即停服务。
+
+exe 不在仓库里（`.gitignore` 挡了），要么从 release 附件拿，要么自己编一次：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File SpiritScout\launcher\build-desktop.ps1
+```
+
+首次会下 WebView2 SDK（约 8 MB，缓存在 `SpiritScout/launcher/.cache/`，之后离线可用：
+加 `-SkipDownload`）。编译用 Windows 自带的 `csc.exe`，**不需要装 .NET SDK**；产物是
+一个约 824 KB 的 exe，内嵌浏览器要的三个 DLL 以资源形式塞在里面，首次运行时自己解到
+`%LOCALAPPDATA%\SpiritScout\lib`（那目录写不进去就退程序目录、再退临时目录）。
+
+它替你做的判断：
+
+- **环境自检/一键修复**：调 `SpiritScout/scripts/bootstrap.py`——挑 3.11+ 解释器、建 venv、
+  补 pip、装依赖（清华 → 阿里 → 官方逐源重试），缺什么补什么，不用记命令。
+- **端口自动让开**：8010 被占就 8011、8012 往下找，不必改配置。
+- **起停成对**：点「停止」或关窗口都会把服务进程树一起收掉，不留孤儿占着端口。
+- **出问题留证据**：日志写 `logs\desktop-<日期>.log`；真崩了弹窗并把堆栈写进
+  `crash-<时间>.log`，不用对着「双击没反应」猜。
+- **没有 WebView2 运行时**：自动退到 Edge 的 `--app=` 独立窗口，照样能用。
+
+命令行那条路（`启动服务.cmd` + `start-local.ps1`）没变，桌面版只是给它套了个窗口；
+两者不要同时开同一个端口。
+
 ## 两份 system 配置：为什么不是简单地「照 example 覆盖」
 
 仓库同时提交 [`SpiritScout/configs/system.yaml`](SpiritScout/configs/system.yaml)（本机现行）

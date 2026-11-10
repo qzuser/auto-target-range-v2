@@ -63,3 +63,12 @@ EXPERIENCE.md
 SpiritScout/EXPERIENCE.md
 SpiritScout/src/spiritscout/knowledge/data/experience.json
 SpiritScout/src/spiritscout/knowledge/data/experience.md
+
+# 桌面版：exe 由 SpiritScout/launcher/build-desktop.ps1 现场编译（release 附件里带成品），
+# 首次运行解出来的 WebView2 DLL 与下载的 SDK 缓存都不入库。
+灵枢桌面版.exe
+灵枢桌面版-lib/
+SpiritScout/launcher/.cache/
+desktop-runtime-error.txt
+logs/
+灵枢桌面版.exe.WebView2/

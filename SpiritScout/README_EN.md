@@ -9,7 +9,7 @@ and progress, evidence, and artifacts stay in the same session.
 
 **English · [简体中文](README.md)**
 
-[![Version](https://img.shields.io/badge/version-v0.44.3-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
+[![Version](https://img.shields.io/badge/version-v0.45.0-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
 
 [Quick start](#quick-start) · [Three modes](#three-modes) · [Interface](#interface) · [How it works](#how-it-works) · [Configuration](#configuration) · [FAQ](#faq) · [Deployment guide (中文)](docs/部署与配置.md)
 
@@ -171,13 +171,32 @@ launch.cmd
 
 Open <http://127.0.0.1:8000>, stop with `Ctrl+C`. Change the port with `./launch.sh --port 10010` or `launch.cmd --port 10010`.
 
+**Windows desktop build (its own window)**
+
+If you would rather not keep a console window open or run the console inside a browser
+tab, build the desktop client — a WinForms shell with an embedded WebView2:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File launcher\build-desktop.ps1
+```
+
+It compiles to a single ~824 KB exe with the Windows-bundled `csc.exe` (**no .NET SDK
+needed**); the three WebView2 DLLs are embedded as resources and unpacked on first run to
+`%LOCALAPPDATA%\SpiritScout\lib` (falling back to the program directory, then TEMP). The
+first build downloads the WebView2 SDK (~8 MB, cached under `launcher/.cache/`); pass
+`-SkipDownload` afterwards to build offline. The window runs the environment check and
+one-click repair (`scripts/bootstrap.py --fix`), starts/stops the server (it moves to the
+next free port when 8010 is taken), shows the console inline, and writes
+`logs\desktop-<date>.log`. Without the WebView2 runtime it falls back to Edge in
+`--app=` mode.
+
 The console prints the bind address first, then **waits until the port actually accepts
 connections before saying `[就绪] 浏览器可以打开了`** — first boot creates databases and warms
 up models, so a fixed delay would either lie or waste time. After that it reports a status
 line every 60 seconds, so you do not need a task manager to know it is alive.
 
 ```
-灵枢 Web 控制台 v0.44.3: http://127.0.0.1:8010  (管理员登录已启用，并发上限 4，Ctrl+C 停止)
+灵枢 Web 控制台 v0.45.0: http://127.0.0.1:8010  (管理员登录已启用，并发上限 4，Ctrl+C 停止)
 
 [就绪] 浏览器可以打开了: http://127.0.0.1:8010
        每 60 秒报一次状态；Ctrl+C 停止
@@ -213,13 +232,13 @@ Prefer a ready-made package over a source checkout? All three artifacts carry th
 
 | Asset | What it ships |
 | --- | --- |
-| `spiritscout-0.44.3-py3-none-any.whl` | `pip install` target: console assets, knowledge seeds, report templates, the 206 built-in security skills (`knowledge/data/security_skills.json`) and all 342 experience entries (`knowledge/data/experience.json` + `experience.md`). It does **not** include the custom `skills/` packs — 5669 files would make the wheel unreasonably heavy |
-| `spiritscout-0.44.3.tar.gz` | sdist (~24 MB): full source + the text part of `skills/` (4549 files; images and demo videos stay in the zip) + config templates (`skills.yaml`, `models.example.yaml`, `models.mock.yaml`, `system.example.yaml`) + experience. Real `models.yaml` / `system.yaml` stay out |
-| `spiritscout-0.44.3.zip` | full repository source: code, `skills/`, `configs/`, `experience-export/`, `EXPERIENCE.md` — unzip and follow *Quick start* |
+| `spiritscout-0.45.0-py3-none-any.whl` | `pip install` target: console assets, knowledge seeds, report templates, the 206 built-in security skills (`knowledge/data/security_skills.json`) and all 342 experience entries (`knowledge/data/experience.json` + `experience.md`). It does **not** include the custom `skills/` packs — 5669 files would make the wheel unreasonably heavy |
+| `spiritscout-0.45.0.tar.gz` | sdist (~24 MB): full source + the text part of `skills/` (4549 files; images and demo videos stay in the zip) + config templates (`skills.yaml`, `models.example.yaml`, `models.mock.yaml`, `system.example.yaml`) + experience. Real `models.yaml` / `system.yaml` stay out |
+| `spiritscout-0.45.0.zip` | full repository source: code, `skills/`, `configs/`, `experience-export/`, `EXPERIENCE.md` — unzip and follow *Quick start* |
 | `SHA256SUMS` | checksums for the three files above |
 
 ```bash
-pip install spiritscout-0.44.3-py3-none-any.whl
+pip install spiritscout-0.45.0-py3-none-any.whl
 spiritscout --help
 ```
 
@@ -358,7 +377,7 @@ Use `python deploy.py migrate` for Docker. Manually: stop the service, copy `.sp
 
 ## Docs and contributing
 
-Current code version: **v0.44.3**. The single source of the version, the bump rules, and the history: see [version management (中文)](CONTRIBUTING.md#版本管理).
+Current code version: **v0.45.0**. The single source of the version, the bump rules, and the history: see [version management (中文)](CONTRIBUTING.md#版本管理).
 
 | I want to | Read |
 | --- | --- |

@@ -1,3 +1,11 @@
+# 桌面版（Windows 自带窗口的客户端）：源码与编译脚本进 sdist，够别人自己编；
+# 下下来的 WebView2 SDK 缓存（约 8 MB）与编好的 exe 不入包——exe 作为 release 附件单独发。
+include launcher/SpiritScoutDesktop.cs
+include launcher/build-desktop.ps1
+include launcher/SpiritScoutLauncher.cs
+include launcher/build-launcher.ps1
+prune launcher/.cache
+prune launcher/tools
 # 源码分发包的补充清单。
 # setuptools 默认只收测试目录里的 *.py，前端那套 node 测试（tests/test_*.js）
 # 一直没进 sdist——从源码包构建的人因此跑不了 AGENTS 要求的 `node tests/test_*.js`。
