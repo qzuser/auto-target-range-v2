@@ -1,8 +1,10 @@
 name: 打包并发布
 
-# 打 tag 就自动出包：wheel + sdist + 整仓 zip + SHA256SUMS，附到同名 Release 上。
-# 三种包都带做题经验：wheel/sdist 里是 knowledge/data/experience.json(+md)，
+# 打 tag 就自动出包：wheel + sdist + 整仓 zip + 桌面版 exe + SHA256SUMS，附到同名 Release 上。
+# 三种源码包都带做题经验：wheel/sdist 里是 knowledge/data/experience.json(+md)，
 # 包根另有 EXPERIENCE.md 摘要；zip 是整仓（含 experience-export/ 与 EXPERIENCE.md）。
+# 桌面版 exe 必须在 Windows 上编（用的是系统自带 csc.exe，不需要 .NET SDK），
+# 所以拆成 package（Linux）→ desktop（Windows）→ release（汇总分发）三段。
 # 也可以在 Actions 页面手动触发（填一个已存在的 tag，或留空按代码版本号推导）。
 on:
   push:
@@ -11,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "要附件的 tag（例如 v0.44.1）；留空则按 ref / 代码版本号推导"
+        description: "要附件的 tag（例如 v0.45.0）；留空则按 ref / 代码版本号推导"
         required: false
         type: string
 
@@ -24,7 +26,7 @@ concurrency:
 
 jobs:
   package:
-    name: 构建发行包
+    name: 构建源码包
     runs-on: ubuntu-latest
     steps:
       - name: 取代码
@@ -37,35 +39,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
-      - name: 核对 tag 与代码版本
-        id: ver
-        shell: bash
-        run: |
-          set -euo pipefail
-          version=$(python - <<'PY'
-          import pathlib, re
-          text = pathlib.Path("SpiritScout/src/spiritscout/__init__.py").read_text(encoding="utf-8")
-          print(re.search(r'__version__\s*=\s*"([^"]+)"', text).group(1))
-          PY
-          )
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-
-          tag="${{ github.event.inputs.tag }}"
-          if [ -z "$tag" ]; then
-            if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-              tag="${GITHUB_REF_NAME}"
-            else
-              tag="v$version"          # 手动在分支上触发：按代码版本号出包
-              echo "没填 tag，按代码版本出 v$version"
-            fi
-          fi
-          if [ "$tag" != "v$version" ]; then
-            echo "::error::tag $tag 与代码版本 v$version 不一致——先升版本号或改用正确的 tag"
-            exit 1
-          fi
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "版本 v$version，tag $tag，一致。"
 
       - name: 生成经验摘要
         shell: bash
@@ -88,7 +61,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          version="${{ steps.ver.outputs.version }}"
+          version=$(python - <<'PY'
+          import pathlib, re
+          text = pathlib.Path("SpiritScout/src/spiritscout/__init__.py").read_text(encoding="utf-8")
+          print(re.search(r'__version__\s*=\s*"([^"]+)"', text).group(1))
+          PY
+          )
           prefix="spiritscout-$version/"
           zip="dist/spiritscout-$version.zip"
           git archive --format=zip --prefix="$prefix" -o "$zip" HEAD
@@ -122,21 +100,112 @@ jobs:
               print("在包里:", rel)
           PY
 
-      - name: 生成 SHA256
+      - name: 交出源码包
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-dist
+          path: dist/*
+          if-no-files-found: error
+
+  desktop:
+    name: 构建桌面版 exe
+    runs-on: windows-latest
+    steps:
+      - name: 取代码
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: 编译（系统自带 csc.exe，无需 .NET SDK）
+        shell: pwsh
+        run: |
+          # NuGet 取 WebView2 SDK 是首次编译才做的事；缓存目录随跑随建。
+          ./SpiritScout/launcher/build-desktop.ps1 -OutputDir dist-desktop
+
+      - name: 核对产物
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem dist-desktop -Filter *.exe | Select-Object -First 1
+          if (-not $exe) { throw "没编出 exe" }
+          if ($exe.Length -lt 500KB) { throw "exe 只有 $([math]::Round($exe.Length/1KB)) KB，像是编残了" }
+          $version = (Select-String -Path SpiritScout/src/spiritscout/__init__.py -Pattern '__version__\s*=\s*"([^"]+)"').Matches[0].Groups[1].Value
+          $target = "dist-desktop/spiritscout-desktop-$version-win64.exe"
+          Move-Item $exe.FullName $target -Force
+          Write-Host "产物：$target（$([math]::Round((Get-Item $target).Length/1KB)) KB）"
+
+      - name: 交出桌面版
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-exe
+          path: dist-desktop/*
+          if-no-files-found: error
+
+  release:
+    name: 汇总并发布
+    needs: [package, desktop]
+    runs-on: ubuntu-latest
+    steps:
+      - name: 取代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: 核对 tag 与代码版本
+        id: ver
         shell: bash
         run: |
           set -euo pipefail
-          cd dist && sha256sum ./*.whl ./*.tar.gz ./*.zip > SHA256SUMS && cat SHA256SUMS
+          version=$(python - <<'PY'
+          import pathlib, re
+          text = pathlib.Path("SpiritScout/src/spiritscout/__init__.py").read_text(encoding="utf-8")
+          print(re.search(r'__version__\s*=\s*"([^"]+)"', text).group(1))
+          PY
+          )
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+          tag="${{ github.event.inputs.tag }}"
+          if [ -z "$tag" ]; then
+            if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+              tag="${GITHUB_REF_NAME}"
+            else
+              tag="v$version"          # 手动在分支上触发：按代码版本号出包
+              echo "没填 tag，按代码版本出 v$version"
+            fi
+          fi
+          if [ "$tag" != "v$version" ]; then
+            echo "::error::tag $tag 与代码版本 v$version 不一致——先升版本号或改用正确的 tag"
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "版本 v$version，tag $tag，一致。"
+
+      - name: 收下两边的产物
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: 展平并生成 SHA256
+        shell: bash
+        run: |
+          set -euo pipefail
+          # download-artifact 会按 artifact 名建子目录，这里摊平到一个 dist/ 里，
+          # 让 SHA256SUMS 里的路径就是文件名本身（下载后 sha256sum -c 直接可用）。
+          mkdir -p flat
+          find dist -type f -exec cp -t flat {} +
+          cd flat && sha256sum ./* > SHA256SUMS && cat SHA256SUMS
+          echo "条目数：$(ls -1 | wc -l)"
 
       - name: 附到 Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.ver.outputs.tag }}
           files: |
-            dist/*.whl
-            dist/*.tar.gz
-            dist/*.zip
-            dist/SHA256SUMS
+            flat/*.whl
+            flat/*.tar.gz
+            flat/*.zip
+            flat/*.exe
+            flat/SHA256SUMS
           fail_on_unmatched_files: true
           # Release 标题与正文由人写（CHANGELOG 摘出来的那份），这里既不覆盖也不动草稿状态。
           draft: false

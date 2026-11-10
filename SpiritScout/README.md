@@ -245,14 +245,15 @@ shell / Python 沙箱需要 Linux + bubblewrap；Windows 与 macOS 原生控制�
 ### 发行包（Release 附件）
 
 不想拉源码自己装，就直接下打包好的。三个包都带**做题经验**，但技能库不一样，
-按需要挑：
+按需要挑；Windows 用户还可以直接拿桌面版 exe：
 
 | 附件 | 带什么 |
 | --- | --- |
 | `spiritscout-0.45.0-py3-none-any.whl` | `pip install` 用：前端静态页面、知识库种子、报告模板、206 条内置安全技能（`knowledge/data/security_skills.json`）、342 条经验（`knowledge/data/experience.json` + `experience.md`）。**不含** `skills/` 那套自定义技能包（它有 5669 个文件，塞进 wheel 太重） |
 | `spiritscout-0.45.0.tar.gz` | sdist（约 24 MB）：整份源码 + `skills/` 技能包的文本素材（4549 个文件，插图与演示视频留在 zip 里）+ 配置模板（`skills.yaml`、`models.example.yaml`、`models.mock.yaml`、`system.example.yaml`）+ 经验。真实 `models.yaml` / `system.yaml` 不在里面 |
 | `spiritscout-0.45.0.zip` | 整仓源码：代码、`skills/`、`configs/`、`experience-export/`、`EXPERIENCE.md`，解开就按上面「快速开始」跑 |
-| `SHA256SUMS` | 上面三个包的校验和，装前先对一遍 |
+| `spiritscout-desktop-0.45.0-win64.exe` | **Windows 桌面版**（约 824 KB）：自带窗口的客户端，内嵌 WebView2，不是浏览器标签页。里面已包含运行所需的 WebView2 托管 DLL 与原生 loader（首次运行自动解到 `%LOCALAPPDATA%`），双击即用；**仍需要本机有 Python 3.11+ 与一份仓库源码**——它负责起停服务与环境自检，不代替解释器 |
+| `SHA256SUMS` | 上面几个包的校验和，装前先对一遍 |
 
 ```bash
 pip install spiritscout-0.45.0-py3-none-any.whl
@@ -269,17 +270,10 @@ python -m spiritscout.resources.skill_sync import skills   # 从解开的 zip / 
 核对 tag 与 `__version__` 是否一致（不一致直接失败）、用
 `python -m spiritscout.knowledge.digest` 现算一份经验摘要、`python -m build` 出
 wheel 与 sdist、`git archive` 打整仓 zip 并把摘要塞进去、再装进干净 venv 验证
-`web/static/js/count.js` 和 `knowledge/data/experience.json` 真在包里，最后连同
-`SHA256SUMS` 附到同名 Release。没打 tag 也能出包：Actions 页面选「打包并发布」→
-Run workflow，填一个已存在的 tag 即可。
-
-**怎么出的包**：推一个 `v*` tag，仓库根 `.github/workflows/package.yml` 会自动
-核对 tag 与 `__version__` 是否一致（不一致直接失败）、用
-`python -m spiritscout.knowledge.digest` 现算一份经验摘要、`python -m build` 出
-wheel 与 sdist、`git archive` 打整仓 zip 并把摘要塞进去、再装进干净 venv 验证
-`web/static/js/count.js` 和 `knowledge/data/experience.json` 真在包里，最后连同
-`SHA256SUMS` 附到同名 Release。没打 tag 也能出包：Actions 页面选「打包并发布」→
-Run workflow，填一个已存在的 tag 即可。
+`web/static/js/count.js` 和 `knowledge/data/experience.json` 真在包里。桌面版 exe
+在另一个 Windows 任务里用系统自带 `csc.exe` 编（不需要 .NET SDK），两边产物汇到
+最后一并算 `SHA256SUMS` 再附到同名 Release。没打 tag 也能出包：Actions 页面选
+「打包并发布」→ Run workflow，填一个已存在的 tag 即可。
 
 > 打包只带 git 跟踪的文件加现算的摘要：`.venv/`、`.spiritscout/` 工作区数据、
 > `configs/models.yaml` 里的真实密钥都不会进包；经验在导出时已脱敏（地址、IP、

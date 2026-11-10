@@ -57,8 +57,13 @@
 
 ### 文档
 
+- **发行包多了桌面版**：release 附件里加 `spiritscout-desktop-<版本>-win64.exe`；
+  `.github/workflows/package.yml` 拆成 package（Linux 出 wheel/sdist/zip）→
+  desktop（Windows 用系统 `csc.exe` 编 exe）→ release（汇齐算 `SHA256SUMS` 再附上去）
+  三个任务。顺手删掉包内 README 里重复出现的「怎么出的包」段落。
 - 本工作区 README 与包内 README / README_EN 加「桌面版」小节：怎么编、产物在哪、
   和 `启动服务.cmd` 的区别；`docs/部署与配置.md` 补桌面版与 `bootstrap.py` 的用法。
+
 ## [0.44.3] - 2026-11-10
 
 启动脚本装依赖一直直连 PyPI 官方站，国内动辄几十 KB/s，首次装 litellm / langgraph
