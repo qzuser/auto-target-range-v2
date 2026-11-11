@@ -1,4 +1,4 @@
-﻿// 灵枢桌面版 —— 自带窗口的 Windows 客户端（WinForms + WebView2）
+// 灵枢桌面版 —— 自带窗口的 Windows 客户端（WinForms + WebView2）
 //
 // 为什么要有它：控制台是本地 Web 服务，之前只能双击 .cmd / .exe 开个黑窗口，
 // 再自己去浏览器里开 127.0.0.1:8010。这对「装成软件给人用」来说缺三样东西：
@@ -619,6 +619,7 @@ namespace SpiritScoutDesktop
         private bool _starting;         // 正在启动：防止重试按钮被连点
         private bool _uiPage;           // 当前显示的是启动页/错误页，别被控制台覆盖
         private string _statusText = "";  // 启动页上那行状态，页面刷新后要补回去
+        private static string _shellCss;  // 壳页面共用样式（控制台 base.css+polish.css），读一次缓存
         private readonly object _logLock = new object();
         private StringBuilder _serverErr = new StringBuilder();
 
@@ -997,7 +998,14 @@ namespace SpiritScoutDesktop
                 using (stream)
                 using (StreamReader reader = new StreamReader(stream, Encoding.UTF8))
                 {
-                    return reader.ReadToEnd();
+                    string html = reader.ReadToEnd();
+                    // 壳页面的样式是构建时拼好的（控制台的 base.css + polish.css + 壳自己的排版），
+                    // 塞进占位符，页面里就不用再抄一套颜色和控件样式。
+                    if (html.IndexOf("{{SHELL_CSS}}", StringComparison.Ordinal) >= 0)
+                    {
+                        html = html.Replace("{{SHELL_CSS}}", ReadShellCss());
+                    }
+                    return html;
                 }
             }
             catch (Exception ex)
@@ -1005,6 +1013,40 @@ namespace SpiritScoutDesktop
                 AppendLog("[!] 读内嵌页面失败：" + ex.Message);
                 return null;
             }
+        }
+
+        // 窗口壳（启动页 / 错误页 / 设密码）用的那一份样式：构建时由 launcher/ui/shell.css 嵌进 exe，
+        // 内容就是控制台的 base.css + polish.css 加上壳自己的排版——壳和控制台永远是同一套样式。
+        private string ReadShellCss()
+        {
+            if (_shellCss != null) { return _shellCss; }
+            try
+            {
+                Stream stream = typeof(DesktopForm).Assembly.GetManifestResourceStream("app.shellcss");
+                if (stream != null)
+                {
+                    using (stream)
+                    using (StreamReader reader = new StreamReader(stream, Encoding.UTF8))
+                    {
+                        _shellCss = reader.ReadToEnd();
+                        return _shellCss;
+                    }
+                }
+                // exe 里没嵌（比如直接从源码树里跑的旧壳）就退回磁盘上的构建产物
+                string path = Path.Combine(_packageDir, "launcher", "ui", "shell.css");
+                if (File.Exists(path))
+                {
+                    _shellCss = File.ReadAllText(path, Encoding.UTF8);
+                    return _shellCss;
+                }
+                AppendLog("[!] 找不到窗口壳样式 shell.css（构建时要用 /resource:app.shellcss 嵌进去）");
+            }
+            catch (Exception ex)
+            {
+                AppendLog("[!] 读窗口壳样式失败：" + ex.Message);
+            }
+            _shellCss = "";
+            return _shellCss;
         }
 
         private static string EscapeHtml(string text)

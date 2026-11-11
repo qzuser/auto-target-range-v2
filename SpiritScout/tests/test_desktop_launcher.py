@@ -380,12 +380,13 @@ class DesktopShellUiTests(unittest.TestCase):
             self.assertNotIn(banned, source, f"{banned} 会闪黑底")
         self.assertIn("DefaultBackgroundColor = Color.FromArgb(246, 247, 249)", source)
 
-    def test_ui_pages_are_light_and_offline(self) -> None:
-        # 三张页的底色/白卡片/蓝主色都跟控制台同一套令牌（#f6f8fa / #0969da）
+    def test_ui_pages_share_the_console_stylesheet_and_stay_offline(self) -> None:
+        # 颜色不再写死在页面里：构建时把控制台的 base.css + polish.css 拼进 {{SHELL_CSS}}
         for name in ("splash.html", "error.html", "dialog.html"):
             html = (self.LAUNCHER / "ui" / name).read_text(encoding="utf-8")
-            self.assertIn("#f6f8fa", html, name)
-            self.assertIn("#0969da", html, name)
+            self.assertIn("{{SHELL_CSS}}", html, name)
+            for hex_color in ("#f6f8fa", "#0969da", "#a4681e"):
+                self.assertNotIn(hex_color, html, f"{name} 不该自己定义颜色")
             for remote in ("http://", "https://", "//cdn"):
                 self.assertNotIn(remote, html, f"{name} 不该联网取资源")
         splash = (self.LAUNCHER / "ui" / "splash.html").read_text(encoding="utf-8")
@@ -398,6 +399,9 @@ class DesktopShellUiTests(unittest.TestCase):
         script = (self.LAUNCHER / "build-desktop.ps1").read_text(encoding="utf-8-sig")
         self.assertIn("'splash.html', 'error.html', 'dialog.html'", script)
         self.assertIn('"/resource:" + $pagePath + "," + $page', script)
+        # 壳样式是构建时拼的，必须一起嵌进 exe
+        self.assertIn("'shell-pages.css'", script)
+        self.assertIn('"/resource:" + $shellCssPath + ",app.shellcss"', script)
 
     def test_password_is_set_inside_the_window(self) -> None:
         """设密码不许再弹一个黑色控制台让人瞎输——走窗口里的表单。"""

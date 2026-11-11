@@ -1,0 +1,139 @@
+/* 窗口壳（启动页 / 错误页 / 设密码）自己那一点样式。
+ *
+ * 颜色、字体、按钮、输入框、卡片、焦点圈、滚动条、暗色规则全部来自上面拼进来的
+ * base.css + polish.css —— 也就是说壳和控制台用的是同一份样式，改 web 端这边跟着变。
+ * 这个文件只负责「这一页怎么摆」，以及窗口变小之后怎么收。
+ *
+ * 拼装由 launcher/build-desktop.ps1 完成，产出 launcher/ui/shell.css（构建产物，别手改）。
+ */
+
+html, body { height: 100%; }
+
+/* 页面永远居中，窗口再小也不出现裁切：留白用 clamp，窄的时候自己变小 */
+body.shell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 窗口比卡片还矮的时候（300px 高的横条窗）不能把卡片上下裁掉：
+     safe 关键字让溢出时退回顶部对齐，配 overflow:auto 就能滚。 */
+  align-items: safe center;
+  justify-content: safe center;
+  margin: 0;
+  padding: clamp(14px, 3.4vw, 40px);
+  overflow: auto;
+}
+
+/* 卡片就是控制台那种 .card，只是宽度按窗口收 */
+.card.shell-card { width: min(100%, 468px); padding: 26px 28px 22px; }
+.card.shell-card.wide { width: min(100%, 560px); }
+
+/* ——— 品牌行：跟控制台侧栏 .brand 一模一样的字号与配色 ——— */
+.shell-brand { display: flex; align-items: center; gap: 11px; padding: 0 0 18px; }
+.shell-brand .brand-mark { flex: none; color: var(--accent); }
+.shell-brand h1 { margin: 0; font-size: 17px; font-weight: 700; letter-spacing: .01em; }
+.shell-brand h1 em { font-style: normal; color: var(--accent); }
+.shell-brand small {
+  display: block; color: var(--ink-3); font-size: 10.5px;
+  letter-spacing: .12em; font-family: var(--mono);
+}
+
+/* ================= 启动页 ================= */
+.splash { user-select: none; -webkit-user-select: none; }
+.splash .status {
+  margin: 0; min-height: 21px; font-size: 13px; color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+.splash .track {
+  position: relative; height: 4px; margin: 12px 0 0;
+  border-radius: 999px; background: var(--surface-2); overflow: hidden;
+}
+.splash .track > i {
+  position: absolute; top: 0; bottom: 0; left: -34%; width: 34%;
+  border-radius: 999px; background: var(--accent);
+  animation: ss-slide 1.5s cubic-bezier(.5, 0, .5, 1) infinite;
+}
+@keyframes ss-slide {
+  0%   { left: -34%; width: 34%; }
+  55%  { left: 62%;  width: 38%; }
+  100% { left: 104%; width: 30%; }
+}
+.splash .hint {
+  margin: 18px 0 0; padding-top: 14px; border-top: 1px solid var(--line);
+  font-size: 12px; line-height: 1.75; color: var(--ink-3);
+}
+
+/* ================= 错误页 ================= */
+.shell-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
+.shell-head .badge {
+  flex: none; width: 26px; height: 26px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 14px; font-weight: 700;
+  background: var(--bad-soft); color: var(--bad); border: 1px solid var(--bad);
+}
+.shell-head h1 { margin: 0; font-size: 17px; font-weight: 700; letter-spacing: .01em; }
+.shell-head .lead { margin: 4px 0 0; font-size: 12.5px; line-height: 1.7; color: var(--ink-2); }
+.detail {
+  margin: 0 0 16px; padding: 12px 14px;
+  max-height: clamp(120px, 34vh, 300px); overflow: auto;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius);
+  font-family: var(--mono); font-size: 12px; line-height: 1.6; color: var(--ink-2);
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.shell-foot {
+  margin: 16px 0 0; padding-top: 14px; border-top: 1px solid var(--line);
+  font-size: 12px; line-height: 1.7; color: var(--ink-3);
+}
+
+/* ================= 设密码 ================= */
+.shell-form { display: flex; flex-direction: column; gap: 14px; margin: 16px 0 0; }
+.shell-form .row label {
+  display: block; margin-bottom: 5px;
+  font-size: 12.5px; font-weight: 600; color: var(--ink-2);
+}
+.shell-form .row input { width: 100%; }
+.shell-form .hint { margin: 6px 0 0; font-size: 12px; line-height: 1.6; color: var(--ink-3); }
+/* 提示条：跟控制台里那种内联提示一个样子（软底 + 同色描边），不是纯文字 */
+.msg {
+  display: none; margin: 16px 0 0; padding: 8px 10px;
+  border-radius: var(--radius-sm, 6px); border: 1px solid transparent;
+  font-size: 12.5px; line-height: 1.7; white-space: pre-wrap;
+}
+.msg.show { display: block; }
+.msg.ok { background: var(--ok-soft); border-color: var(--ok); color: var(--ok); }
+.msg.bad { background: var(--bad-soft); border-color: var(--bad); color: var(--bad); }
+
+/* 动作按钮统一靠右，窄了自动换行 / 铺满 */
+.shell-actions {
+  display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end;
+  margin: 18px 0 0;
+}
+.shell-actions .spacer { flex: 1 1 auto; }
+
+/* ================= 窗口变小 / 变矮 ================= */
+@media (max-width: 520px) {
+  .card.shell-card { padding: 20px 18px 18px; }
+  .shell-brand { gap: 9px; padding-bottom: 14px; }
+  .shell-brand h1 { font-size: 16px; }
+  .shell-head { gap: 10px; }
+  .detail { max-height: 30vh; padding: 10px 12px; }
+  .shell-actions { flex-direction: column-reverse; }
+  .shell-actions .btn { width: 100%; }
+  .shell-actions .spacer { display: none; }
+}
+
+@media (max-height: 560px) {
+  body.shell { padding: 10px; }
+  .card.shell-card { padding: 18px 20px 16px; }
+  .shell-brand { padding-bottom: 12px; }
+  .splash .hint { display: none; }
+  .detail { max-height: 32vh; }
+}
+
+/* 很矮又很窄（系统缩放 150% 的 1080p 屏就是这样）：连品牌副标题一起收掉 */
+@media (max-width: 420px), (max-height: 420px) {
+  .shell-brand small { display: none; }
+  .splash .status { min-height: 18px; font-size: 12.5px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .splash .track > i { animation: none; left: 0; width: 100%; }
+}

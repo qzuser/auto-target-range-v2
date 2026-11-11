@@ -105,7 +105,27 @@ if (Test-Path $iconPath) {
     Write-Host '    [!] 没找到 launcher/icon.ico，先按没有图标的编（跑一次 make-icon.py 就有了）'
 }
 
-# 启动页与错误页也是窗口的一部分：浅色 HTML 直接嵌进 exe，运行时 NavigateToString 用，
+# 启动页、错误页和设密码用的是控制台那两张样式表，构建时拼成一份嵌进去：
+# 颜色、按钮、输入框、卡片、焦点圈、滚动条、暗色规则全都来自 web 端，改那边壳跟着变，
+# 不用在两个地方各抄一套（以前就是抄的，抄着抄着两边就不一样了）。
+$cssDir = Join-Path (Join-Path $PSScriptRoot '..') 'src\spiritscout\web\static\css'
+$cssSources = @(
+    (Join-Path $cssDir 'base.css'),
+    (Join-Path $cssDir 'polish.css'),
+    (Join-Path (Join-Path $PSScriptRoot 'ui') 'shell-pages.css')
+)
+$shellCssPath = Join-Path (Join-Path $PSScriptRoot 'ui') 'shell.css'
+$cssParts = New-Object System.Collections.Generic.List[string]
+$cssParts.Add('/* 构建产物（build-desktop.ps1 拼的）：控制台 base.css + polish.css + 壳排版 shell-pages.css。改样式请改源文件。 */')
+foreach ($cssFile in $cssSources) {
+    if (-not (Test-Path $cssFile)) { throw "缺样式源文件：$cssFile" }
+    $cssParts.Add((Get-Content $cssFile -Raw -Encoding utf8))
+}
+[System.IO.File]::WriteAllText($shellCssPath, ($cssParts -join "`n"), (New-Object System.Text.UTF8Encoding($false)))
+Write-Host ("    壳样式：base.css + polish.css + shell-pages.css → " + [math]::Round((Get-Item $shellCssPath).Length / 1KB) + ' KB')
+$iconArgs += ("/resource:" + $shellCssPath + ",app.shellcss")
+
+# 页面本身也是窗口的一部分：浅色 HTML 直接嵌进 exe，运行时 NavigateToString 用，
 # 不落到磁盘上（写不进去的目录也能用），也不会出现联网请求。
 foreach ($page in @('splash.html', 'error.html', 'dialog.html')) {
     $pagePath = Join-Path (Join-Path $PSScriptRoot 'ui') $page

@@ -80,3 +80,6 @@ dist-portable/
 SpiritScout/launcher/.cache/python/
 dist-single/
 debug.log
+
+# 构建产物：build-desktop.ps1 用控制台的 base.css + polish.css + shell-pages.css 拼出来
+SpiritScout/launcher/ui/shell.css

@@ -2,141 +2,56 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>灵枢 · 设置管理员密码</title>
-<style>
-  /* 这张页就是控制台里的一个表单：标签 12px/--ink-2，输入框 32px 高、6px 圆角、
-     1px --line-strong 边框，聚焦时主色边框 + 3px 软光；按钮照抄 polish.css 的 .btn。 */
-  :root {
-    --bg: #f6f8fa;
-    --surface: #ffffff;
-    --surface-2: #f2f4f7;
-    --ink: #1f2328;
-    --ink-2: #59636e;
-    --ink-3: #818b98;
-    --line: #d8dee4;
-    --line-strong: #bcc4cd;
-    --accent: #0969da;
-    --accent-strong: #0757ba;
-    --accent-soft: rgba(9, 105, 218, .09);
-    --bad: #cf222e;
-    --bad-soft: rgba(207, 34, 46, .1);
-    --ok: #1a7f37;
-    --ok-soft: rgba(26, 127, 55, .1);
-    --radius: 8px;
-    --radius-sm: 6px;
-    --shadow: 0 1px 0 rgba(31, 35, 40, .04);
-    --shadow-card: 0 1px 3px rgba(31, 35, 40, .08);
-  }
-  * { box-sizing: border-box; }
-  html, body { height: 100%; margin: 0; }
-  body {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 28px;
-    background: var(--bg);
-    color: var(--ink);
-    font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
-          "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
-    -webkit-font-smoothing: antialiased;
-  }
-  .card {
-    width: min(440px, 100%);
-    padding: 24px 26px 20px;
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-card);
-  }
-  .head { display: flex; gap: 10px; align-items: center; }
-  .lock { flex: none; width: 30px; height: 30px; border-radius: var(--radius-sm);
-          background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; }
-  h1 { margin: 0; font-size: 15px; font-weight: 600; }
-  .lead { margin: 12px 0 0; font-size: 12.5px; color: var(--ink-2); line-height: 1.75; }
-
-  .field { margin: 16px 0 0; }
-  label { display: block; margin: 0 0 6px; font-size: 12px; font-weight: 500; color: var(--ink-2); }
-  input {
-    width: 100%;
-    min-height: 32px;
-    padding: 5px 10px;
-    line-height: 1.4;
-    font: inherit;
-    font-size: 13px;
-    color: var(--ink);
-    background: var(--surface);
-    border: 1px solid var(--line-strong);
-    border-radius: var(--radius-sm);
-    transition: border-color .15s ease, box-shadow .15s ease;
-  }
-  input:hover { border-color: var(--ink-3); }
-  input:focus, input:focus-visible {
-    outline: none;
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-soft);
-  }
-  input::placeholder { color: var(--ink-3); }
-  .hint { margin: 6px 0 0; font-size: 11.5px; color: var(--ink-3); }
-
-  .actions { display: flex; gap: 8px; margin: 20px 0 0; }
-  .btn {
-    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-    min-height: 32px; padding: 5px 12px;
-    border: 1px solid var(--line-strong); border-radius: var(--radius-sm);
-    background: var(--surface); color: var(--ink);
-    font: inherit; font-size: 13px; font-weight: 500; line-height: 1.4;
-    white-space: nowrap; box-shadow: var(--shadow); cursor: pointer;
-    transition: background .15s ease, border-color .15s ease, color .15s ease;
-  }
-  .btn:hover { background: var(--surface-2); border-color: var(--ink-3); }
-  .btn:focus-visible { outline: none; border-color: var(--accent);
-                       box-shadow: var(--shadow), 0 0 0 3px var(--accent-soft); }
-  .btn.primary { border-color: var(--accent-strong); background: var(--accent); color: #fff; }
-  .btn.primary:hover { background: var(--accent-strong); border-color: var(--accent-strong); }
-  .btn.primary:disabled { opacity: .55; cursor: not-allowed; }
-  .btn.ghost { background: transparent; border-color: transparent; color: var(--ink-2); box-shadow: none; }
-  .btn.ghost:hover { background: var(--surface-2); border-color: var(--line); color: var(--ink); }
-
-  .msg { margin: 14px 0 0; padding: 8px 10px; border-radius: var(--radius-sm);
-         font-size: 12.5px; line-height: 1.7; display: none; white-space: pre-wrap; }
-  .msg.show { display: block; }
-  .msg.bad { background: var(--bad-soft); color: var(--bad); border: 1px solid rgba(207, 34, 46, .25); }
-  .msg.ok { background: var(--ok-soft); color: var(--ok); border: 1px solid rgba(26, 127, 55, .25); }
-</style>
+<style>{{SHELL_CSS}}</style>
 </head>
-<body>
-  <main class="card">
-    <div class="head">
-      <div class="lock">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="4" y="10" width="16" height="10" rx="2"></rect>
-          <path d="M8 10V7a4 4 0 0 1 8 0v3"></path>
-        </svg>
+<body class="shell">
+  <main class="card shell-card">
+    <div class="shell-brand">
+      <svg class="brand-mark" width="26" height="26" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M12 9.4V4.8M14.3 13.2l3.8 2.2M9.7 13.2l-3.8 2.2"></path>
+        </g>
+        <circle cx="12" cy="12" r="2.7" fill="currentColor"></circle>
+        <g fill="currentColor">
+          <circle cx="12" cy="3.7" r="1.8"></circle>
+          <circle cx="18.5" cy="17.4" r="1.8"></circle>
+          <circle cx="5.5" cy="17.4" r="1.8"></circle>
+        </g>
+      </svg>
+      <div>
+        <h1>设置管理员密码</h1>
+        <small>灵枢 · 控制台登录</small>
       </div>
-      <h1>设置管理员密码</h1>
-    </div>
-    <p class="lead">只保存 scrypt 哈希，密码长度不限；设完立即生效，不用重启服务。<br>用户名要和已有的那个一致（之前用过别的就改成那个），不然会多出一个账号。</p>
-
-    <div class="field">
-      <label for="ss-user">管理员用户名</label>
-      <input id="ss-user" type="text" autocomplete="username" spellcheck="false" value="spiritscout">
-    </div>
-    <div class="field">
-      <label for="ss-pass">密码</label>
-      <input id="ss-pass" type="password" autocomplete="new-password" placeholder="输入新密码">
-    </div>
-    <div class="field">
-      <label for="ss-pass2">再输一次</label>
-      <input id="ss-pass2" type="password" autocomplete="new-password" placeholder="重复上面的密码">
-      <p class="hint">留空就表示不设密码（等于不开启控制台登录）。</p>
     </div>
 
-    <div class="msg" id="ss-msg"></div>
+    <p class="muted" style="margin:0;font-size:12.5px;line-height:1.75">
+      只保存 scrypt 哈希，密码长度不限；设完立即生效，不用重启服务。<br>
+      用户名要和已有的那个一致（之前用过别的就改成那个），不然会多出一个账号。
+    </p>
 
-    <div class="actions">
+    <div class="shell-form">
+      <div class="row">
+        <label for="ss-user">管理员用户名</label>
+        <input id="ss-user" type="text" autocomplete="username" spellcheck="false" value="spiritscout">
+      </div>
+      <div class="row">
+        <label for="ss-pass">密码</label>
+        <input id="ss-pass" type="password" autocomplete="new-password" placeholder="输入新密码">
+      </div>
+      <div class="row">
+        <label for="ss-pass2">再输一次</label>
+        <input id="ss-pass2" type="password" autocomplete="new-password" placeholder="重复上面的密码">
+        <p class="hint">留空就表示不设密码（等于不开启控制台登录）。</p>
+      </div>
+    </div>
+
+    <p class="msg" id="ss-msg"></p>
+
+    <div class="shell-actions">
+      <button class="btn" type="button" onclick="ssSend({ action: 'console' })">返回控制台</button>
       <button class="btn primary" id="ss-save" type="button" onclick="ssSave()">保存并生效</button>
-      <button class="btn ghost" type="button" onclick="ssSend({ action: 'console' })">返回控制台</button>
     </div>
   </main>
   <script>

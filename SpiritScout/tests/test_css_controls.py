@@ -85,27 +85,27 @@ class ControlGeometryTests(unittest.TestCase):
 class ShellPageTests(unittest.TestCase):
     """外壳那三张页（启动、报错、密码）不另立一套配色。"""
 
-    def test_shell_pages_use_web_palette(self) -> None:
+    def test_shell_pages_carry_no_palette_of_their_own(self) -> None:
+        # 颜色一个都不许写在页面里：全部来自构建时拼进来的控制台样式表，
+        # 页面里出现十六进制色值就说明又在偷偷抄第二套。
         for name in ("splash.html", "error.html", "dialog.html"):
             page = read(SHELL / name)
-            self.assertIn("--accent: #0969da", page, name)
-            self.assertIn("--bg: #f6f8fa", page, name)
-            self.assertIn("--radius-sm: 6px", page, name)
-            self.assertNotIn("#1f883d", page, name)      # 旧的绿色主按钮
-            self.assertNotIn("#b4510b", page, name)      # 旧的橙色告警
-            # 琥珀色只剩启动页 logo 那一处（跟窗口图标/favicon 同一枚）
-            if name == "splash.html":
-                self.assertEqual(page.count("#a4681e"), 1, name)
-                self.assertIn('fill="#a4681e"', page, name)
-            else:
-                self.assertNotIn("#a4681e", page, name)
+            self.assertIn("{{SHELL_CSS}}", page, name)
+            self.assertEqual(re.findall(r"#[0-9a-fA-F]{3,8}\b", page), [], f"{name} 里不该有硬编码颜色")
 
-    def test_shell_buttons_match_console_geometry(self) -> None:
-        page = read(SHELL / "error.html")
-        self.assertIn("min-height: 32px", page)
-        self.assertIn("padding: 5px 12px", page)
-        self.assertIn("font-size: 13px", page)
-        self.assertIn("font-weight: 500", page)
+    def test_shell_style_layer_only_lays_out(self) -> None:
+        layer = read(SHELL / "shell-pages.css")
+        # 壳自己的那一层只摆位置，不重新定义令牌
+        self.assertNotIn("--accent:", layer)
+        self.assertNotIn("--bg:", layer)
+        self.assertIn("body.shell", layer)
+        self.assertIn("var(--accent)", layer)          # 用控制台的令牌
+        self.assertIn("var(--line)", layer)
+        self.assertIn("@media (max-width: 520px)", layer)
+        self.assertIn("@media (max-height: 560px)", layer)
+        # 按钮/输入框交给 base.css + polish.css，这里不许再写一套尺寸
+        self.assertNotIn("min-height: 32px", layer)
+        self.assertNotIn(".btn.primary {", layer)
 
     def test_password_dialog_is_a_form_not_a_console(self) -> None:
         page = read(SHELL / "dialog.html")
@@ -113,9 +113,6 @@ class ShellPageTests(unittest.TestCase):
         self.assertIn("setpw", page)
         self.assertIn("window.ssResult", page)
 
-
-if __name__ == "__main__":
-    unittest.main()
 
 class UsagePageFitTests(unittest.TestCase):
     """用量页十列宽表：得在自己那张卡里滚，窄屏还要收起派生列。"""
@@ -140,6 +137,66 @@ class UsagePageFitTests(unittest.TestCase):
         html = read(STATIC / "index.html")
         self.assertIn("views.css?v=20261111-usagefit", html)
         self.assertIn("usage.js?v=20261111-usagefit", html)
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+
+class ShellCssSyncTests(unittest.TestCase):
+    """窗口壳的样式是构建时从控制台样式表拼出来的，不能各写各的。"""
+
+    def test_build_composes_shell_css_from_console_stylesheets(self) -> None:
+        script = read(SHELL.parent / "build-desktop.ps1")
+        self.assertIn("'base.css'", script)
+        self.assertIn("'polish.css'", script)
+        self.assertIn("'shell-pages.css'", script)
+        self.assertIn('"/resource:" + $shellCssPath + ",app.shellcss"', script)
+
+    def test_shell_pages_are_filled_by_the_shell_stylesheet(self) -> None:
+        source = read(SHELL.parent / "SpiritScoutDesktop.cs")
+        self.assertIn("{{SHELL_CSS}}", source)
+        self.assertIn("app.shellcss", source)
+        self.assertIn("ReadShellCss(", source)
+
+    def test_console_stylesheets_exist_where_the_build_expects(self) -> None:
+        for name in ("base.css", "polish.css"):
+            self.assertTrue((CSS / name).is_file(), name)
+
+
+class PageChromeTests(unittest.TestCase):
+    """用量/项目/经验/设置/本地工具 的页面骨架跟仪表盘、编队对齐。"""
+
+    def test_section_15_unifies_page_head(self) -> None:
+        css = read(CSS / "polish.css")
+        self.assertIn("15. 页面骨架", css)
+        self.assertIn(".usage-head h2, .resource-head h2, .exp-head h2, .lt-head h2, .set-card h2", css)
+        self.assertIn("font-size: 19px; font-weight: 600", css)
+        self.assertIn(".u-card { padding: 16px 18px; gap: 8px; }", css)
+        self.assertIn(".u-card, .pfolder, .exp-history, .resource-catalog, .resource-chat,", css)
+        self.assertIn("border-radius: 9px;", css)
+        self.assertIn(".u-table-wrap { border-radius: 9px; }", css)
+        self.assertIn(".card.acard, .home-mode-card { border-radius: 9px; }", css)
+
+    def test_card_buttons_are_not_downgraded_by_the_control_layer(self) -> None:
+        # 全局按钮圆角那条不能把整张卡（文件夹、智能体、模式卡）按 6px 处理
+        css = read(CSS / "polish.css")
+        self.assertIn(":not(.pfolder):not(.acard):not(.home-mode-card)", css)
+
+    def test_section_14_breakpoints(self) -> None:
+        css = read(CSS / "polish.css")
+        self.assertIn("14. 自适应", css)
+        # 中窄档必须有下限，否则会把 860 以下的单列覆盖回两列
+        self.assertIn("@media (min-width: 861px) and (max-width: 1080px)", css)
+        self.assertIn("@media (max-width: 860px)", css)
+        self.assertIn("@media (max-width: 560px)", css)
+        self.assertIn(".side > nav {\n    flex-direction: row;", css.replace("\r\n", "\n"))
+        # 窄屏顶栏要留出设置/主题/退出，不然那几个按钮根本点不到
+        self.assertIn(".side:not(.mobile-sessions-open) .side-foot { display: flex; }", css)
+
+    def test_asset_version_is_bumped(self) -> None:
+        html = read(STATIC / "index.html")
+        self.assertIn("polish.css?v=20261111-mobile", html)
 
 
 if __name__ == "__main__":

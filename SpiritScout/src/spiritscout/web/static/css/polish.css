@@ -421,7 +421,7 @@ select:focus-visible {
 /* 按钮的圆角也收回一套：base.css 里散着 7px，home.css 的发送键是 9px，chip 是 2px，
    同一屏三种圆角。胶囊（.pill/.tag）和圆点徽标保持原样，其余一律 6px。
    选择器带 :not() 是为了压过各组件自己的 0,1,0 规则——不是靠 !important。 */
-button:not(.pill):not(.tag):not(.dot):not(.send-btn),
+button:not(.pill):not(.tag):not(.dot):not(.send-btn):not(.pfolder):not(.acard):not(.home-mode-card),
 input[type="button"],
 input[type="submit"],
 input[type="reset"] { border-radius: var(--radius-sm); }
@@ -470,6 +470,116 @@ button:not([class]) { min-height: var(--ctl-h); padding: 5px 12px; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
 }
+
+/* ---------------- 14. 自适应：窗口变小以后怎么收 ----------------
+
+   控制台不只在大屏上看：1366×768 的笔记本、分屏一半的 960、平板横屏的 1024、
+   甚至手机竖屏的 390 都会遇到。这里按宽度分档，一档只做一件最划算的事——
+   先把侧栏让位，再把导航横过来，最后把内边距和字号收一收，保证正文不被挤成一条。 */
+
+/* 中窄（861–1080）：侧栏再瘦一点，正文把余量拿回去。
+   下限必须写 861：再窄就轮到下面那档「单列 + 横导航」了，不然这条会把
+   base.css 的 minmax(0,1fr) 单列覆盖掉，860 以下又变回两列。 */
+@media (min-width: 861px) and (max-width: 1080px) {
+  #app { grid-template-columns: clamp(184px, 20vw, 216px) minmax(0, 1fr); }
+  .brand { padding: 18px 14px 14px; gap: 9px; }
+  .brand h1 { font-size: 16px; }
+  .side > nav { padding: 2px 8px; }
+  .side > nav button { padding: 7px 8px; gap: 8px; }
+  .side-label { padding: 12px 14px 4px; }
+  #sess-list { padding: 0 8px 8px; }
+  main { padding: 18px 20px 34px; }
+}
+
+/* 单列（≤860，跟 base.css 的断点对齐）：导航横着排一行，省下一屏的高度给内容 */
+@media (max-width: 860px) {
+  /* 单列：侧栏横过来铺在上面，正文吃掉整个宽度（base.css 那条会被这里的顺序压住，
+     所以显式再写一次） */
+  #app { grid-template-columns: minmax(0, 1fr); }
+  .side > nav {
+    flex-direction: row; flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden;
+    gap: 4px; padding: 0 12px 10px; scrollbar-width: none;
+  }
+  .side > nav::-webkit-scrollbar { display: none; }
+  .side > nav button { flex: none; white-space: nowrap; padding: 6px 10px; }
+  .brand { padding: 16px 14px 10px; }
+  .side-label { padding: 6px 14px 2px; }
+  main { padding: 14px 14px 28px; }
+  /* 设置 / 主题 / 退出 在窄屏也得够得着：以前要先展开会话列表才有这排按钮，
+     现在固定成顶栏最后一行的小横排。 */
+  .side:not(.mobile-sessions-open) .side-foot { display: flex; }
+  .side-foot {
+    flex-direction: row; align-items: center; justify-content: space-between;
+    gap: 8px; padding: 8px 12px; border-top: 1px solid var(--line);
+  }
+  #btn-settings { width: auto; padding: 6px 10px; }
+  .side-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  #mobile-sessions-toggle { top: 12px; right: 12px; }
+}
+
+/* 窄（≤560）：内边距和标题字号再收一档，卡片间距缩小 */
+@media (max-width: 560px) {
+  .side > nav button { padding: 6px 8px; font-size: 12.5px; }
+  main { padding: 12px 10px 24px; }
+  .u-cards { gap: 8px; }
+  .usage-head h2 { font-size: 19px; }
+  .dash-overview, .dash-bottom-grid { gap: 8px; }
+}
+
+/* ---------------- 15. 页面骨架：跟仪表盘、编队对齐 ----------------
+
+   仪表盘和编队这两页的观感是对的：标题 19/600 + 一行 12.5px 说明，卡片 9px 圆角、
+   1px #d8dee4 描边、18–20px 内边距，统计数字用等宽字体。用量、项目、经验、设置、
+   本地工具这几页当初各写各的（22px 标题、12px 圆角、12/14 内边距），放在一起就像
+   两个系统。这里把它们统一到同一套尺寸上，只改"骨架"，各页自己的内容排布不动。 */
+
+/* —— 页头 —— */
+.usage-head, .resource-head, .exp-head, .lt-head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap;
+  margin: 0 0 16px;
+}
+.usage-head h2, .resource-head h2, .exp-head h2, .lt-head h2, .set-card h2 {
+  margin: 0 0 4px;
+  font-size: 19px; font-weight: 600; letter-spacing: -.005em; line-height: 1.35;
+}
+.usage-head .u-sub, .resource-head p, .exp-head p, .lt-head p, .set-card > .muted {
+  margin: 0; font-size: 12.5px; line-height: 1.7; color: var(--ink-3);
+}
+/* 页头右侧的操作区跟着基线走，别被标题撑歪 */
+.usage-head .u-ops, .resource-head-actions, .exp-head-ops, .lt-head-actions {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+
+/* —— 卡片 / 面板：统一 9px 圆角、1px 描边、18px 内边距 —— */
+.u-card, .pfolder, .exp-history, .resource-catalog, .resource-chat,
+.set-card, .lt-block, .cache-bar {
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+.u-card { padding: 16px 18px; gap: 8px; }
+.u-card span { font-size: 11px; color: var(--ink-2); }
+.u-card b { font-size: 20px; font-weight: 600; letter-spacing: -.01em; overflow-wrap: anywhere; }
+.pfolder { padding: 16px 18px 15px; }
+/* 卡片类同一枚 9px 圆角：编队的 .acard 和首页的模式卡也跟过来 */
+.card.acard, .home-mode-card { border-radius: 9px; }
+.exp-history { padding: 18px; }
+.set-card { padding: 20px; }
+.resource-catalog, .resource-chat { padding: 18px; }
+
+/* —— 用量页那张表：表头按仪表盘的 11px 标签走 —— */
+.u-table-wrap { border-radius: 9px; }
+.u-table thead th {
+  padding: 10px 12px; font-size: 11px; font-weight: 600;
+  color: var(--ink-3); background: var(--surface-2);
+}
+.u-table td { padding: 10px 12px; }
+.u-table thead th small { font-size: 10px; }
+
+/* —— 设置页左侧那列，字号跟侧栏导航对齐 —— */
+.set-nav-title { font-size: 11px; letter-spacing: .08em; color: var(--ink-3); }
+.set-nav button { font-size: 13px; padding: 8px 10px; border-radius: 8px; }
 
 @media (prefers-contrast: more) {
   :root { --line: var(--line-strong); --ink-2: var(--ink); }
