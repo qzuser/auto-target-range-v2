@@ -288,6 +288,19 @@ class SingleFileDesktopModeTests(unittest.TestCase):
         self.assertIn("上次解出来的运行时缺文件，重解一遍", self.text)
         self.assertIn("if (File.Exists(Path.Combine(candidate, ReadyMarker)))", self.text)
 
+    def test_new_runtime_adopts_previous_user_data(self) -> None:
+        # 换版本会解到新目录；模型密钥/会话都在旧目录的 .spiritscout 里，得搬过来
+        self.assertIn("AdoptUserData(candidate, progress);", self.text)
+        self.assertIn('internal const string UserDataFolder = ".spiritscout";', self.text)
+        self.assertIn("已把上一次的配置与数据带过来", self.text)
+
+    def test_adoption_skips_when_new_dir_already_has_data(self) -> None:
+        self.assertIn("Directory.GetFileSystemEntries(mine).Length > 0) { return; }", self.text)
+
+    def test_adoption_failure_only_warns(self) -> None:
+        self.assertIn("旧数据没搬全", self.text)
+        self.assertIn("catch (UnauthorizedAccessException ex)", self.text)
+
     def test_single_file_failure_never_falls_into_portable_mode(self) -> None:
         # 解压失败后不能把 _singleFile 关掉：关了就会走 desktop.json 分支，
         # 弹出一句「desktop.json 指向的解释器不存在」，用户以为还得自己配环境

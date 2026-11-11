@@ -119,3 +119,62 @@ class PageReferenceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class DesktopIconTests(unittest.TestCase):
+    """桌面版图标必须是网页标签页那一个，不然用户以为装了另一套东西。
+
+    这里盯三件事：icon.ico 存在且是多尺寸、颜色跟 favicon.svg 对得上、
+    构建脚本真的把它塞进了 exe（/win32icon）。
+    """
+
+    LAUNCHER = Path(__file__).resolve().parents[1] / "launcher"
+
+    def test_ico_is_shipped_and_multi_size(self) -> None:
+        ico = self.LAUNCHER / "icon.ico"
+        self.assertTrue(ico.exists(), "缺 launcher/icon.ico：跑 python launcher/make-icon.py 生成")
+        self.assertGreater(ico.stat().st_size, 2000)
+        from PIL import Image
+
+        sizes = sorted(Image.open(ico).info.get("sizes", []))
+        self.assertIn((16, 16), sizes)
+        self.assertIn((256, 256), sizes)
+        self.assertGreaterEqual(len(sizes), 5)
+
+    def test_ico_colors_match_the_web_favicon(self) -> None:
+        import re
+
+        from PIL import Image
+
+        svg = _read("favicon.svg")
+        bg = re.search(r'<rect[^>]*fill="([^"]+)"', svg)
+        stroke = re.search(r'<g[^>]*stroke="([^"]+)"', svg)
+        self.assertIsNotNone(bg)
+        self.assertIsNotNone(stroke)
+        image = Image.open(self.LAUNCHER / "icon.ico")
+        image.size = (256, 256)
+        image.load()
+        pixels = image.convert("RGBA")
+
+        def rgb(value: str) -> tuple[int, int, int]:
+            return tuple(int(value[i : i + 2], 16) for i in (1, 3, 5))  # type: ignore[return-value]
+
+        self.assertEqual(pixels.getpixel((128, 24))[:3], rgb(bg.group(1)))
+        self.assertEqual(pixels.getpixel((128, 128))[:3], rgb(stroke.group(1)))
+        self.assertEqual(pixels.getpixel((1, 1))[3], 0, "圆角外应该是透明的")
+
+    def test_generator_can_parse_the_current_svg(self) -> None:
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location("make_icon", self.LAUNCHER / "make-icon.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)  # type: ignore[union-attr]
+        shapes = module.parse(_read("favicon.svg"))
+        self.assertEqual(len(shapes["dots"]), 4)
+        self.assertEqual(len(shapes["lines"]), 3)
+        self.assertAlmostEqual(float(shapes["radius"]), 7.5)
+
+    def test_build_embeds_the_icon(self) -> None:
+        script = (self.LAUNCHER / "build-desktop.ps1").read_text(encoding="utf-8-sig")
+        self.assertIn("/win32icon:", script)
+        self.assertIn("icon.ico", script)
+        self.assertIn("$iconArgs", script)

@@ -94,6 +94,16 @@ $coreDll = Join-Path $sdkDir 'Microsoft.Web.WebView2.Core.dll'
 $winFormsDll = Join-Path $sdkDir 'Microsoft.Web.WebView2.WinForms.dll'
 $loaderDll = Join-Path $sdkDir 'WebView2Loader.dll'
 
+# 图标跟网页标签页同一个（static/favicon.svg 渲出来的 launcher/icon.ico），
+# 任务栏、桌面、资源管理器里看到的就是浏览器里那个标志。
+$iconPath = Join-Path $PSScriptRoot 'icon.ico'
+$iconArgs = @()
+if (Test-Path $iconPath) {
+    $iconArgs = @(("/win32icon:" + $iconPath))
+} else {
+    Write-Host '    [!] 没找到 launcher/icon.ico，先按没有图标的编（跑一次 make-icon.py 就有了）'
+}
+
 $cscArgs = @(
     '/nologo', '/target:winexe', '/platform:x64', '/optimize+',
     '/utf8output',
@@ -108,7 +118,7 @@ $cscArgs = @(
     ("/resource:" + $winFormsDll + ",wv2.winforms"),
     ("/resource:" + $loaderDll + ",wv2.loader"),
     $source
-)
+) + $iconArgs
 # 上一版还在跑的时候 csc 写不进输出文件，报错信息又只有一句「退出码 1」，
 # 所以先收掉同名进程再编；真失败了把 csc 的原话打出来。
 $running = Get-Process -Name ([System.IO.Path]::GetFileNameWithoutExtension($outputName)) -ErrorAction SilentlyContinue

@@ -166,6 +166,7 @@ namespace SpiritScoutDesktop
         // 解出来的树得能自证完整：清单是 大小<TAB>相对路径，按行读，不引 JSON 库
         private const string ManifestName = "runtime.manifest.tsv";
         private const string ReadyMarker = ".ready";
+        internal const string UserDataFolder = ".spiritscout";
         private const int TrailerSize = 40;          // 8 长度 + 24 校验 + 8 标记
         private const int HashBytes = 24;            // 载荷 SHA-256 只存前 24 字节，够防下载残缺
 
@@ -358,6 +359,7 @@ namespace SpiritScoutDesktop
                     {
                         throw new InvalidOperationException("解出来的运行时没通过自检");
                     }
+                    AdoptUserData(candidate, progress);
                     File.WriteAllText(Path.Combine(candidate, ReadyMarker), tag, Encoding.UTF8);
                     Root = candidate;
                     return candidate;
@@ -370,6 +372,64 @@ namespace SpiritScoutDesktop
             }
             Error = string.Join("；", errors.ToArray());
             return null;
+        }
+
+        /// <summary>
+        /// 换了新版本的单文件 exe，运行时会解到新目录（目录名带载荷指纹），而模型密钥、
+        /// 会话、知识库都在上一份运行时的 .spiritscout 里。不搬的话，用户升个版本就发现
+        /// 「密钥没了、历史也没了」，看起来就像环境配置出错。这里把同目录下最新的那份
+        /// .spiritscout 复制过来（新目录里还没有数据时才做）。
+        /// </summary>
+        internal static void AdoptUserData(string target, Action<string> progress)
+        {
+            string mine = Path.Combine(target, UserDataFolder);
+            if (Directory.Exists(mine) && Directory.GetFileSystemEntries(mine).Length > 0) { return; }
+            string parent = Path.GetDirectoryName(target.TrimEnd(Path.DirectorySeparatorChar));
+            if (string.IsNullOrEmpty(parent) || !Directory.Exists(parent)) { return; }
+
+            string best = null;
+            DateTime newest = DateTime.MinValue;
+            foreach (string sibling in Directory.GetDirectories(parent))
+            {
+                if (string.Equals(Path.GetFullPath(sibling).TrimEnd(Path.DirectorySeparatorChar),
+                                  Path.GetFullPath(target).TrimEnd(Path.DirectorySeparatorChar),
+                                  StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+                string data = Path.Combine(sibling, UserDataFolder);
+                if (!Directory.Exists(data) || Directory.GetFileSystemEntries(data).Length == 0) { continue; }
+                DateTime stamp = Directory.GetLastWriteTimeUtc(data);
+                if (stamp > newest) { newest = stamp; best = data; }
+            }
+            if (best == null) { return; }
+
+            try
+            {
+                CopyTree(best, mine);
+                if (progress != null) { progress("[+] 已把上一次的配置与数据带过来：" + best); }
+            }
+            catch (IOException ex)
+            {
+                if (progress != null) { progress("[!] 旧数据没搬全（可以手动拷 " + best + "）：" + ex.Message); }
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                if (progress != null) { progress("[!] 旧数据没搬全（权限不够）：" + ex.Message); }
+            }
+        }
+
+        private static void CopyTree(string from, string to)
+        {
+            Directory.CreateDirectory(to);
+            foreach (string file in Directory.GetFiles(from))
+            {
+                File.Copy(file, Path.Combine(to, Path.GetFileName(file)), true);
+            }
+            foreach (string dir in Directory.GetDirectories(from))
+            {
+                CopyTree(dir, Path.Combine(to, Path.GetFileName(dir)));
+            }
         }
 
         /// <summary>载荷前 64 KB 的 FNV-1a：同一份运行时算出来的值一致，攒成缓存目录名。</summary>
