@@ -423,6 +423,13 @@ class DesktopShellUiTests(unittest.TestCase):
         self.assertIn("0x800700AA", source)
         self.assertIn("0x8000FFFF", source)
 
+    def test_smoke_does_not_need_the_embedded_browser(self) -> None:
+        """构建机没装 WebView2 时冒烟也得过——它只验窗口能不能起来。"""
+        source = DESKTOP_CS.read_text(encoding="utf-8-sig")
+        smoke = source.split("if (_smokeOnly)", 1)[1].split("await StartAppAsync();", 1)[0]
+        self.assertNotIn("InitWebViewAsync()", smoke)
+        self.assertIn("SPIRITSCOUT_SMOKE_MARK", smoke)
+
     def test_webview_profile_walks_three_dirs_before_giving_up(self) -> None:
         """常用 profile 被上一次的浏览器进程占着时，要换目录重来，而不是原地重试。"""
         source = DESKTOP_CS.read_text(encoding="utf-8-sig")

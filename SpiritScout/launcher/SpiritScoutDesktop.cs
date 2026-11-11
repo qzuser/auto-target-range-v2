@@ -869,8 +869,9 @@ namespace SpiritScoutDesktop
         {
             if (_smokeOnly)
             {
-                // 构建脚本用这个开关：只要窗口能起来就够了，不要真起服务
-                await InitWebViewAsync();
+                // 构建脚本用这个开关：只要窗口能起来就够了——不碰 WebView2，也不起服务。
+                // 以前这里会先初始化浏览器，于是在没装 WebView2 的构建机上冒烟失败，
+                // 看着像「exe 编坏了」，其实只是那台机器没运行时而己。
                 ShowSplash("构建冒烟：窗口正常");
                 System.Windows.Forms.Timer timer = new System.Windows.Forms.Timer();
                 timer.Interval = 1200;
