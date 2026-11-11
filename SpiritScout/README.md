@@ -281,6 +281,8 @@ wheel 要 pip、zip 要 Python、exe 要仓库。
 | `spiritscout-0.47.6.tar.gz` | sdist（约 24 MB）：整份源码 + `skills/` 技能包的文本素材（4549 个文件，插图与演示视频留在 zip 里）+ 配置模板（`skills.yaml`、`models.example.yaml`、`models.mock.yaml`、`system.example.yaml`）+ 经验。真实 `models.yaml` / `system.yaml` 不在里面 |
 | `spiritscout-0.47.6.zip` | 整仓源码：代码、`skills/`、`configs/`、`experience-export/`、`EXPERIENCE.md`，解开就按上面「快速开始」跑 |
 | `spiritscout-desktop-0.47.6-win64.exe` | **Windows 桌面版**（约 824 KB）：自带窗口的客户端，内嵌 WebView2，不是浏览器标签页。里面已包含运行所需的 WebView2 托管 DLL 与原生 loader（首次运行自动解到 `%LOCALAPPDATA%`），双击即用；**仍需要本机有 Python 3.11+ 与一份仓库源码**——它负责起停服务与环境自检，不代替解释器 |
+| `spiritscout-0.47.6-single-win64.exe` | **单文件版**（约 130 MB）：一个 exe 拷到任意 Windows 机器双击就跑，首次启动自己解出运行时（约 320 MB，放 `%LOCALAPPDATA%\SpiritScout\runtime`） |
+| `spiritscout-0.47.6-portable-win64.zip` | **便携版**（约 128 MB）：解压后双击目录里的 `灵枢桌面版.exe`，不写注册表，数据留在程序目录旁 |
 | `SHA256SUMS` | 上面几个包的校验和，装前先对一遍 |
 
 ```bash

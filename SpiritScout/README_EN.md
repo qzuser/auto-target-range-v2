@@ -268,6 +268,8 @@ Prefer a ready-made package over a source checkout? All three artifacts carry th
 | `spiritscout-0.47.6.tar.gz` | sdist (~24 MB): full source + the text part of `skills/` (4549 files; images and demo videos stay in the zip) + config templates (`skills.yaml`, `models.example.yaml`, `models.mock.yaml`, `system.example.yaml`) + experience. Real `models.yaml` / `system.yaml` stay out |
 | `spiritscout-0.47.6.zip` | full repository source: code, `skills/`, `configs/`, `experience-export/`, `EXPERIENCE.md` — unzip and follow *Quick start* |
 | `spiritscout-desktop-0.47.6-win64.exe` | **Windows desktop build** (~824 KB): its own window with an embedded WebView2 instead of a browser tab; the WebView2 DLLs are packed inside and unpacked on first run to `%LOCALAPPDATA%`. Still needs Python 3.11+ and a copy of the repository — it starts/stops the server and runs the environment check, it does not replace the interpreter |
+| `spiritscout-0.47.6-single-win64.exe` | **Single-file build** (~130 MB): one exe, double-click on any Windows machine; the first run unpacks the runtime (~320 MB) into `%LOCALAPPDATA%\SpiritScout\runtime` |
+| `spiritscout-0.47.6-portable-win64.zip` | **Portable build** (~128 MB): unzip and run `灵枢桌面版.exe`; no registry writes, data stays next to the program |
 | `SHA256SUMS` | checksums for the three files above |
 
 ```bash
