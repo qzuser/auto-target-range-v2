@@ -153,32 +153,31 @@ Write-Host "[4/4] 冒烟：确认 exe 能起来并自建窗口…"
 # 浏览器数据目录也换成临时的：不然冒烟实例和用户正开着的窗口抢同一份 profile，
 # WebView2 会报「资源在使用中」，看起来像启动失败。
 $smokeProfile = Join-Path ([System.IO.Path]::GetTempPath()) ("spiritscout-smoke-" + $PID)
-$env:SPIRITSCOUT_WEBVIEW_DIR = $smokeProfile    # 子进程继承环境变量（5.1 的 Start-Process 没有 -Environment）
+New-Item -ItemType Directory -Force -Path $smokeProfile | Out-Null
+$smokeMark = Join-Path $smokeProfile 'smoke-ok.txt'
+# 两个环境变量都必须在 Start-Process 之前设好：子进程是启动那一刻拷一份环境
+# （5.1 的 Start-Process 没有 -Environment 参数）。
+$env:SPIRITSCOUT_WEBVIEW_DIR = $smokeProfile
+$env:SPIRITSCOUT_SMOKE_MARK = $smokeMark
 $proc = Start-Process -FilePath $outputPath -ArgumentList '--smoke' -PassThru
 $title = ''
-for ($i = 0; $i -lt 20; $i++) {
+$smokeOk = $false
+for ($i = 0; $i -lt 30; $i++) {
     Start-Sleep -Milliseconds 400
+    if ($proc.MainWindowTitle) { $title = $proc.MainWindowTitle }
+    if (Test-Path $smokeMark) { $smokeOk = $true; break }
     if ($proc.HasExited) { break }
-    if ($proc.MainWindowTitle) { $title = $proc.MainWindowTitle; break }
 }
-# 冒烟窗口两三秒就自己关了，所以除了看标题，也认日志里那句「构建冒烟：窗口正常」。
-$smokeOk = $title -like '*灵枢*'
-if (-not $smokeOk) {
-    $log = Get-ChildItem (Join-Path (Split-Path $outputPath) 'logs') -Filter 'desktop-*.log' -ErrorAction SilentlyContinue |
-        Sort-Object LastWriteTime -Descending | Select-Object -First 1
-    if ($log) {
-        $smokeOk = (Get-Content $log.FullName -Encoding utf8 -Tail 20) -match '构建冒烟：窗口正常' | Where-Object { $_ }
-        if ($smokeOk) { $title = $proc.MainWindowTitle }
-    }
-}
+if ($title -like '*灵枢*') { $smokeOk = $true }
 if (-not $proc.HasExited) { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue }
 Remove-Item Env:\SPIRITSCOUT_WEBVIEW_DIR -ErrorAction SilentlyContinue
+Remove-Item Env:\SPIRITSCOUT_SMOKE_MARK -ErrorAction SilentlyContinue
 Remove-Item $smokeProfile -Recurse -Force -ErrorAction SilentlyContinue
 if ($smokeOk) {
     Write-Host "    窗口标题：$title"
     Write-Host "    冒烟通过（已关闭）" -ForegroundColor Green
 } else {
-    Write-Host "    [!] 冒烟没通过：窗口没出来，日志里也没有「构建冒烟：窗口正常」" -ForegroundColor Yellow
+    Write-Host "    [!] 冒烟没通过：窗口没起来（标记文件也没出现）" -ForegroundColor Yellow
     exit 1
 }
 Write-Host "完成。双击 $outputName 即可打开灵枢桌面版；" -ForegroundColor Green

@@ -1459,8 +1459,14 @@ dialog.panel { width: min(880px, 94vw); padding: 0; overflow: hidden; max-height
   flex-direction: column; gap: 6px; }
 .u-card span { font-size: 12px; color: var(--ink-3); }
 .u-card b { font-size: 19px; font-weight: 700; letter-spacing: -.01em; }
-.u-table { width: 100%; border-collapse: collapse; font-size: 13px;
-  border: 1px solid var(--line, #e2e2ea); border-radius: 12px; overflow: hidden; }
+/* 十列宽表：让它在自己这张卡里横向滚，别把整页顶出横向滚动条 */
+.u-table-wrap { border: 1px solid var(--line, #e2e2ea); border-radius: 12px;
+  background: var(--surface, #fff); overflow-x: auto; overscroll-behavior-x: contain; }
+.u-table-wrap::-webkit-scrollbar { height: 8px; }
+.u-table-wrap::-webkit-scrollbar-thumb { border-radius: 999px;
+  background: var(--line-strong, #bcc4cd); border: 2px solid transparent; background-clip: content-box; }
+.u-table { width: 100%; min-width: 720px; border-collapse: collapse; font-size: 13px;
+  border: 0; border-radius: 0; }
 .u-table thead th { text-align: right; font-weight: 600; font-size: 12px;
   color: var(--ink-3); padding: 10px 12px; border-bottom: 1px solid var(--line, #e6e6ee);
   background: var(--surface-2, #fafafc); white-space: nowrap; }
@@ -1485,6 +1491,35 @@ dialog.panel { width: min(880px, 94vw); padding: 0; overflow: hidden; max-height
 .usage-empty { margin: 18px 0; font-size: 13px; color: var(--ink-3); }
 .usage-error { margin: 0 0 14px; font-size: 13px; color: #c0392b; }
 .u-note { margin: 12px 0 0; font-size: 12px; color: var(--ink-3); }
+
+/* 窄屏（笔记本 1024、分屏 900）：先收紧内边距和模型列，再让「最近一次」换行 */
+/* 再窄一点就把「缓存命中 / 新增输入」两列收起来：它们是派生列，
+   收掉之后表格不用横向滚也能看全（下面会补一句说明） */
+.u-narrow-note { display: none; }
+
+@media (max-width: 1100px) {
+  .u-table { min-width: 0; }
+  .u-col-cache, .u-col-fresh { display: none; }
+  .u-narrow-note { display: block; }
+}
+@media (max-width: 1200px) {
+  .u-table { min-width: 660px; }
+  .u-table td, .u-table thead th { padding: 8px 9px; }
+  .u-model { max-width: 170px; }
+  .u-share { min-width: 96px; }
+  .u-bar { width: 56px; }
+  .u-time { font-size: 11.5px; }
+}
+@media (max-width: 900px) {
+  .u-table { min-width: 600px; }
+  .u-table td, .u-table thead th { padding: 8px 7px; font-size: 12px; }
+  .u-table thead th small { display: none; }
+  .u-model { max-width: 118px; font-size: 12px; }
+  .u-share { min-width: 78px; }
+  .u-bar { width: 40px; }
+  .u-time { white-space: normal; max-width: 92px; }
+  .u-cards { grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); }
+}
 
 /* 本地工具：整页宽布局（标题 + 开关/目录 + 索引结果），跟「模型」页同级，
    不要套 .set-card——那一层把宽度锁在 720px，表格会被挤成一条 */

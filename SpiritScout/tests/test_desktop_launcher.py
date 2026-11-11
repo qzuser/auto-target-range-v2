@@ -417,7 +417,8 @@ class DesktopShellUiTests(unittest.TestCase):
         self.assertIn("!created && !smoke", source)        # 冒烟不参与单实例
         script = (self.LAUNCHER / "build-desktop.ps1").read_text(encoding="utf-8-sig")
         self.assertIn("$env:SPIRITSCOUT_WEBVIEW_DIR = $smokeProfile", script)
-        self.assertIn("构建冒烟：窗口正常", script)
+        self.assertIn("SPIRITSCOUT_SMOKE_MARK", script)      # 冒烟靠标记文件确认，不猜日志路径
+        self.assertIn("smoke-ok.txt", script)
 
     def test_shortcuts_reach_the_window_from_inside_the_page(self) -> None:
         """焦点在网页里时窗体收不到按键，所以快捷键是注入脚本转成消息的。"""

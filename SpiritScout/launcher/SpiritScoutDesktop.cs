@@ -664,8 +664,15 @@ namespace SpiritScoutDesktop
             ApplyAppIcon();
             Text = "灵枢 · SpiritScout";
             StartPosition = FormStartPosition.CenterScreen;
-            MinimumSize = new Size(1024, 680);
-            Size = new Size(1360, 880);
+            // 默认 1360×880，但小屏（1366×768 的笔记本）放不下，按工作区收一下；
+            // 最小尺寸也跟着屏幕走，否则窗口会顶到屏幕外面去。
+            Rectangle work = Screen.FromPoint(Control.MousePosition).WorkingArea;
+            int wantW = Math.Min(1360, work.Width - 48);
+            int wantH = Math.Min(880, work.Height - 56);
+            int minW = Math.Min(1024, Math.Max(760, work.Width - 48));
+            int minH = Math.Min(680, Math.Max(560, work.Height - 56));
+            MinimumSize = new Size(minW, minH);
+            Size = new Size(Math.Max(minW, wantW), Math.Max(minH, wantH));
             // 浅色，和启动页、控制台一个底色；深色会先闪一块黑
             BackColor = Color.FromArgb(246, 247, 249);
             Font = new Font("Microsoft YaHei UI", 9F);
@@ -863,7 +870,18 @@ namespace SpiritScoutDesktop
                 ShowSplash("构建冒烟：窗口正常");
                 System.Windows.Forms.Timer timer = new System.Windows.Forms.Timer();
                 timer.Interval = 1200;
-                timer.Tick += delegate { timer.Stop(); Close(); };
+                timer.Tick += delegate
+                {
+                    timer.Stop();
+                    // 给构建脚本一个确定的信号：冒烟窗口确实建起来了
+                    string mark = Environment.GetEnvironmentVariable("SPIRITSCOUT_SMOKE_MARK");
+                    if (!string.IsNullOrEmpty(mark))
+                    {
+                        try { File.WriteAllText(mark, "ok"); }
+                        catch (Exception) { }
+                    }
+                    Close();
+                };
                 timer.Start();
                 return;
             }

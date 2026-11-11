@@ -116,3 +116,31 @@ class ShellPageTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class UsagePageFitTests(unittest.TestCase):
+    """用量页十列宽表：得在自己那张卡里滚，窄屏还要收起派生列。"""
+
+    def test_table_is_wrapped_in_its_own_scroller(self) -> None:
+        js = read(STATIC / "js" / "usage.js")
+        self.assertIn('class="u-table-wrap"', js)
+        css = read(CSS / "views.css")
+        self.assertIn(".u-table-wrap {", css)
+        self.assertIn("overflow-x: auto", css)
+
+    def test_narrow_screens_drop_derived_columns(self) -> None:
+        css = read(CSS / "views.css")
+        self.assertIn("@media (max-width: 1100px)", css)
+        self.assertIn(".u-col-cache, .u-col-fresh { display: none; }", css)
+        js = read(STATIC / "js" / "usage.js")
+        self.assertIn("u-col-cache", js)
+        self.assertIn("u-col-fresh", js)
+        self.assertIn("u-narrow-note", js)
+
+    def test_asset_versions_are_bumped(self) -> None:
+        html = read(STATIC / "index.html")
+        self.assertIn("views.css?v=20261111-usagefit", html)
+        self.assertIn("usage.js?v=20261111-usagefit", html)
+
+
+if __name__ == "__main__":
+    unittest.main()

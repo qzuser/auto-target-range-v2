@@ -28,8 +28,8 @@ const UsagePage = (() => {
         <td class="u-model" title="${esc(m.model)}">${esc(m.model)}</td>
         <td class="u-num">${fmt(m.calls)}</td>
         <td class="u-num">${fmt(m.input)}</td>
-        <td class="u-num u-cached">${m.cached ? `${fmt(m.cached)}<small>${(rate * 100).toFixed(0)}%</small>` : "—"}</td>
-        <td class="u-num">${fmt(m.new_input ?? Math.max(0, (m.input || 0) - (m.cached || 0)))}</td>
+        <td class="u-num u-cached u-col-cache">${m.cached ? `${fmt(m.cached)}<small>${(rate * 100).toFixed(0)}%</small>` : "—"}</td>
+        <td class="u-num u-col-fresh">${fmt(m.new_input ?? Math.max(0, (m.input || 0) - (m.cached || 0)))}</td>
         <td class="u-num">${fmt(m.output)}</td>
         <td class="u-num u-total">${fmt(m.tokens)}</td>
         <td class="u-share">
@@ -76,14 +76,18 @@ const UsagePage = (() => {
       </div>
       <div class="u-cards">${summary()}</div>
       ${error ? `<p class="usage-error">${esc(error)}</p>` : ""}
+      <div class="u-table-wrap">
       <table class="u-table">
         <thead><tr>
           <th>模型</th><th>调用</th><th>输入<small>含缓存</small></th>
-          <th>缓存命中</th><th>新增输入</th><th>输出</th>
+          <th class="u-col-cache">缓存命中</th><th class="u-col-fresh">新增输入</th><th>输出</th>
           <th>合计 token</th><th>占比</th><th>费用</th><th>最近一次</th>
         </tr></thead>
         <tbody>${rows()}</tbody>
       </table>
+      </div>
+      <p class="u-note u-narrow-note">窗口太窄，「缓存命中 / 新增输入」两列暂时收起——
+        它们就是「输入」的拆分，合计口径不变；拉宽窗口或点开全屏就回来。</p>
       ${data?.totals?.unpriced_calls
         ? `<p class="u-note">有 ${data.totals.unpriced_calls} 次调用没有价格信息（本地端点或未定价渠道），费用列对它不计数。</p>`
         : ""}
