@@ -52,7 +52,7 @@ class DesktopSourceTests(unittest.TestCase):
     def test_process_streams_are_read_one_way(self) -> None:
         # 同一条流既 BeginReadLine 又 ReadToEnd 会抛「不能混合同步操作和异步操作」
         capture = self.text.split("private async Task<CaptureResult> CaptureAsync", 1)[1]
-        capture = capture.split("/// <summary>把 bootstrap", 1)[0]
+        capture = capture.split("private string PickServerPython()", 1)[0]
         self.assertNotIn("BeginOutputReadLine", capture)
         self.assertNotIn("BeginErrorReadLine", capture)
         self.assertIn("StandardOutput.ReadToEnd()", capture)
@@ -182,13 +182,15 @@ class PortableDesktopModeTests(unittest.TestCase):
         self.assertIn("ReadDesktopConfig", self.text)
 
     def test_portable_probe_skips_bootstrap(self) -> None:
-        # 便携版没有 scripts/bootstrap.py，体检要另走一条「问内嵌解释器」的路
-        self.assertIn("CheckPortableAsync", self.text)
+        # 便携版/单文件版没有 scripts/bootstrap.py：依赖在打包时就装进内嵌解释器了，
+        # 所以确认环境的路径是「直接问解释器能不能 import」，不能去跑 bootstrap。
+        self.assertIn("if (python == null && !_portable)", self.text)
         self.assertIn("import sys, spiritscout", self.text)
 
     def test_repair_explains_itself_in_portable_mode(self) -> None:
+        # 便携版坏了只有一条路：换整份目录重来（依赖跟包一起，没有 venv 可修）
         self.assertIn("_portable", self.text)
-        self.assertIn("便携版不需要修复", self.text)
+        self.assertIn("这个 exe 只是窗口壳", self.text)
 SINGLE_PS1 = PACKAGE / "launcher" / "build-single.ps1"
 
 
@@ -306,13 +308,14 @@ class SingleFileDesktopModeTests(unittest.TestCase):
         # 弹出一句「desktop.json 指向的解释器不存在」，用户以为还得自己配环境
         self.assertIn("_runtimeBroken = true;", self.text)
         self.assertNotIn("_singleFile = false;   // 退到普通模式", self.text)
-        self.assertIn('_btnFix.Text = "重试解压";', self.text)
-        self.assertIn("内置运行时没解开", self.text)
+        self.assertIn('_failTitle = "运行时没解出来";', self.text)
+        self.assertIn("ShowErrorPage(", self.text)
 
     def test_single_file_failure_offers_retry(self) -> None:
-        self.assertIn("if (_runtimeBroken && _singleFile)", self.text)
+        # 重试不再是窗口上的按钮，而是错误页上的「重试」，点了重跑整条启动流程
+        self.assertIn("if (_runtimeBroken) { return; }", self.text)
+        self.assertIn('if (action == "retry")', self.text)
         self.assertIn("await UnpackBundledRuntimeAsync();", self.text)
-        self.assertIn('_btnFix.Text = "一键修复";', self.text)
 
     def test_child_python_ignores_host_python_env(self) -> None:
         # 宿主机的 PYTHONHOME/PYTHONPATH 会把内嵌解释器带歪（换台机器就炸的典型原因）
@@ -332,6 +335,76 @@ class SingleFileDesktopModeTests(unittest.TestCase):
 
     def test_extracts_before_showing_environment(self) -> None:
         index = self.text.index("await UnpackBundledRuntimeAsync();")
-        self.assertLess(index, self.text.index("await CheckEnvironmentAsync(false);"))
+        self.assertLess(index, self.text.index("string python = await EnsureReadyAsync();"))
 if __name__ == "__main__":
     unittest.main()
+
+class DesktopShellUiTests(unittest.TestCase):
+    """窗口的观感约定：打开就是控制台，没有工具栏/日志面板，也不能出现黑底。"""
+
+    LAUNCHER = Path(__file__).resolve().parents[1] / "launcher"
+
+    def _shell(self) -> str:
+        return (self.LAUNCHER / "SpiritScoutDesktop.cs").read_text(encoding="utf-8-sig")
+
+    def test_no_toolbar_or_log_panel_left(self) -> None:
+        source = self._shell()
+        for gone in ("_btnStart", "_btnStop", "_btnFix", "_logPanel", "_placeholder", "SetupButton("):
+            self.assertNotIn(gone, source, f"{gone} 应该已经从窗口里拿掉了")
+
+    def test_window_is_just_the_embedded_console(self) -> None:
+        source = self._shell()
+        self.assertIn("BuildLayout()", source)
+        self.assertIn("canvas.Controls.Add(CreateWebView());", source)
+        # 两次双击只开一个实例：WebView2 的用户数据目录是独占的
+        self.assertIn('"SpiritScoutDesktop-single-instance"', source)
+
+    def test_launch_starts_everything_without_clicks(self) -> None:
+        source = self._shell()
+        self.assertIn("await StartAppAsync();", source)          # OnLoaded 里直接跑
+        self.assertIn("ShowSplash(", source)
+        self.assertIn("await EnsureReadyAsync();", source)
+        self.assertIn("await StartServerAsync(python);", source)
+
+    def test_error_page_only_when_environment_is_broken(self) -> None:
+        source = self._shell()
+        self.assertIn("ShowErrorPage(", source)
+        self.assertIn("HandleUiAction(action)", source)
+        # 只有失败分支才展示错误页
+        before, _, after = source.partition("string python = await EnsureReadyAsync();")
+        self.assertIn("if (python == null)", after)
+
+    def test_no_black_background_anywhere(self) -> None:
+        source = self._shell()
+        for banned in ("Color.FromArgb(24, 26, 32)", "Color.FromArgb(18, 20, 25)", "Color.Black"):
+            self.assertNotIn(banned, source, f"{banned} 会闪黑底")
+        self.assertIn("DefaultBackgroundColor = Color.FromArgb(246, 247, 249)", source)
+
+    def test_ui_pages_are_light_and_offline(self) -> None:
+        for name in ("splash.html", "error.html"):
+            html = (self.LAUNCHER / "ui" / name).read_text(encoding="utf-8")
+            self.assertIn("#f6f7f9", html)
+            for remote in ("http://", "https://", "//cdn"):
+                self.assertNotIn(remote, html, f"{name} 不该联网取资源")
+        splash = (self.LAUNCHER / "ui" / "splash.html").read_text(encoding="utf-8")
+        self.assertIn("{{STATUS}}", splash)
+        error = (self.LAUNCHER / "ui" / "error.html").read_text(encoding="utf-8")
+        for slot in ("{{TITLE}}", "{{LEAD}}", "{{DETAIL}}"):
+            self.assertIn(slot, error)
+
+    def test_build_embeds_the_ui_pages(self) -> None:
+        script = (self.LAUNCHER / "build-desktop.ps1").read_text(encoding="utf-8-sig")
+        self.assertIn("'splash.html', 'error.html'", script)
+        self.assertIn('"/resource:" + $pagePath + "," + $page', script)
+
+    def test_broken_browser_profile_heals_itself(self) -> None:
+        source = self._shell()
+        self.assertIn("QuarantineProfile(", source)      # 挪走坏 profile
+        self.assertIn("RecreateWebView()", source)       # 重建控件（失败过的控件没法再初始化）
+        self.assertIn("SpiritScout-webview2-", source)   # 最后退到独立目录
+
+    def test_leftover_server_from_a_crash_is_reaped(self) -> None:
+        source = self._shell()
+        self.assertIn("KillStaleServer();", source)
+        self.assertIn("WriteServerPid(", source)
+        self.assertIn("ClearServerPid(", source)

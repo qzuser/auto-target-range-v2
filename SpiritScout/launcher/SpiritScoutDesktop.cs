@@ -504,9 +504,19 @@ namespace SpiritScoutDesktop
 
     internal static class Program
     {
+        [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+        private static extern IntPtr FindWindow(string className, string windowName);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool ShowWindow(IntPtr handle, int command);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool SetForegroundWindow(IntPtr handle);
+
         [STAThread]
-        private static void Main()
+        private static void Main(string[] args)
         {
+            bool smoke = args != null && Array.IndexOf(args, "--smoke") >= 0;
             // 这是个 winexe：崩了既没控制台也没弹窗，用户只看到「双击没反应」。
             // 所以先把兜底挂上，崩了至少留下能看的日志和一句人话。
             AppDomain.CurrentDomain.UnhandledException += OnFatal;
@@ -517,7 +527,24 @@ namespace SpiritScoutDesktop
                 Runtime.Prepare();
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
-                Application.Run(new DesktopForm());
+                // WebView2 的用户数据目录是独占的：同时开两个实例，第二个必然起不来。
+                // 所以第二次双击只把已有的窗口叫到前面，不再开新的。
+                bool created;
+                using (Mutex single = new Mutex(true, "SpiritScoutDesktop-single-instance", out created))
+                {
+                    if (!created)
+                    {
+                        IntPtr existing = FindWindow(null, "灵枢 · SpiritScout");
+                        if (existing != IntPtr.Zero)
+                        {
+                            ShowWindow(existing, 9);      // SW_RESTORE
+                            SetForegroundWindow(existing);
+                        }
+                        return;
+                    }
+                    Application.Run(new DesktopForm(smoke));
+                    GC.KeepAlive(single);
+                }
             }
             catch (Exception ex)
             {
@@ -580,30 +607,22 @@ namespace SpiritScoutDesktop
         private bool _singleFile;       // 单文件版：exe 尾巴上挂着运行时 zip，首次启动解出来
         private bool _runtimeBroken;    // 单文件版这次没解开运行时（杀软拦、磁盘满、目录不可写）
 
-        private readonly Label _status = new Label();
-        private readonly TextBox _log = new TextBox();
-        private readonly Panel _logPanel = new Panel();
-        private readonly Label _placeholder = new Label();
         private WebView2 _web;          // 延迟创建：内嵌浏览器初始化失败也要能开窗
-
-        private readonly Button _btnCheck = new Button();
-        private readonly Button _btnFix = new Button();
-        private readonly Button _btnStart = new Button();
-        private readonly Button _btnStop = new Button();
-        private readonly Button _btnReload = new Button();
-        private readonly Button _btnExternal = new Button();
-        private readonly Button _btnPassword = new Button();
-        private readonly Button _btnLogFolder = new Button();
-        private readonly Button _btnToggleLog = new Button();
-
         private Process _server;
         private int _port = PreferredPort;
         private bool _webReady;
         private bool _closing;
+        private bool _starting;         // 正在启动：防止重试按钮被连点
+        private bool _uiPage;           // 当前显示的是启动页/错误页，别被控制台覆盖
+        private string _statusText = "";  // 启动页上那行状态，页面刷新后要补回去
         private readonly object _logLock = new object();
+        private StringBuilder _serverErr = new StringBuilder();
 
-        public DesktopForm()
+        private readonly bool _smokeOnly;
+
+        public DesktopForm(bool smokeOnly)
         {
+            _smokeOnly = smokeOnly;
             // 三种形态，优先级从高到低：
             //   1. 单文件版：exe 尾部挂着运行时 zip（build-single.ps1 拼的），先开窗再解；
             //   2. 便携版：exe 旁边的 desktop.json 指路（root=程序目录、python=内嵌解释器）；
@@ -639,14 +658,17 @@ namespace SpiritScoutDesktop
             _logDir = Path.Combine(_repoRoot, LogFolderName);
 
             ApplyAppIcon();
-            Text = "灵枢桌面版 · SpiritScout";
+            Text = "灵枢 · SpiritScout";
             StartPosition = FormStartPosition.CenterScreen;
-            MinimumSize = new Size(980, 640);
-            Size = new Size(1280, 860);
-            BackColor = Color.FromArgb(24, 26, 32);
+            MinimumSize = new Size(1024, 680);
+            Size = new Size(1360, 880);
+            // 浅色，和启动页、控制台一个底色；深色会先闪一块黑
+            BackColor = Color.FromArgb(246, 247, 249);
             Font = new Font("Microsoft YaHei UI", 9F);
 
             BuildLayout();
+            KeyPreview = true;
+            KeyDown += OnShortcut;
             Load += OnLoaded;
             FormClosing += OnClosing;
         }
@@ -752,73 +774,16 @@ namespace SpiritScoutDesktop
         }
         private void BuildLayout()
         {
-            FlowLayoutPanel bar = new FlowLayoutPanel();
-            bar.Dock = DockStyle.Top;
-            bar.Height = 46;
-            bar.Padding = new Padding(8, 8, 8, 0);
-            bar.BackColor = Color.FromArgb(32, 35, 43);
-            bar.WrapContents = false;
-
-            SetupButton(_btnCheck, "环境自检", delegate { Task ignore = CheckEnvironmentAsync(true); });
-            SetupButton(_btnFix, "一键修复", delegate { Task ignore = RunBootstrapAsync("--fix", true); });
-            SetupButton(_btnStart, "启动服务", delegate { Task ignore = StartServerAsync(); });
-            SetupButton(_btnStop, "停止", delegate { StopServer(true); });
-            SetupButton(_btnReload, "刷新页面", delegate { ReloadPage(); });
-            SetupButton(_btnExternal, "用浏览器打开", delegate { OpenExternal(); });
-            SetupButton(_btnPassword, "设管理员密码", delegate { SetPassword(); });
-            SetupButton(_btnLogFolder, "日志目录", delegate { OpenLogFolder(); });
-            SetupButton(_btnToggleLog, "隐藏日志", delegate { ToggleLog(); });
-            _btnStop.Enabled = false;
-            _btnReload.Enabled = false;
-            _btnExternal.Enabled = false;
-
-            bar.Controls.Add(_btnCheck);
-            bar.Controls.Add(_btnFix);
-            bar.Controls.Add(_btnStart);
-            bar.Controls.Add(_btnStop);
-            bar.Controls.Add(_btnReload);
-            bar.Controls.Add(_btnExternal);
-            bar.Controls.Add(_btnPassword);
-            bar.Controls.Add(_btnLogFolder);
-            bar.Controls.Add(_btnToggleLog);
-
-            _status.Dock = DockStyle.Top;
-            _status.Height = 28;
-            _status.TextAlign = ContentAlignment.MiddleLeft;
-            _status.Padding = new Padding(10, 0, 10, 0);
-            _status.ForeColor = Color.FromArgb(200, 205, 215);
-            _status.BackColor = Color.FromArgb(28, 30, 37);
-            _status.Text = "正在检查环境…";
-
-            _placeholder.Dock = DockStyle.Fill;
-            _placeholder.TextAlign = ContentAlignment.MiddleCenter;
-            _placeholder.Font = new Font("Microsoft YaHei UI", 12F);
-            _placeholder.ForeColor = Color.FromArgb(150, 156, 168);
-            _placeholder.Text = "控制台还没启动：先点上面的「环境自检」，需要补依赖就点「一键修复」。";
-
+            // 窗口里只有一样东西：铺满整个窗口的内嵌浏览器。
+            // 没有工具栏、没有状态条、没有日志面板——打开就是控制台，
+            // 起不来才把这一页换成「环境没准备好」，那页上带重试。
+            Padding = new Padding(0);
             Panel canvas = new Panel();
             canvas.Dock = DockStyle.Fill;
+            canvas.Padding = new Padding(0);
+            canvas.BackColor = BackColor;
             canvas.Controls.Add(CreateWebView());
-            canvas.Controls.Add(_placeholder);
-
-            _log.Multiline = true;
-            _log.ReadOnly = true;
-            _log.ScrollBars = ScrollBars.Vertical;
-            _log.Dock = DockStyle.Fill;
-            _log.BackColor = Color.FromArgb(18, 20, 25);
-            _log.ForeColor = Color.FromArgb(190, 196, 206);
-            _log.Font = new Font("Consolas", 9F);
-            _log.BorderStyle = BorderStyle.None;
-
-            _logPanel.Dock = DockStyle.Bottom;
-            _logPanel.Height = 170;
-            _logPanel.Padding = new Padding(0);
-            _logPanel.Controls.Add(_log);
-
             Controls.Add(canvas);
-            Controls.Add(_logPanel);
-            Controls.Add(_status);
-            Controls.Add(bar);
         }
 
         /// <summary>
@@ -832,66 +797,239 @@ namespace SpiritScoutDesktop
             {
                 _web = new WebView2();
                 _web.Dock = DockStyle.Fill;
-                _web.Visible = false;
+                try
+                {
+                    // 控件默认底色是黑的：首帧会闪一块黑板，看着像程序坏了
+                    _web.DefaultBackgroundColor = Color.FromArgb(246, 247, 249);
+                }
+                catch (Exception) { }
                 return _web;
             }
             catch (Exception ex)
             {
                 _web = null;
                 AppendLog("[!] 内嵌浏览器控件建不起来：" + ex.Message);
-                AppendLog("    退路：用「用浏览器打开」，会在 Edge 的独立窗口里打开控制台。");
                 return new Panel();
             }
         }
-        private static void SetupButton(Button button, string text, EventHandler onClick)
-        {
-            button.Text = text;
-            button.AutoSize = true;
-            button.Height = 28;
-            button.FlatStyle = FlatStyle.Flat;
-            button.FlatAppearance.BorderColor = Color.FromArgb(70, 76, 90);
-            button.BackColor = Color.FromArgb(44, 48, 58);
-            button.ForeColor = Color.FromArgb(225, 229, 236);
-            button.Margin = new Padding(0, 0, 8, 0);
-            button.Click += onClick;
-        }
 
-        private void ToggleLog()
+        /// <summary>不摆按钮了，功能留成快捷键：F5 刷新、Ctrl+Alt+O 用浏览器开、L 日志、P 密码。</summary>
+        private void OnShortcut(object sender, KeyEventArgs e)
         {
-            _logPanel.Visible = !_logPanel.Visible;
-            _btnToggleLog.Text = _logPanel.Visible ? "隐藏日志" : "显示日志";
+            if (e.KeyCode == Keys.F5) { ReloadPage(); e.Handled = true; return; }
+            if (!e.Control || !e.Alt) { return; }
+            if (e.KeyCode == Keys.O) { OpenExternal(); e.Handled = true; }
+            else if (e.KeyCode == Keys.L) { OpenLogFolder(); e.Handled = true; }
+            else if (e.KeyCode == Keys.P) { SetPassword(); e.Handled = true; }
         }
 
         private async void OnLoaded(object sender, EventArgs e)
         {
-            AppendLog("灵枢桌面版启动。程序目录：" + _repoRoot
-                + (_singleFile ? "（单文件版：运行时随 exe 一起）" : ""));
+            if (_smokeOnly)
+            {
+                // 构建脚本用这个开关：只要窗口能起来就够了，不要真起服务
+                await InitWebViewAsync();
+                ShowSplash("构建冒烟：窗口正常");
+                System.Windows.Forms.Timer timer = new System.Windows.Forms.Timer();
+                timer.Interval = 1200;
+                timer.Tick += delegate { timer.Stop(); Close(); };
+                timer.Start();
+                return;
+            }
+            await StartAppAsync();
+        }
+
+        /// <summary>
+        /// 打开就自己跑：亮启动页 → 解运行时 → 确认环境 → 起服务 → 换成控制台。
+        /// 中途真失败才把窗口换成「环境没准备好」，那页上有重试按钮。
+        /// </summary>
+        private async Task StartAppAsync()
+        {
+            if (_starting) { return; }
+            _starting = true;
             try
             {
-                if (_singleFile) { await UnpackBundledRuntimeAsync(); }
+                AppendLog("灵枢桌面版启动。程序目录：" + _repoRoot
+                    + (_singleFile ? "（单文件版：运行时随 exe 一起）" : ""));
+                _uiPage = true;
                 await InitWebViewAsync();
-                await CheckEnvironmentAsync(false);
+                ShowSplash("正在准备运行时…");
+                if (_singleFile) { await UnpackBundledRuntimeAsync(); }
+                if (_runtimeBroken) { return; }
+                ShowSplash("正在确认运行环境…");
+                string python = await EnsureReadyAsync();
+                if (python == null)
+                {
+                    ShowErrorPage(_failTitle, _failLead, _failDetail);
+                    return;
+                }
+                ShowSplash("正在启动控制台…");
+                bool ok = await StartServerAsync(python);
+                if (!ok) { ShowErrorPage(_failTitle, _failLead, _failDetail); }
             }
             catch (Exception ex)
             {
-                AppendLog("[x] 启动自检出错：" + ex.Message);
-                SetStatus("启动自检出错：日志里有细节。", Color.FromArgb(235, 120, 120));
+                AppendLog("[x] 启动失败：" + ex);
+                _failTitle = "启动失败";
+                _failLead = "灵枢在启动过程中出错中断了。日志里有完整的调用栈。";
+                _failDetail = ex.ToString();
+                ShowErrorPage(_failTitle, _failLead, _failDetail);
             }
+            finally
+            {
+                _starting = false;
+            }
+        }
+
+        // ---------------- 启动页 / 错误页 ----------------
+
+        /// <summary>把内嵌页面换成启动页（浅色、带进度条）。重复调用只更新那行字。</summary>
+        private void ShowSplash(string text)
+        {
+            _statusText = text;
+            if (_web == null || !_webReady) { return; }
+            if (_uiPage && _splashLoaded)
+            {
+                PushSplashStatus(text);
+                return;
+            }
+            string html = ReadUiHtml("splash.html");
+            if (html == null) { return; }
+            _uiPage = true;
+            _splashLoaded = false;
+            _uiHtmlShown = true;
+            _web.NavigateToString(html.Replace("{{STATUS}}", EscapeHtml(text)));
+            AppendLog("[i] " + text);
+        }
+
+        private bool _splashLoaded;    // 启动页已经画出来了
+        private bool _uiHtmlShown;     // 这一发 NavigateToString 是我们自己送的页面
+
+        private void PushSplashStatus(string text)
+        {
+            try
+            {
+                _web.CoreWebView2.ExecuteScriptAsync("window.ssSet && window.ssSet(" + JsString(text) + ");");
+            }
+            catch (Exception) { }
+        }
+
+        /// <summary>环境不对才走这里：一页说清原因，带重试/日志/浏览器/退出。</summary>
+        private void ShowErrorPage(string title, string lead, string detail)
+        {
+            _uiPage = true;
+            _statusText = title;
+            AppendLog("[x] " + title + "：" + (detail == null ? "" : detail));
+            string html = ReadUiHtml("error.html");
+            if (html == null || _web == null || !_webReady)
+            {
+                MessageBox.Show(title + Environment.NewLine + Environment.NewLine + lead
+                    + Environment.NewLine + Environment.NewLine + (detail == null ? "" : detail),
+                    "灵枢 · 环境没准备好", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            _uiHtmlShown = true;
+            html = html.Replace("{{TITLE}}", EscapeHtml(title))
+                       .Replace("{{LEAD}}", EscapeHtml(lead))
+                       .Replace("{{DETAIL}}", EscapeHtml(detail == null ? "" : detail));
+            _web.NavigateToString(html);
+        }
+
+        private string ReadUiHtml(string name)
+        {
+            try
+            {
+                Stream stream = typeof(DesktopForm).Assembly.GetManifestResourceStream(name);
+                if (stream == null)
+                {
+                    AppendLog("[!] 找不到内嵌页面 " + name + "（构建时要用 /resource 嵌进去）");
+                    return null;
+                }
+                using (stream)
+                using (StreamReader reader = new StreamReader(stream, Encoding.UTF8))
+                {
+                    return reader.ReadToEnd();
+                }
+            }
+            catch (Exception ex)
+            {
+                AppendLog("[!] 读内嵌页面失败：" + ex.Message);
+                return null;
+            }
+        }
+
+        private static string EscapeHtml(string text)
+        {
+            if (text == null) { return ""; }
+            return text.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
+        }
+
+        private static string JsString(string text)
+        {
+            if (text == null) { return "\"\""; }
+            StringBuilder builder = new StringBuilder("\"");
+            foreach (char ch in text)
+            {
+                if (ch == '\\') { builder.Append("\\\\"); }
+                else if (ch == '"') { builder.Append("\\\""); }
+                else if (ch == '\r') { builder.Append("\\r"); }
+                else if (ch == '\n') { builder.Append("\\n"); }
+                else if (ch == '<') { builder.Append("\\u003c"); }
+                else { builder.Append(ch); }
+            }
+            builder.Append("\"");
+            return builder.ToString();
+        }
+
+        /// <summary>错误页上的按钮点下来走这里；也挡住来源不明的消息。</summary>
+        private void HandleUiAction(string action)
+        {
+            if (action == null) { return; }
+            if (action == "retry")
+            {
+                Task ignore = StartAppAsync();
+            }
+            else if (action == "log")
+            {
+                OpenLogFolder();
+            }
+            else if (action == "browser")
+            {
+                OpenExternal();
+            }
+            else if (action == "quit")
+            {
+                Close();
+            }
+        }
+
+        /// <summary>日志文件最后几行——出错时贴给人看的那点内容。</summary>
+        private string TailLog(int lines)
+        {
+            try
+            {
+                string path = Path.Combine(_logDir, "desktop-" + DateTime.Now.ToString("yyyyMMdd") + ".log");
+                if (!File.Exists(path)) { return "（日志还没写出来：" + path + "）"; }
+                string[] all = File.ReadAllLines(path, Encoding.UTF8);
+                int from = Math.Max(0, all.Length - lines);
+                return string.Join(Environment.NewLine, all, from, all.Length - from);
+            }
+            catch (Exception ex) { return "（读日志失败：" + ex.Message + "）"; }
         }
 
         /// <summary>单文件版第一次启动：把 exe 尾部的 zip 解出来，之后启动直接复用。</summary>
         private async Task UnpackBundledRuntimeAsync()
         {
-            SetStatus("正在准备运行时（首次启动要解一次，约 320 MB）…", Color.FromArgb(240, 190, 110));
-            _btnCheck.Enabled = false;
-            _btnFix.Enabled = false;
-            _btnStart.Enabled = false;
+            SetStatus("正在解出运行时（首次启动约 320 MB）…");
             string root = await Task.Run(delegate
             {
-                return BundledRuntime.Ensure(delegate(string message) { AppendLog(message); });
+                return BundledRuntime.Ensure(delegate(string message)
+                {
+                    AppendLog(message);
+                    string trimmed = message.Trim();
+                    if (trimmed.Length > 0) { SetStatus(trimmed); }
+                });
             });
-            _btnCheck.Enabled = true;
-            _btnFix.Enabled = true;
             if (string.IsNullOrEmpty(root))
             {
                 // 关键：这里不能把 _singleFile 关掉。关掉之后就按「便携版 + desktop.json」
@@ -899,12 +1037,10 @@ namespace SpiritScoutDesktop
                 // 不知道发生了什么，还以为单文件版要装环境。
                 _runtimeBroken = true;
                 AppendLog("[x] 内置运行时解不出来：" + BundledRuntime.Error);
-                SetStatus("内置运行时没解开：点「重试解压」；还不行就看日志里的原因。", Color.FromArgb(235, 120, 120));
-                _btnStart.Enabled = false;
-                _btnFix.Text = "重试解压";
-                _btnFix.Enabled = true;
-                _placeholder.Text = "单文件版自带运行时，不需要装 Python。\n"
-                    + "这次没解开，多半是杀毒软件拦了、磁盘空间不够，或者当前目录不能写。";
+                _failTitle = "运行时没解出来";
+                _failLead = "这个 exe 自带运行时，不需要装 Python。这次没解开，"
+                    + "多半是杀毒软件拦了、磁盘空间不够，或者目录不能写。点重试可以再解一次。";
+                _failDetail = BundledRuntime.Error;
                 return;
             }
             _repoRoot = root;
@@ -913,7 +1049,6 @@ namespace SpiritScoutDesktop
             _portable = true;
             _logDir = Path.Combine(root, LogFolderName);
             _runtimeBroken = false;
-            _btnFix.Text = "一键修复";
             AppendLog("[+] 运行时就绪：" + root);
         }
 
@@ -922,16 +1057,8 @@ namespace SpiritScoutDesktop
         private void AppendLog(string line)
         {
             if (_closing) { return; }
-            if (InvokeRequired)
-            {
-                try { BeginInvoke(new Action<string>(AppendLog), line); }
-                catch (InvalidOperationException) { }
-                return;
-            }
-            string stamp = DateTime.Now.ToString("HH:mm:ss");
             lock (_logLock)
             {
-                _log.AppendText("[" + stamp + "] " + line + Environment.NewLine);
                 try
                 {
                     string path = Path.Combine(_logDir, "desktop-" + DateTime.Now.ToString("yyyyMMdd") + ".log");
@@ -943,16 +1070,26 @@ namespace SpiritScoutDesktop
             }
         }
 
+        /// <summary>
+        /// 更新启动页上那行字。窗口里没有状态条也没有日志框了，所以这里只往页面上写；
+        /// 页面还没建好时先记住，等页面加载完补上。
+        /// </summary>
         private void SetStatus(string text, Color color)
         {
+            SetStatus(text);
+        }
+
+        private void SetStatus(string text)
+        {
+            if (_closing) { return; }
+            _statusText = text;
             if (InvokeRequired)
             {
-                try { BeginInvoke(new Action<string, Color>(SetStatus), text, color); }
+                try { BeginInvoke(new Action<string>(SetStatus), text); }
                 catch (InvalidOperationException) { }
                 return;
             }
-            _status.Text = text;
-            _status.ForeColor = color;
+            if (_uiPage && _splashLoaded) { PushSplashStatus(text); }
         }
 
         private void OpenLogFolder()
@@ -1072,50 +1209,16 @@ namespace SpiritScoutDesktop
             return code;
         }
 
-        // ---------------- 环境自检 / 修复 ----------------
+        // ---------------- 环境确认 ----------------
 
-        private async Task CheckEnvironmentAsync(bool verbose)
-        {
-            if (_runtimeBroken)
-            {
-                // 运行时都没解出来，再去探解释器只会弹一句看不懂的 desktop.json 报错
-                SetStatus("内置运行时还没准备好：点「重试解压」。", Color.FromArgb(240, 190, 110));
-                _btnStart.Enabled = false;
-                return;
-            }
-            SetStatus("正在检查环境…", Color.FromArgb(200, 205, 205));
-            string python = PickPythonForBootstrap();
-            string script = Path.Combine(_packageDir, "scripts", "bootstrap.py");
-            if (!File.Exists(script))
-            {
-                if (_portable) { await CheckPortableAsync(python, verbose); return; }
-                SetStatus("环境自检脚本缺失：" + script, Color.FromArgb(235, 120, 120));
-                AppendLog("[x] 找不到 " + script + "，这个程序必须放在仓库里运行。");
-                return;
-            }
-            AppendLog("[>] 环境自检：python scripts/bootstrap.py --json");
-            CaptureResult probe = await CaptureAsync(python, "\"" + script + "\" --json", _repoRoot);
-            int code = probe.Code;
-            SummarizeEnvironment(probe.Output);
-            if (code == 0)
-            {
-                SetStatus("环境就绪：可以启动控制台了。", Color.FromArgb(120, 210, 150));
-                _btnStart.Enabled = true;
-                _placeholder.Text = "环境就绪，点「启动服务」打开控制台。";
-            }
-            else
-            {
-                SetStatus("环境需要修复：点「一键修复」（缺依赖 / venv 未建 / 没有 pip）。", Color.FromArgb(240, 190, 110));
-                _btnStart.Enabled = false;
-                _placeholder.Text = "环境还没就绪：先点「一键修复」，看日志了解缺什么。";
-            }
-            if (verbose)
-            {
-                AppendLog(code == 0 ? "[+] 自检通过" : "[!] 自检未通过（退出码 " + code + "）");
-            }
-        }
+        private string _failTitle = "环境没准备好";
+        private string _failLead = "";
+        private string _failDetail = "";
 
-        /// <summary>CaptureAsync 的返回值：async 方法不能带 out 参数，就包一层。</summary>
+        /// <summary>
+        /// 服务要用的解释器：先看 .venv，再看 desktop.json 指的内嵌 Python，
+        /// 仓库版最后退回系统里的 python / py 启动器。
+        /// </summary>
         private sealed class CaptureResult
         {
             public int Code;
@@ -1169,109 +1272,68 @@ namespace SpiritScoutDesktop
             }
             return result;
         }
-        /// <summary>把 bootstrap 的 JSON 翻成一句人话——用户不该去读 JSON。</summary>
-        private void SummarizeEnvironment(string json)
+
+        private string PickServerPython()
         {
-            try
-            {
-                bool ok = Regex.IsMatch(json, "\"ok\"\\s*:\\s*true");
-                Match version = Regex.Match(json, "\"python\"\\s*:\\s*\\{[^}]*\"version\"\\s*:\\s*\"([^\"]+)\"");
-                string pyVersion = version.Success ? version.Groups[1].Value : "未知";
-                Match missing = Regex.Match(json, "\"missing\"\\s*:\\s*\\[([^\\]]*)\\]");
-                string miss = missing.Success ? missing.Groups[1].Value.Trim() : "";
-                Match warns = Regex.Match(json, "\"warnings\"\\s*:\\s*\\[([^\\]]*)\\]");
-                AppendLog((ok ? "[+] 环境就绪" : "[!] 环境未就绪")
-                          + "：Python " + pyVersion
-                          + "，缺依赖 " + (miss.Length == 0 ? "0 个" : CountItems(miss) + " 个"));
-                if (miss.Length > 0) { AppendLog("    缺：" + miss.Replace("\"", "").Replace(",", " ")); }
-                if (warns.Success && warns.Groups[1].Value.Trim().Length > 0)
-                {
-                    AppendLog("    提醒：" + warns.Groups[1].Value.Replace("\"", "").Replace(",", "；"));
-                }
-            }
-            catch (Exception ex) { AppendLog("[!] 自检结果解析失败：" + ex.Message); }
+            string venv = VenvPython();
+            if (File.Exists(venv)) { return venv; }
+            if (!string.IsNullOrEmpty(_pythonOverride) && File.Exists(_pythonOverride)) { return _pythonOverride; }
+            if (_portable) { return null; }
+            return PickPythonForBootstrap();
         }
 
-        private static int CountItems(string csv)
+        /// <summary>
+        /// 确认「这台机器现在能不能跑起来」。能跑就把解释器返回，跑不了把原因写进
+        /// _failTitle/_failLead/_failDetail（错误页原样显示），返回 null。
+        /// 全自动：仓库版缺依赖时自己先跑一遍 bootstrap，失败才算环境问题。
+        /// </summary>
+        private async Task<string> EnsureReadyAsync()
         {
-            int count = 0;
-            foreach (string part in csv.Split(','))
+            if (_runtimeBroken)
             {
-                if (part.Trim().Length > 0) { count++; }
+                _failTitle = "运行时没解出来";
+                _failLead = "单文件版自带运行时，不需要装 Python。这次没解开，多半是杀毒软件拦了、磁盘空间不够，或者目录不能写。";
+                _failDetail = BundledRuntime.Error;
+                return null;
             }
-            return count;
-        }
-        /// <summary>便携版体检：依赖装在内嵌解释器里，问一句就知道，不需要 bootstrap.py。</summary>
-        private async Task CheckPortableAsync(string python, bool verbose)
-        {
-            if (python == null || !File.Exists(python))
+            string python = PickServerPython();
+            if (python == null && !_portable)
             {
-                SetStatus("这个 exe 只是窗口壳，需要同目录的运行时；想双击就用请下「单文件版」。", Color.FromArgb(235, 120, 120));
-                AppendLog("[x] 找不到内置 Python：" + (string.IsNullOrEmpty(python) ? "（没配解释器）" : python));
-                AppendLog("    这个 exe 是 834 KB 的窗口壳，运行时（py\\ + configs\\）得跟它放在一起；"
-                    + "嫌配环境麻烦就下 spiritscout-<版本>-single-win64.exe，那个一个文件全带。");
-                _btnStart.Enabled = false;
-                return;
+                AppendLog("[>] 没有现成的解释器，自动跑一遍 bootstrap");
+                SetStatus("正在准备依赖（第一次要几分钟，别关窗口）…");
+                string boot = PickPythonForBootstrap();
+                string script = Path.Combine(_packageDir, "scripts", "bootstrap.py");
+                if (boot != null && File.Exists(script))
+                {
+                    int code = await RunStreamingAsync(boot, "\"" + script + "\" --fix", _repoRoot);
+                    AppendLog("[i] bootstrap 退出码 " + code);
+                }
+                python = PickServerPython();
             }
-            AppendLog("[>] 便携版自检：" + python);
+            if (python == null)
+            {
+                _failTitle = _portable ? "窗口壳旁边少了运行时" : "找不到能用的 Python";
+                _failLead = _portable
+                    ? "这个 exe 只是窗口壳，运行时（py\\ 和 configs\\）得跟它放在一起。想双击就用，请下 spiritscout-<版本>-single-win64.exe 那个单文件版。"
+                    : "这台机器上没找到装着依赖的 Python 3.11+。装好 Python 后点重试，或用环境变量 SPIRITSCOUT_PYTHON 指定解释器。";
+                _failDetail = "程序目录：" + _packageDir + Environment.NewLine + "日志：" + TailLog(12);
+                return null;
+            }
+            AppendLog("[>] 用这个解释器：" + python);
             CaptureResult probe = await CaptureAsync(python,
                 "-c \"import sys, spiritscout; print(spiritscout.__version__ + ' | ' + sys.version.split()[0])\"",
                 _packageDir);
             string text = probe.Output == null ? "" : probe.Output.Trim();
-            if (probe.Code == 0 && text.Length > 0)
+            if (probe.Code != 0 || text.Length == 0)
             {
-                string[] parts = text.Split('|');
-                string pkg = parts[0].Trim();
-                string py = parts.Length > 1 ? parts[1].Trim() : "?";
-                AppendLog("[+] 内嵌运行时可用：灵枢 " + pkg + "，Python " + py);
-                SetStatus("环境就绪（便携版，无需安装）：可以启动控制台了。", Color.FromArgb(120, 210, 150));
-                _btnStart.Enabled = true;
-                _placeholder.Text = "环境就绪，点「启动服务」打开控制台。";
+                _failTitle = "依赖不完整";
+                _failLead = "解释器找到了，但 import spiritscout 失败——运行时目录可能被杀毒软件清过，或者装得不全。点重试会再解一次并重试启动。";
+                _failDetail = "解释器：" + python + Environment.NewLine + "退出码：" + probe.Code
+                    + Environment.NewLine + text + Environment.NewLine + "--- 日志 ---" + Environment.NewLine + TailLog(12);
+                return null;
             }
-            else
-            {
-                SetStatus("便携版环境不完整：建议重新解压整份目录。", Color.FromArgb(240, 190, 110));
-                _btnStart.Enabled = false;
-                AppendLog("[!] 内嵌解释器里 import spiritscout 失败（退出码 " + probe.Code + "）");
-            }
-            if (verbose) { AppendLog(probe.Code == 0 ? "[+] 便携版自检通过" : "[!] 便携版自检未通过"); }
-        }
-
-        private async Task RunBootstrapAsync(string extraArgs, bool thenCheck)
-        {
-            if (_portable)
-            {
-                if (_runtimeBroken && _singleFile)
-                {
-                    AppendLog("[>] 重新解一次内置运行时");
-                    await UnpackBundledRuntimeAsync();
-                    await CheckEnvironmentAsync(false);
-                    return;
-                }
-                // 便携版没有 venv 也没有 bootstrap.py：依赖关系在打包时就装进内嵌解释器了。
-                SetStatus("便携版不需要修复：依赖已随包装好，坏了就重新解压整份目录。", Color.FromArgb(200, 205, 205));
-                AppendLog("[i] 便携版的 Python 与依赖都在程序目录里，没有 venv 可修。");
-                if (thenCheck) { await CheckEnvironmentAsync(false); }
-                return;
-            }
-            _btnFix.Enabled = false;
-            _btnCheck.Enabled = false;
-            SetStatus("正在修复环境（首次装依赖要几分钟，别关窗口）…", Color.FromArgb(240, 190, 110));
-            string python = PickPythonForBootstrap();
-            string script = Path.Combine(_packageDir, "scripts", "bootstrap.py");
-            int code = await RunStreamingAsync(python, "\"" + script + "\" " + extraArgs, _repoRoot);
-            _btnFix.Enabled = true;
-            _btnCheck.Enabled = true;
-            if (code == 0)
-            {
-                SetStatus("修复完成：环境就绪。", Color.FromArgb(120, 210, 150));
-                _btnStart.Enabled = true;
-            }
-            else
-            {
-                SetStatus("修复没成功：日志里最后一屏就是原因，可复制出来发我。", Color.FromArgb(235, 120, 120));
-            }
-            if (thenCheck) { await CheckEnvironmentAsync(false); }
+            AppendLog("[+] 运行时可用：灵枢 " + text);
+            return python;
         }
 
         // ---------------- 服务进程 ----------------
@@ -1296,28 +1358,34 @@ namespace SpiritScoutDesktop
             return port;
         }
 
-        private async Task StartServerAsync()
+        private async Task<bool> StartServerAsync(string python)
         {
             if (_server != null && !_server.HasExited)
             {
                 AppendLog("[i] 服务已经在跑，端口 " + _port);
                 NavigateToConsole();
-                return;
+                return true;
             }
-            string python = File.Exists(VenvPython()) ? VenvPython() : PickPythonForBootstrap();
             if (python == null)
             {
-                SetStatus("没有可用的 Python，先点「一键修复」。", Color.FromArgb(235, 120, 120));
-                return;
+                _failTitle = "找不到能用的 Python";
+                _failLead = "控制台要用 Python 跑起来，但这台机器上没找到可用的解释器。";
+                _failDetail = TailLog(12);
+                return false;
             }
-            _port = FreePort(PreferredPort);
+            KillStaleServer();
+            _port = FreePort(_port);
             string config = Path.Combine(_packageDir, "configs", "system.yaml");
-            string args = "-X utf8 -m spiritscout --config configs\\system.yaml --port " + _port;
             if (!File.Exists(config))
             {
-                AppendLog("[!] 没找到 " + config + "：按 example 复制一份再启动");
+                AppendLog("[!] 没找到 " + config);
+                _failTitle = "配置文件缺失";
+                _failLead = "控制台要读 configs\\system.yaml，这份运行时里没有——目录可能被杀毒软件清过。重新解压或换个目录再试。";
+                _failDetail = "缺：" + config + Environment.NewLine + "程序目录：" + _packageDir;
+                return false;
             }
 
+            string args = "-X utf8 -m spiritscout --config configs\\system.yaml --port " + _port;
             ProcessStartInfo psi = BuildStartInfo(python, args);
             psi.RedirectStandardOutput = true;
             psi.RedirectStandardError = true;
@@ -1326,6 +1394,7 @@ namespace SpiritScoutDesktop
             psi.EnvironmentVariables["SPIRITSCOUT_EXECUTOR__SANDBOX_BACKEND"] = "host";
             psi.EnvironmentVariables["PYTHONUNBUFFERED"] = "1";
 
+            _serverErr = new StringBuilder();
             Process proc = new Process();
             proc.StartInfo = psi;
             proc.OutputDataReceived += delegate(object s, DataReceivedEventArgs e)
@@ -1334,7 +1403,9 @@ namespace SpiritScoutDesktop
             };
             proc.ErrorDataReceived += delegate(object s, DataReceivedEventArgs e)
             {
-                if (e.Data != null) { AppendLog(e.Data); }
+                if (e.Data == null) { return; }
+                AppendLog(e.Data);
+                lock (_serverErr) { _serverErr.AppendLine(e.Data); }
             };
             try
             {
@@ -1342,31 +1413,96 @@ namespace SpiritScoutDesktop
             }
             catch (Exception ex)
             {
-                SetStatus("启动失败：" + ex.Message, Color.FromArgb(235, 120, 120));
                 AppendLog("[x] 起不来：" + ex.Message);
-                return;
+                _failTitle = "控制台起不来";
+                _failLead = "解释器找到了，但服务进程没能启动。";
+                _failDetail = "命令：" + python + " " + args + Environment.NewLine + ex.Message;
+                return false;
             }
             proc.BeginOutputReadLine();
             proc.BeginErrorReadLine();
             _server = proc;
-            _btnStop.Enabled = true;
-            _btnStart.Enabled = false;
-            SetStatus("正在启动控制台（端口 " + _port + "）…", Color.FromArgb(240, 190, 110));
+            WriteServerPid(proc.Id);
             AppendLog("[>] python " + args);
+            SetStatus("正在启动控制台（端口 " + _port + "）…");
 
-            bool ready = await WaitForServerAsync(_port, 120000);
-            if (ready)
+            string url = "http://127.0.0.1:" + _port + "/";
+            int waited = 0;
+            while (waited < 120000)
             {
-                SetStatus("控制台已在端口 " + _port + " 运行。", Color.FromArgb(120, 210, 150));
-                _btnReload.Enabled = true;
-                _btnExternal.Enabled = true;
-                NavigateToConsole();
+                if (await ProbeAsync(url))
+                {
+                    AppendLog("[+] 控制台已就绪：" + url);
+                    SetStatus("控制台已就绪");
+                    NavigateToConsole();
+                    return true;
+                }
+                if (_server == null || _server.HasExited) { break; }
+                await Task.Delay(500);
+                waited += 500;
+                if (waited % 5000 == 0)
+                {
+                    SetStatus("正在启动控制台… 已等 " + (waited / 1000) + " 秒");
+                }
             }
-            else
+
+            string tail;
+            lock (_serverErr) { tail = _serverErr.ToString().Trim(); }
+            AppendLog("[x] 控制台没起来（等了 " + (waited / 1000) + " 秒）");
+            _failTitle = "控制台没起来";
+            _failLead = "服务进程启动了，但一直没响应。端口被占、依赖装了一半、或者模型配置有问题都可能这样。";
+            _failDetail = "端口：" + _port + Environment.NewLine
+                + (tail.Length > 0 ? tail : "（子进程没有输出）") + Environment.NewLine
+                + "--- 日志 ---" + Environment.NewLine + TailLog(20);
+            return false;
+        }
+
+        /// <summary>
+        /// 上次窗口被强杀/崩了的时候，控制台进程会留着占端口，下回启动就会莫名其妙换端口。
+        /// 这里留一个 pid 文件，启动时先把那一个（只认 -m spiritscout 的）收掉。
+        /// </summary>
+        private string ServerPidFile()
+        {
+            string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SpiritScout");
+            Directory.CreateDirectory(dir);
+            return Path.Combine(dir, "server.pid");
+        }
+
+        private void WriteServerPid(int pid)
+        {
+            try { File.WriteAllText(ServerPidFile(), pid.ToString()); }
+            catch (Exception) { }
+        }
+
+        private void ClearServerPid()
+        {
+            try { File.Delete(ServerPidFile()); }
+            catch (Exception) { }
+        }
+
+        private void KillStaleServer()
+        {
+            try
             {
-                SetStatus("等了 120 秒控制台还没起来：看日志里最后几行报错。", Color.FromArgb(235, 120, 120));
-                _btnStart.Enabled = true;
+                string path = ServerPidFile();
+                if (!File.Exists(path)) { return; }
+                int pid;
+                if (!int.TryParse(File.ReadAllText(path).Trim(), out pid)) { ClearServerPid(); return; }
+                Process stale = Process.GetProcessById(pid);
+                // 只认 python 进程：pid 会被系统复用，别误杀别人的东西
+                if (stale != null && !stale.HasExited
+                    && stale.ProcessName.StartsWith("python", StringComparison.OrdinalIgnoreCase))
+                {
+                    AppendLog("[i] 收掉上次没退干净的控制台进程 " + pid);
+                    ProcessStartInfo kill = new ProcessStartInfo("taskkill", "/pid " + pid + " /t /f");
+                    kill.UseShellExecute = false;
+                    kill.CreateNoWindow = true;
+                    Process.Start(kill);
+                    stale.WaitForExit(5000);
+                }
             }
+            catch (Exception) { }
+            ClearServerPid();
         }
 
         private static async Task<bool> WaitForServerAsync(int port, int timeoutMs)
@@ -1405,6 +1541,7 @@ namespace SpiritScoutDesktop
         {
             Process proc = _server;
             _server = null;
+            ClearServerPid();
             if (proc == null) { return; }
             try
             {
@@ -1420,18 +1557,7 @@ namespace SpiritScoutDesktop
                 }
             }
             catch (Exception ex) { AppendLog("[!] 停服务时出错：" + ex.Message); }
-            _btnStop.Enabled = false;
-            _btnStart.Enabled = true;
-            _btnReload.Enabled = false;
-            _btnExternal.Enabled = false;
-            if (_web != null) { _web.Visible = false; }
-            _placeholder.Visible = true;
-            _placeholder.Text = "控制台已停止。";
-            if (userAsked)
-            {
-                SetStatus("控制台已停止。", Color.FromArgb(200, 205, 215));
-                AppendLog("[i] 已停止控制台");
-            }
+            if (userAsked) { AppendLog("[i] 已停止控制台"); }
         }
 
         // ---------------- 内嵌浏览器 ----------------
@@ -1442,43 +1568,154 @@ namespace SpiritScoutDesktop
             {
                 _webReady = false;
                 AppendLog("[!] 没有内嵌浏览器控件：" + (Runtime.LastError ?? "控件创建失败"));
-                AppendLog("    Windows 10/11 一般自带 WebView2 运行时；缺了就去装一个名字叫"
-                    + "「Microsoft Edge WebView2 Runtime」的组件，装完重开本程序。");
-                SetStatus("缺内嵌浏览器组件：点「用浏览器打开」照样能用。", Color.FromArgb(240, 190, 110));
                 return;
             }
             try
             {
                 // 用户数据目录指定到仓库外：默认会落在 exe 旁边（灵枢桌面版.exe.WebView2/），
                 // 把工作区弄脏，只读安装目录下还会直接失败。
-                CoreWebView2Environment environment =
-                    await CoreWebView2Environment.CreateAsync(null, UserDataDir(), null);
-                await _web.EnsureCoreWebView2Async(environment);
+                // 这一步最容易在「别人的机子」上出问题：上一份浏览器进程没退干净，
+                // 或者 profile 被杀毒软件摸过，WebView2 会报 0x800700AA（资源在使用中）。
+                // 处理办法是自愈：把这份 profile 挪开 → 重建控件 → 用干净的目录再来一次。
+                bool started = false;
+                string dir = UserDataDir();
+                string failure = null;
+                try
+                {
+                    await EnsureBrowserAsync(dir);
+                    started = true;
+                }
+                catch (Exception ex)
+                {
+                    failure = ex.Message;
+                }
+                if (!started)
+                {
+                    AppendLog("[!] 浏览器数据目录起不来：" + failure);
+                    string moved = QuarantineProfile(dir);
+                    if (moved != null) { AppendLog("[i] 把这份 profile 挪到：" + moved); }
+                    if (RecreateWebView())
+                    {
+                        try
+                        {
+                            await EnsureBrowserAsync(dir);
+                            started = true;
+                            AppendLog("[+] 换了份干净的浏览器数据目录，起来了");
+                        }
+                        catch (Exception retry)
+                        {
+                            AppendLog("[!] 干净目录也不行：" + retry.Message);
+                        }
+                    }
+                }
+                if (!started)
+                {
+                    string isolated = Path.Combine(Path.GetTempPath(),
+                        "SpiritScout-webview2-" + Process.GetCurrentProcess().Id);
+                    if (RecreateWebView()) { await EnsureBrowserAsync(isolated); }
+                }
                 _web.CoreWebView2.Settings.AreDevToolsEnabled = false;
                 _web.CoreWebView2.Settings.IsStatusBarEnabled = false;
-                _web.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
-                _webReady = true;
-                AppendLog("[+] 内嵌浏览器就绪（WebView2 " + _web.CoreWebView2.Environment.BrowserVersionString + "）");
+                _web.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
+                _web.CoreWebView2.Settings.IsZoomControlEnabled = true;
+                try
+                {
+                    // 再设一次：控件底色有时候要等 controller 建好才生效
+                    _web.DefaultBackgroundColor = Color.FromArgb(246, 247, 249);
+                }
+                catch (Exception) { }
+                _web.CoreWebView2.WebMessageReceived += delegate(object sender, CoreWebView2WebMessageReceivedEventArgs e)
+                {
+                    string action = "";
+                    try { action = e.TryGetWebMessageAsString(); }
+                    catch (Exception) { }
+                    HandleUiAction(action);
+                };
                 _web.NavigationCompleted += delegate(object sender, CoreWebView2NavigationCompletedEventArgs e)
                 {
-                    if (e.IsSuccess)
-                    {
-                        string title = "";
-                        try { title = _web.CoreWebView2.DocumentTitle; } catch (Exception) { }
-                        AppendLog("[+] 页面已加载：" + (title.Length > 0 ? title : "（无标题）"));
-                    }
-                    else
+                    if (!e.IsSuccess)
                     {
                         AppendLog("[!] 页面加载失败：" + e.WebErrorStatus);
+                        return;
                     }
+                    if (_uiPage && _uiHtmlShown)
+                    {
+                        // 启动页/错误页刚画出来：把这期间攒下的状态补上去
+                        _splashLoaded = true;
+                        PushSplashStatus(_statusText);
+                        return;
+                    }
+                    string title = "";
+                    try { title = _web.CoreWebView2.DocumentTitle; } catch (Exception) { }
+                    AppendLog("[+] 页面已加载：" + (title.Length > 0 ? title : "（无标题）"));
                 };
+                _webReady = true;
+                AppendLog("[+] 内嵌浏览器就绪（WebView2 " + _web.CoreWebView2.Environment.BrowserVersionString + "）");
             }
             catch (Exception ex)
             {
                 _webReady = false;
                 AppendLog("[!] 内嵌浏览器初始化失败：" + ex.Message);
-                AppendLog("    退路：仍然可以用「用浏览器打开」在 Edge 的独立窗口里看控制台。");
+                MessageBox.Show("这台机器缺「Microsoft Edge WebView2 Runtime」，窗口里画不了界面。"
+                    + Environment.NewLine + "装完重开即可；也可以先用浏览器打开控制台。"
+                    + Environment.NewLine + Environment.NewLine + ex.Message,
+                    "灵枢 · 缺少内嵌浏览器组件", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
+        }
+
+        /// <summary>把起不来的 profile 挪到一边（不删，万一还要查），返回新位置。</summary>
+        private string QuarantineProfile(string dir)
+        {
+            try
+            {
+                if (!Directory.Exists(dir)) { return null; }
+                string target = dir + ".broken-" + DateTime.Now.ToString("yyyyMMdd-HHmmss");
+                Directory.Move(dir, target);
+                return target;
+            }
+            catch (Exception ex)
+            {
+                AppendLog("[!] profile 挪不动：" + ex.Message);
+                return null;
+            }
+        }
+
+        /// <summary>换一个新的浏览器控件：失败过一次的控件再初始化会直接摊手（E_UNEXPECTED）。</summary>
+        private bool RecreateWebView()
+        {
+            try
+            {
+                Control parent = _web == null ? null : _web.Parent;
+                if (_web != null)
+                {
+                    if (parent != null) { parent.Controls.Remove(_web); }
+                    try { _web.Dispose(); } catch (Exception) { }
+                    _web = null;
+                }
+                Control fresh = CreateWebView();
+                if (_web == null) { return false; }
+                if (parent != null)
+                {
+                    parent.Controls.Add(fresh);
+                    fresh.BringToFront();
+                }
+                try { _web.DefaultBackgroundColor = Color.FromArgb(246, 247, 249); }
+                catch (Exception) { }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                AppendLog("[!] 重建浏览器控件失败：" + ex.Message);
+                return false;
+            }
+        }
+
+        /// <summary>用指定的用户数据目录把浏览器拉起来。</summary>
+        private async Task EnsureBrowserAsync(string userDataDir)
+        {
+            CoreWebView2Environment environment =
+                await CoreWebView2Environment.CreateAsync(null, userDataDir, null);
+            await _web.EnsureCoreWebView2Async(environment);
         }
 
         /// <summary>WebView2 的用户数据目录：跟解压目录一样三级回退，别写进工作区。</summary>
@@ -1511,8 +1748,9 @@ namespace SpiritScoutDesktop
             string url = "http://127.0.0.1:" + _port + "/";
             if (_webReady)
             {
-                _placeholder.Visible = false;
-                _web.Visible = true;
+                _uiPage = false;
+                _splashLoaded = false;
+                _uiHtmlShown = false;
                 _web.Source = new Uri(url);
                 AppendLog("[>] 打开 " + url);
             }

@@ -105,6 +105,14 @@ if (Test-Path $iconPath) {
     Write-Host '    [!] 没找到 launcher/icon.ico，先按没有图标的编（跑一次 make-icon.py 就有了）'
 }
 
+# 启动页与错误页也是窗口的一部分：浅色 HTML 直接嵌进 exe，运行时 NavigateToString 用，
+# 不落到磁盘上（写不进去的目录也能用），也不会出现联网请求。
+foreach ($page in @('splash.html', 'error.html')) {
+    $pagePath = Join-Path (Join-Path $PSScriptRoot 'ui') $page
+    if (-not (Test-Path $pagePath)) { throw "缺 launcher/ui/$page —— 启动页/错误页是窗口的一部分，必须有" }
+    $iconArgs += ("/resource:" + $pagePath + "," + $page)
+}
+
 $cscArgs = @(
     '/nologo', '/target:winexe', '/platform:x64', '/optimize+',
     '/utf8output',
@@ -141,8 +149,9 @@ $size = [math]::Round((Get-Item $outputPath).Length / 1KB)
 Write-Host "    $outputPath（$size KB）"
 
 Write-Host "[4/4] 冒烟：确认 exe 能起来并自建窗口…"
-$proc = Start-Process -FilePath $outputPath -PassThru
-Start-Sleep -Seconds 6
+# 带 --smoke：只验窗口，不起控制台（不然每次构建都会留一个占端口的服务进程）
+$proc = Start-Process -FilePath $outputPath -ArgumentList '--smoke' -PassThru
+Start-Sleep -Seconds 5
 $alive = -not $proc.HasExited
 $title = $proc.MainWindowTitle
 if (-not $alive) {
