@@ -21,6 +21,7 @@ using System.Net.Sockets;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
+using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -530,9 +531,11 @@ namespace SpiritScoutDesktop
                 // WebView2 的用户数据目录是独占的：同时开两个实例，第二个必然起不来。
                 // 所以第二次双击只把已有的窗口叫到前面，不再开新的。
                 bool created;
+                // 冒烟测试要能在「用户正开着灵枢」的时候跑（构建时很常见），
+                // 所以它不参与单实例互斥，也别去激活别人已经开着的窗口。
                 using (Mutex single = new Mutex(true, "SpiritScoutDesktop-single-instance", out created))
                 {
-                    if (!created)
+                    if (!created && !smoke)
                     {
                         IntPtr existing = FindWindow(null, "灵枢 · SpiritScout");
                         if (existing != IntPtr.Zero)
@@ -542,7 +545,8 @@ namespace SpiritScoutDesktop
                         }
                         return;
                     }
-                    Application.Run(new DesktopForm(smoke));
+                    if (smoke) { Application.Run(new DesktopForm(true)); GC.KeepAlive(single); return; }
+                    Application.Run(new DesktopForm(false));
                     GC.KeepAlive(single);
                 }
             }
@@ -668,7 +672,7 @@ namespace SpiritScoutDesktop
 
             BuildLayout();
             KeyPreview = true;
-            KeyDown += OnShortcut;
+            KeyDown += OnShortcut;   // 焦点在窗口自己身上时走这条
             Load += OnLoaded;
             FormClosing += OnClosing;
         }
@@ -811,6 +815,33 @@ namespace SpiritScoutDesktop
                 AppendLog("[!] 内嵌浏览器控件建不起来：" + ex.Message);
                 return new Panel();
             }
+        }
+
+        /// <summary>
+        /// 窗口里铺的是 WebView2，焦点几乎总在网页里，窗体的 KeyDown 收不到键。
+        /// 所以往每个页面注入一小段脚本，把同样的快捷键转成消息发回来。
+        /// </summary>
+        private void InstallShortcutBridge()
+        {
+            const string script =
+                "(function(){if(window.__ssKeys)return;window.__ssKeys=1;"
+                + "var send=function(a){try{window.chrome.webview.postMessage({action:a});}catch(e){}};"
+                + "document.addEventListener('keydown',function(e){"
+                + "var k=(e.key||'').toLowerCase();"
+                + "if(k==='f5'&&!e.ctrlKey&&!e.altKey){e.preventDefault();send('reload');return;}"
+                + "if(!e.ctrlKey||!e.altKey)return;"
+                + "if(k==='p'){e.preventDefault();send('pw');}"
+                + "else if(k==='l'){e.preventDefault();send('log');}"
+                + "else if(k==='o'){e.preventDefault();send('browser');}"
+                + "},true);})();";
+            try
+            {
+                if (_webReady && _web.CoreWebView2 != null)
+                {
+                    Task ignore = _web.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(script);
+                }
+            }
+            catch (Exception ex) { AppendLog("[!] 快捷键桥没装上：" + ex.Message); }
         }
 
         /// <summary>不摆按钮了，功能留成快捷键：F5 刷新、Ctrl+Alt+O 用浏览器开、L 日志、P 密码。</summary>
@@ -982,9 +1013,11 @@ namespace SpiritScoutDesktop
         }
 
         /// <summary>错误页上的按钮点下来走这里；也挡住来源不明的消息。</summary>
-        private void HandleUiAction(string action)
+        private void HandleUiAction(string payload)
         {
-            if (action == null) { return; }
+            if (payload == null) { return; }
+            string action = JsonString(payload, "action");
+            if (action == null) { action = payload; }        // 纯字符串消息
             if (action == "retry")
             {
                 Task ignore = StartAppAsync();
@@ -1001,6 +1034,65 @@ namespace SpiritScoutDesktop
             {
                 Close();
             }
+            else if (action == "reload")
+            {
+                ReloadPage();
+            }
+            else if (action == "pw")
+            {
+                SetPassword();
+            }
+            else if (action == "console")
+            {
+                NavigateToConsole();
+            }
+            else if (action == "setpw")
+            {
+                Task ignore = ApplyPasswordAsync(JsonString(payload, "username"), JsonString(payload, "password"));
+            }
+        }
+
+        /// <summary>
+        /// 从一段 JSON 里取一个字符串字段。只干这一件事，所以不引 JSON 库：
+        /// 认转义（\\ \" \n \r \t \/ \uXXXX），认不出就返回 null。
+        /// </summary>
+        private static string JsonString(string json, string name)
+        {
+            if (json == null || name == null) { return null; }
+            string key = "\"" + name + "\"";
+            int at = json.IndexOf(key, StringComparison.Ordinal);
+            if (at < 0) { return null; }
+            int colon = json.IndexOf(':', at + key.Length);
+            if (colon < 0) { return null; }
+            int i = colon + 1;
+            while (i < json.Length && char.IsWhiteSpace(json[i])) { i++; }
+            if (i >= json.Length || json[i] != '"') { return null; }
+            StringBuilder builder = new StringBuilder();
+            for (i++; i < json.Length; i++)
+            {
+                char ch = json[i];
+                if (ch == '"') { return builder.ToString(); }
+                if (ch != '\\') { builder.Append(ch); continue; }
+                i++;
+                if (i >= json.Length) { break; }
+                char esc = json[i];
+                if (esc == 'n') { builder.Append('\n'); }
+                else if (esc == 'r') { builder.Append('\r'); }
+                else if (esc == 't') { builder.Append('\t'); }
+                else if (esc == 'b') { builder.Append('\b'); }
+                else if (esc == 'f') { builder.Append('\f'); }
+                else if (esc == 'u' && i + 4 < json.Length)
+                {
+                    int code;
+                    if (int.TryParse(json.Substring(i + 1, 4), NumberStyles.HexNumber, null, out code))
+                    {
+                        builder.Append((char)code);
+                        i += 4;
+                    }
+                }
+                else { builder.Append(esc); }
+            }
+            return null;
         }
 
         /// <summary>日志文件最后几行——出错时贴给人看的那点内容。</summary>
@@ -1615,6 +1707,7 @@ namespace SpiritScoutDesktop
                     if (RecreateWebView()) { await EnsureBrowserAsync(isolated); }
                 }
                 _web.CoreWebView2.Settings.AreDevToolsEnabled = false;
+                InstallShortcutBridge();
                 _web.CoreWebView2.Settings.IsStatusBarEnabled = false;
                 _web.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
                 _web.CoreWebView2.Settings.IsZoomControlEnabled = true;
@@ -1626,10 +1719,16 @@ namespace SpiritScoutDesktop
                 catch (Exception) { }
                 _web.CoreWebView2.WebMessageReceived += delegate(object sender, CoreWebView2WebMessageReceivedEventArgs e)
                 {
-                    string action = "";
-                    try { action = e.TryGetWebMessageAsString(); }
+                    // 两种消息都收：错误页那些按钮发的是纯字符串，密码对话框发的是对象。
+                    string payload = "";
+                    try { payload = e.TryGetWebMessageAsString(); }
                     catch (Exception) { }
-                    HandleUiAction(action);
+                    if (string.IsNullOrEmpty(payload))
+                    {
+                        try { payload = e.WebMessageAsJson; }
+                        catch (Exception) { }
+                    }
+                    HandleUiAction(payload);
                 };
                 _web.NavigationCompleted += delegate(object sender, CoreWebView2NavigationCompletedEventArgs e)
                 {
@@ -1721,6 +1820,18 @@ namespace SpiritScoutDesktop
         /// <summary>WebView2 的用户数据目录：跟解压目录一样三级回退，别写进工作区。</summary>
         private string UserDataDir()
         {
+            // 构建脚本的冒烟测试会塞一个临时目录进来：不然它和用户正在开的窗口抢同一份
+            // profile，WebView2 直接报 0x800700AA（资源在使用中），看着像启动失败。
+            string custom = Environment.GetEnvironmentVariable("SPIRITSCOUT_WEBVIEW_DIR");
+            if (!string.IsNullOrEmpty(custom))
+            {
+                try
+                {
+                    Directory.CreateDirectory(custom);
+                    return custom;
+                }
+                catch (Exception) { }
+            }
             string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
             if (!string.IsNullOrEmpty(localAppData))
             {
@@ -1800,25 +1911,107 @@ namespace SpiritScoutDesktop
 
         // ---------------- 管理员密码 ----------------
 
+        /// <summary>
+        /// 密码在窗口里设：直接画一张和控制台同款的表单，不再弹一个黑色控制台窗口
+        /// 让人在里面看不到自己在输什么。收完交给 CLI 写库（只存 scrypt 哈希）。
+        /// </summary>
         private void SetPassword()
         {
-            string python = File.Exists(VenvPython()) ? VenvPython() : PickPythonForBootstrap();
-            if (python == null)
+            if (!_webReady || _web.CoreWebView2 == null)
             {
-                AppendLog("[x] 没有可用的 Python，设不了密码。");
+                AppendLog("[!] 内嵌浏览器没起来，打不开密码界面；日志里有命令行用法。");
                 return;
             }
+            string html = ReadUiHtml("dialog.html");
+            if (html == null) { return; }
+            _uiPage = true;
+            _uiHtmlShown = false;
+            _splashLoaded = false;
+            _web.CoreWebView2.NavigateToString(html);
+            AppendLog("[>] 打开设置管理员密码的界面");
+        }
+
+        /// <summary>跑一条命令、把一行文字喂给它的 stdin，收 stdout/stderr。</summary>
+        private async Task<CaptureResult> RunWithInputAsync(string exe, string args, string workDir, string input)
+        {
+            CaptureResult result = new CaptureResult();
+            ProcessStartInfo psi = BuildStartInfo(exe, args);
+            psi.RedirectStandardInput = true;
+            psi.RedirectStandardOutput = true;
+            psi.RedirectStandardError = true;
+            psi.WorkingDirectory = workDir;
+            Process proc = new Process();
+            proc.StartInfo = psi;
+            string text = "";
+            string err = "";
             try
             {
-                // 交互式命令（要输两遍密码），必须给它一个真窗口
-                ProcessStartInfo psi = new ProcessStartInfo("cmd.exe",
-                    "/k \"" + python + "\" -X utf8 -m spiritscout --set-admin-password");
-                psi.WorkingDirectory = _packageDir;
-                psi.UseShellExecute = true;
-                Process.Start(psi);
-                AppendLog("[>] 已开一个窗口让你设管理员密码（输两遍，不回显）。");
+                proc.Start();
+                await Task.Run(delegate
+                {
+                    try
+                    {
+                        proc.StandardInput.WriteLine(input == null ? "" : input);
+                        proc.StandardInput.Close();
+                    }
+                    catch (Exception) { }
+                    text = proc.StandardOutput.ReadToEnd();
+                    err = proc.StandardError.ReadToEnd();
+                    proc.WaitForExit();
+                });
+                result.Code = proc.ExitCode;
+                result.Output = (text + (err.Length > 0 ? Environment.NewLine + err : "")).Trim();
             }
-            catch (Exception ex) { AppendLog("[x] 起不来密码窗口：" + ex.Message); }
+            catch (Exception ex)
+            {
+                result.Code = 1;
+                result.Output = "命令跑不起来：" + ex.Message;
+            }
+            finally
+            {
+                try { proc.Dispose(); } catch (Exception) { }
+            }
+            return result;
+        }
+
+        /// <summary>把写入结果讲回给对话框（成功/失败都留在同一张页面上）。</summary>
+        private async Task ApplyPasswordAsync(string username, string password)
+        {
+            string python = PickServerPython();
+            if (python == null)
+            {
+                PushDialogResult(false, "这台机器上找不到可用的 Python，写不了管理库。");
+                return;
+            }
+            string user = username == null ? "" : username.Trim();
+            string args = "-X utf8 -m spiritscout --set-admin-password --password-stdin";
+            if (user.Length > 0) { args += " --admin-username \"" + user + "\""; }
+            AppendLog("[>] 写入管理员密码（只存哈希）");
+            CaptureResult run = await RunWithInputAsync(python, args, _packageDir, password);
+            bool ok = run.Code == 0;
+            string message = run.Output.Length > 0
+                ? run.Output
+                : (ok ? "密码已保存，下次登录用新密码。" : "写入失败（退出码 " + run.Code + "）。");
+            if (ok && password != null && password.Length == 0)
+            {
+                message = "密码为空，已按「不设密码」处理（控制台登录保持关闭）。";
+            }
+            AppendLog((ok ? "[+] " : "[x] ") + message.Replace(Environment.NewLine, " "));
+            PushDialogResult(ok, message);
+        }
+
+        private void PushDialogResult(bool ok, string message)
+        {
+            try
+            {
+                if (_webReady && _web.CoreWebView2 != null)
+                {
+                    string script = "window.ssResult ? window.ssResult(" + (ok ? "true" : "false") + ", "
+                        + JsString(message) + ") : 0;";
+                    _web.CoreWebView2.ExecuteScriptAsync(script);
+                }
+            }
+            catch (Exception ex) { AppendLog("[!] 回写结果失败：" + ex.Message); }
         }
 
         // ---------------- 收尾 ----------------

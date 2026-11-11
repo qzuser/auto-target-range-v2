@@ -107,7 +107,7 @@ if (Test-Path $iconPath) {
 
 # 启动页与错误页也是窗口的一部分：浅色 HTML 直接嵌进 exe，运行时 NavigateToString 用，
 # 不落到磁盘上（写不进去的目录也能用），也不会出现联网请求。
-foreach ($page in @('splash.html', 'error.html')) {
+foreach ($page in @('splash.html', 'error.html', 'dialog.html')) {
     $pagePath = Join-Path (Join-Path $PSScriptRoot 'ui') $page
     if (-not (Test-Path $pagePath)) { throw "缺 launcher/ui/$page —— 启动页/错误页是窗口的一部分，必须有" }
     $iconArgs += ("/resource:" + $pagePath + "," + $page)
@@ -149,18 +149,37 @@ $size = [math]::Round((Get-Item $outputPath).Length / 1KB)
 Write-Host "    $outputPath（$size KB）"
 
 Write-Host "[4/4] 冒烟：确认 exe 能起来并自建窗口…"
-# 带 --smoke：只验窗口，不起控制台（不然每次构建都会留一个占端口的服务进程）
+# 带 --smoke：只验窗口，不起控制台（不然每次构建都会留一个占端口的服务进程）。
+# 浏览器数据目录也换成临时的：不然冒烟实例和用户正开着的窗口抢同一份 profile，
+# WebView2 会报「资源在使用中」，看起来像启动失败。
+$smokeProfile = Join-Path ([System.IO.Path]::GetTempPath()) ("spiritscout-smoke-" + $PID)
+$env:SPIRITSCOUT_WEBVIEW_DIR = $smokeProfile    # 子进程继承环境变量（5.1 的 Start-Process 没有 -Environment）
 $proc = Start-Process -FilePath $outputPath -ArgumentList '--smoke' -PassThru
-Start-Sleep -Seconds 5
-$alive = -not $proc.HasExited
-$title = $proc.MainWindowTitle
-if (-not $alive) {
-    Write-Host "    [!] exe 起来就退了（退出码 $($proc.ExitCode)）——先手动双击看报错" -ForegroundColor Yellow
-} else {
-    Write-Host "    窗口标题：$title"
-    Stop-Process -Id $proc.Id -Force
-    Write-Host "    冒烟通过（已关闭）"
+$title = ''
+for ($i = 0; $i -lt 20; $i++) {
+    Start-Sleep -Milliseconds 400
+    if ($proc.HasExited) { break }
+    if ($proc.MainWindowTitle) { $title = $proc.MainWindowTitle; break }
 }
-Write-Host ''
+# 冒烟窗口两三秒就自己关了，所以除了看标题，也认日志里那句「构建冒烟：窗口正常」。
+$smokeOk = $title -like '*灵枢*'
+if (-not $smokeOk) {
+    $log = Get-ChildItem (Join-Path (Split-Path $outputPath) 'logs') -Filter 'desktop-*.log' -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    if ($log) {
+        $smokeOk = (Get-Content $log.FullName -Encoding utf8 -Tail 20) -match '构建冒烟：窗口正常' | Where-Object { $_ }
+        if ($smokeOk) { $title = $proc.MainWindowTitle }
+    }
+}
+if (-not $proc.HasExited) { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue }
+Remove-Item Env:\SPIRITSCOUT_WEBVIEW_DIR -ErrorAction SilentlyContinue
+Remove-Item $smokeProfile -Recurse -Force -ErrorAction SilentlyContinue
+if ($smokeOk) {
+    Write-Host "    窗口标题：$title"
+    Write-Host "    冒烟通过（已关闭）" -ForegroundColor Green
+} else {
+    Write-Host "    [!] 冒烟没通过：窗口没出来，日志里也没有「构建冒烟：窗口正常」" -ForegroundColor Yellow
+    exit 1
+}
 Write-Host "完成。双击 $outputName 即可打开灵枢桌面版；" -ForegroundColor Green
 Write-Host "它会在 %LOCALAPPDATA%\SpiritScout\lib 放 WebView2 的三个 DLL（首次启动自动解压）。"

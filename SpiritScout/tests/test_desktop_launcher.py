@@ -369,7 +369,7 @@ class DesktopShellUiTests(unittest.TestCase):
     def test_error_page_only_when_environment_is_broken(self) -> None:
         source = self._shell()
         self.assertIn("ShowErrorPage(", source)
-        self.assertIn("HandleUiAction(action)", source)
+        self.assertIn("HandleUiAction(payload)", source)   # 错误页/对话框的消息都从这里进
         # 只有失败分支才展示错误页
         before, _, after = source.partition("string python = await EnsureReadyAsync();")
         self.assertIn("if (python == null)", after)
@@ -381,9 +381,11 @@ class DesktopShellUiTests(unittest.TestCase):
         self.assertIn("DefaultBackgroundColor = Color.FromArgb(246, 247, 249)", source)
 
     def test_ui_pages_are_light_and_offline(self) -> None:
-        for name in ("splash.html", "error.html"):
+        # 三张页的底色/白卡片/蓝主色都跟控制台同一套令牌（#f6f8fa / #0969da）
+        for name in ("splash.html", "error.html", "dialog.html"):
             html = (self.LAUNCHER / "ui" / name).read_text(encoding="utf-8")
-            self.assertIn("#f6f7f9", html)
+            self.assertIn("#f6f8fa", html, name)
+            self.assertIn("#0969da", html, name)
             for remote in ("http://", "https://", "//cdn"):
                 self.assertNotIn(remote, html, f"{name} 不该联网取资源")
         splash = (self.LAUNCHER / "ui" / "splash.html").read_text(encoding="utf-8")
@@ -394,8 +396,37 @@ class DesktopShellUiTests(unittest.TestCase):
 
     def test_build_embeds_the_ui_pages(self) -> None:
         script = (self.LAUNCHER / "build-desktop.ps1").read_text(encoding="utf-8-sig")
-        self.assertIn("'splash.html', 'error.html'", script)
+        self.assertIn("'splash.html', 'error.html', 'dialog.html'", script)
         self.assertIn('"/resource:" + $pagePath + "," + $page', script)
+
+    def test_password_is_set_inside_the_window(self) -> None:
+        """设密码不许再弹一个黑色控制台让人瞎输——走窗口里的表单。"""
+        source = self._shell()
+        self.assertNotIn("cmd.exe", source)
+        self.assertNotIn('"/k ', source)
+        self.assertIn("ReadUiHtml(\"dialog.html\")", source)
+        self.assertIn("--set-admin-password --password-stdin", source)
+        self.assertIn("RunWithInputAsync(", source)
+        self.assertIn("PushDialogResult(", source)
+        self.assertIn("ExecuteScriptAsync(", source)
+
+    def test_smoke_run_never_touches_the_user_profile(self) -> None:
+        """构建冒烟不能跟用户开着的窗口抢 WebView2 的 profile（会报 0x800700AA）。"""
+        source = self._shell()
+        self.assertIn("SPIRITSCOUT_WEBVIEW_DIR", source)
+        self.assertIn("!created && !smoke", source)        # 冒烟不参与单实例
+        script = (self.LAUNCHER / "build-desktop.ps1").read_text(encoding="utf-8-sig")
+        self.assertIn("$env:SPIRITSCOUT_WEBVIEW_DIR = $smokeProfile", script)
+        self.assertIn("构建冒烟：窗口正常", script)
+
+    def test_shortcuts_reach_the_window_from_inside_the_page(self) -> None:
+        """焦点在网页里时窗体收不到按键，所以快捷键是注入脚本转成消息的。"""
+        source = self._shell()
+        self.assertIn("AddScriptToExecuteOnDocumentCreatedAsync", source)
+        self.assertIn("send('pw')", source)
+        self.assertIn("send('reload')", source)
+        self.assertIn('action == "pw"', source)
+        self.assertIn('action == "reload"', source)
 
     def test_broken_browser_profile_heals_itself(self) -> None:
         source = self._shell()

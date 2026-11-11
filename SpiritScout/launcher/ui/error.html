@@ -4,13 +4,26 @@
 <meta charset="utf-8">
 <title>灵枢 · 环境没准备好</title>
 <style>
+  /* 跟 web 控制台同一套令牌：白卡片、1px #d8dee4 边框、8px 圆角、蓝色主按钮 #0969da。
+     弹窗里的按钮就是控制台里的 .btn：32px 高、6px 圆角、13px/500。 */
   :root {
+    --bg: #f6f8fa;
+    --surface: #ffffff;
+    --surface-2: #f2f4f7;
     --ink: #1f2328;
-    --ink-soft: #57606a;
+    --ink-2: #59636e;
+    --ink-3: #818b98;
     --line: #d8dee4;
-    --bg: #f6f7f9;
-    --warn: #b4510b;
-    --warn-soft: #fff7ed;
+    --line-strong: #bcc4cd;
+    --accent: #0969da;
+    --accent-strong: #0757ba;
+    --accent-soft: rgba(9, 105, 218, .09);
+    --bad: #cf222e;
+    --bad-soft: rgba(207, 34, 46, .1);
+    --radius: 8px;
+    --radius-sm: 6px;
+    --shadow: 0 1px 0 rgba(31, 35, 40, .04);
+    --shadow-card: 0 1px 3px rgba(31, 35, 40, .08);
   }
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
@@ -18,74 +31,87 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 24px;
-    background:
-      radial-gradient(1100px 620px at 50% -12%, #ffffff 0%, rgba(255, 255, 255, 0) 62%),
-      var(--bg);
+    padding: 28px;
+    background: var(--bg);
     color: var(--ink);
-    font-family: "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+    font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+          "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
     -webkit-font-smoothing: antialiased;
   }
   .card {
-    width: min(560px, 100%);
+    width: min(580px, 100%);
     max-height: 100%;
     overflow: auto;
-    padding: 34px 34px 26px;
-    background: #fff;
+    padding: 26px 28px 22px;
+    background: var(--surface);
     border: 1px solid var(--line);
-    border-radius: 16px;
-    box-shadow: 0 1px 2px rgba(31, 35, 40, .04), 0 12px 32px rgba(31, 35, 40, .08);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-card);
   }
-  .head { display: flex; gap: 14px; align-items: flex-start; }
+  .head { display: flex; gap: 12px; align-items: flex-start; }
   .badge {
-    flex: 0 0 auto;
-    width: 38px; height: 38px;
-    border-radius: 10px;
-    background: var(--warn-soft);
-    border: 1px solid #f2d3b3;
-    color: var(--warn);
-    font-size: 20px; font-weight: 700;
-    display: flex; align-items: center; justify-content: center;
+    flex: none;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-sm);
+    background: var(--bad-soft);
+    border: 1px solid rgba(207, 34, 46, .25);
+    color: var(--bad);
+    font-size: 15px;
+    font-weight: 700;
+    display: grid;
+    place-items: center;
   }
-  h1 { margin: 0; font-size: 17px; font-weight: 600; line-height: 1.5; }
-  .lead { margin: 6px 0 0; font-size: 12.5px; color: var(--ink-soft); line-height: 1.7; }
+  h1 { margin: 0; font-size: 16px; font-weight: 600; line-height: 1.5; }
+  .lead { margin: 4px 0 0; font-size: 13px; color: var(--ink-2); line-height: 1.7; }
   .detail {
-    margin: 18px 0 0;
-    padding: 12px 14px;
-    max-height: 180px;
+    margin: 16px 0 0;
+    padding: 10px 12px;
+    max-height: 190px;
     overflow: auto;
-    background: #f6f8fa;
-    border: 1px solid #eaeef2;
-    border-radius: 10px;
-    font-family: Consolas, "Cascadia Mono", monospace;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    font-family: ui-monospace, Consolas, "Cascadia Mono", monospace;
     font-size: 12px;
     line-height: 1.7;
-    color: #424a53;
+    color: var(--ink-2);
     white-space: pre-wrap;
     word-break: break-word;
     user-select: text;
   }
-  .actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 22px 0 0; }
-  button {
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 0; }
+
+  /* 这一段就是控制台的 .btn —— 值照抄 polish.css，别在这里另立一套 */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 32px;
+    padding: 5px 12px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--ink);
     font: inherit;
     font-size: 13px;
-    padding: 8px 16px;
-    border-radius: 8px;
-    border: 1px solid var(--line);
-    background: #fff;
-    color: var(--ink);
+    font-weight: 500;
+    line-height: 1.4;
+    white-space: nowrap;
+    box-shadow: var(--shadow);
     cursor: pointer;
-    transition: background .12s ease, border-color .12s ease;
+    transition: background .15s ease, border-color .15s ease, color .15s ease;
   }
-  button:hover { background: #f3f4f6; }
-  button.primary {
-    background: #1f883d;
-    border-color: #1a7f37;
-    color: #fff;
-  }
-  button.primary:hover { background: #1a7f37; }
-  .foot { margin: 18px 0 0; font-size: 12px; color: #8b949e; line-height: 1.7; }
-  code { background: #f6f8fa; padding: 1px 5px; border-radius: 4px; font-size: 11.5px; }
+  .btn:hover { background: var(--surface-2); border-color: var(--ink-3); }
+  .btn:active { background: var(--surface-2); }
+  .btn:focus-visible { outline: none; border-color: var(--accent); box-shadow: var(--shadow), 0 0 0 3px var(--accent-soft); }
+  .btn.primary { border-color: var(--accent-strong); background: var(--accent); color: #fff; }
+  .btn.primary:hover { background: var(--accent-strong); border-color: var(--accent-strong); }
+
+  .foot { margin: 14px 0 0; font-size: 12px; color: var(--ink-3); line-height: 1.7; }
+  code { font-family: ui-monospace, Consolas, monospace; background: var(--surface-2);
+         padding: 1px 5px; border-radius: 4px; font-size: 11.5px; }
 </style>
 </head>
 <body>
@@ -99,12 +125,12 @@
     </div>
     <pre class="detail" id="ss-detail">{{DETAIL}}</pre>
     <div class="actions">
-      <button class="primary" onclick="ssSend('retry')">重试</button>
-      <button onclick="ssSend('log')">打开日志目录</button>
-      <button onclick="ssSend('browser')">用浏览器打开</button>
-      <button onclick="ssSend('quit')">退出</button>
+      <button class="btn primary" type="button" onclick="ssSend('retry')">重试</button>
+      <button class="btn" type="button" onclick="ssSend('log')">打开日志目录</button>
+      <button class="btn" type="button" onclick="ssSend('browser')">用浏览器打开</button>
+      <button class="btn" type="button" onclick="ssSend('quit')">退出</button>
     </div>
-    <p class="foot">日志里有完整的过程，报错时可以把它发给维护的人。</p>
+    <p class="foot">日志里有完整的过程（<code>Ctrl+Alt+L</code>），报错时可以把它发给维护的人。</p>
   </main>
   <script>
     function ssSend(action) {

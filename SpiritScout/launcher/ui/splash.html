@@ -4,14 +4,24 @@
 <meta charset="utf-8">
 <title>灵枢 · 正在启动</title>
 <style>
+  /* 令牌跟 web 控制台一模一样（base.css + polish.css），窗口壳和控制台看起来才是一个东西：
+     浅灰底 #f6f8fa、白卡片、1px #d8dee4 边框、8px 圆角、蓝色主色 #0969da、6px 控件圆角。 */
   :root {
+    --bg: #f6f8fa;
+    --surface: #ffffff;
+    --surface-2: #f2f4f7;
     --ink: #1f2328;
-    --ink-soft: #57606a;
+    --ink-2: #59636e;
+    --ink-3: #818b98;
     --line: #d8dee4;
-    --card: #ffffff;
-    --bg: #f6f7f9;
-    --brand: #a4681e;
-    --brand-soft: #fdf6ec;
+    --line-strong: #bcc4cd;
+    --accent: #0969da;
+    --accent-strong: #0757ba;
+    --accent-soft: rgba(9, 105, 218, .09);
+    --radius: 8px;
+    --radius-sm: 6px;
+    --shadow: 0 1px 0 rgba(31, 35, 40, .04);
+    --shadow-card: 0 1px 3px rgba(31, 35, 40, .08);
   }
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
@@ -19,55 +29,37 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background:
-      radial-gradient(1100px 620px at 50% -12%, #ffffff 0%, rgba(255, 255, 255, 0) 62%),
-      var(--bg);
+    background: var(--bg);
     color: var(--ink);
-    font-family: "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+    font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+          "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
     -webkit-font-smoothing: antialiased;
     user-select: none;
   }
   .card {
-    width: min(420px, calc(100vw - 64px));
-    padding: 40px 40px 34px;
-    background: var(--card);
+    width: min(380px, calc(100vw - 56px));
+    padding: 30px 32px 26px;
+    background: var(--surface);
     border: 1px solid var(--line);
-    border-radius: 16px;
-    box-shadow: 0 1px 2px rgba(31, 35, 40, .04), 0 12px 32px rgba(31, 35, 40, .08);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-card);
     text-align: center;
   }
-  .mark {
-    width: 64px;
-    height: 64px;
-    margin: 0 auto 18px;
-    border-radius: 15px;
-    box-shadow: 0 6px 16px rgba(164, 104, 30, .22);
-    display: block;
-  }
-  h1 {
-    margin: 0;
-    font-size: 20px;
-    font-weight: 600;
-    letter-spacing: .2px;
-  }
-  .sub {
-    margin: 6px 0 0;
-    font-size: 12.5px;
-    color: var(--ink-soft);
-    letter-spacing: .3px;
-  }
+  .mark { display: block; width: 52px; height: 52px; margin: 0 auto 16px; }
+  h1 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: .01em; }
+  .sub { margin: 5px 0 0; font-size: 12px; color: var(--ink-3); }
   .status {
-    margin: 26px 0 0;
+    margin: 22px 0 0;
     min-height: 20px;
     font-size: 13px;
-    color: var(--ink-soft);
+    color: var(--ink-2);
   }
   .track {
     position: relative;
     height: 4px;
-    margin: 14px 0 0;
+    margin: 12px 0 0;
     border-radius: 999px;
-    background: #eceff3;
+    background: var(--surface-2);
     overflow: hidden;
   }
   .track > i {
@@ -75,7 +67,7 @@
     inset: 0 auto 0 0;
     width: 34%;
     border-radius: 999px;
-    background: linear-gradient(90deg, #d9a15a, var(--brand));
+    background: var(--accent);
     animation: slide 1.5s cubic-bezier(.5, 0, .5, 1) infinite;
   }
   @keyframes slide {
@@ -84,19 +76,19 @@
     100% { left: 104%; width: 30%; }
   }
   .hint {
-    margin: 22px 0 0;
-    padding-top: 18px;
-    border-top: 1px solid #eef1f4;
+    margin: 20px 0 0;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
     font-size: 12px;
     line-height: 1.75;
-    color: #8b949e;
+    color: var(--ink-3);
   }
-  .hint b { color: var(--brand); font-weight: 600; }
   @media (prefers-reduced-motion: reduce) { .track > i { animation: none; width: 100%; } }
 </style>
 </head>
 <body>
   <main class="card">
+    <!-- 标志就是窗口图标那一枚（同 favicon 的几何），大号显示 -->
     <svg class="mark" viewBox="0 0 32 32" role="img" aria-label="灵枢">
       <rect width="32" height="32" rx="7.5" fill="#a4681e"></rect>
       <g stroke="#faf9f6" stroke-width="2.2" stroke-linecap="round" fill="none">

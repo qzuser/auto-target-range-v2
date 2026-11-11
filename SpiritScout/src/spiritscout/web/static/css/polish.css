@@ -177,10 +177,16 @@ input, textarea, select {
   background: var(--surface);
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-sm);
-  padding: 6px 10px;
+  padding: 5px 10px;
   font-size: 13px;
+  line-height: 1.4;
   transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
 }
+
+/* 单行控件跟 .btn 同高（32px），多行输入框留出自己的呼吸空间 */
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]),
+select { min-height: var(--ctl-h); }
+textarea { min-height: 64px; padding: 6px 10px; line-height: 1.55; }
 
 input[type="checkbox"], input[type="radio"] { padding: 0; min-height: 0; }
 
@@ -292,6 +298,172 @@ dialog::backdrop, .dlg-back::before { background: rgba(31, 35, 40, 0.45); backdr
   padding: 24px 16px;
   text-align: center;
 }
+
+/* ---------------- 13. 原生控件 ----------------
+   浏览器自带的几套控件（select 的箭头、checkbox 的勾、file 的按钮、range 的滑块）
+   各自为政，颜色也不跟主题走。这一节把它们收进同一套令牌：高度对齐 .btn
+   （32 / 26px），圆角对齐 --radius-sm，焦点圈用 --accent-soft。
+   只改样子，不动任何类名与结构。 */
+
+:root {
+  --ctl-h: 32px;
+  --ctl-h-sm: 26px;
+  --ctl-ring: 0 0 0 3px var(--accent-soft);
+  /* 下拉箭头画成 SVG，取中性灰：浅底深底都看得清，也不依赖系统怎么渲染 */
+  --ctl-chevron: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%23707a85' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+/* select：换成自己的箭头，高度跟按钮一致，右边留出箭头的位置 */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  min-height: var(--ctl-h);
+  padding: 5px 30px 5px 10px;
+  border-radius: var(--radius-sm);
+  line-height: 1.4;
+  background-image: var(--ctl-chevron);
+  background-repeat: no-repeat;
+  background-position: right 9px center;
+  background-size: 12px 12px;
+  cursor: pointer;
+}
+select[multiple],
+select[size]:not([size="1"]) { background-image: none; padding-right: 10px; }
+
+/* checkbox / radio：自己画，勾与填充都用主色，尺寸配 13px 字高 */
+input[type="checkbox"],
+input[type="radio"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 15px;
+  height: 15px;
+  margin: 0 6px 0 0;
+  padding: 0;
+  display: inline-grid;
+  place-content: center;
+  vertical-align: -2px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+input[type="radio"] { border-radius: 50%; }
+input[type="checkbox"]::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  background: #fff;
+  transform: scale(0);
+  transition: transform var(--dur) var(--ease);
+  clip-path: polygon(14% 46%, 0 62%, 40% 100%, 100% 18%, 85% 4%, 39% 71%);
+}
+input[type="radio"]::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #fff;
+  transform: scale(0);
+  transition: transform var(--dur) var(--ease);
+}
+input[type="checkbox"]:checked,
+input[type="radio"]:checked { background: var(--accent); border-color: var(--accent); }
+input[type="checkbox"]:checked::before,
+input[type="radio"]:checked::before { transform: scale(1); }
+input[type="checkbox"]:hover:not(:disabled),
+input[type="radio"]:hover:not(:disabled) { border-color: var(--accent); }
+input[type="checkbox"]:focus-visible,
+input[type="radio"]:focus-visible { outline: none; box-shadow: var(--ctl-ring); }
+input[type="checkbox"]:disabled,
+input[type="radio"]:disabled { opacity: .5; cursor: not-allowed; }
+
+/* file：外壳跟输入框一套，里面的「选择文件」按 .btn.sm 的样子画 */
+input[type="file"] { min-height: var(--ctl-h); padding: 4px 6px; cursor: pointer; }
+input[type="file"]::file-selector-button {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  min-height: var(--ctl-h-sm);
+  margin-right: 8px;
+  padding: 2px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+input[type="file"]::file-selector-button:hover { background: var(--surface-2); border-color: var(--ink-3); }
+
+/* range / search：滑块用主色，搜索框去掉系统的放大镜和取消叉 */
+input[type="range"] { accent-color: var(--accent); height: 22px; padding: 0; }
+input[type="search"]::-webkit-search-decoration,
+input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
+
+/* 焦点圈：按钮、输入框、下拉框统一成「主色边框 + 3px 软光」；
+   .btn 本来就带一层阴影，两个合起来写，免得把阴影吃掉。 */
+.btn:focus-visible,
+button.btn:focus-visible,
+.icon-btn:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--shadow), var(--ctl-ring);
+}
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--ctl-ring);
+}
+
+/* 按钮的圆角也收回一套：base.css 里散着 7px，home.css 的发送键是 9px，chip 是 2px，
+   同一屏三种圆角。胶囊（.pill/.tag）和圆点徽标保持原样，其余一律 6px。
+   选择器带 :not() 是为了压过各组件自己的 0,1,0 规则——不是靠 !important。 */
+button:not(.pill):not(.tag):not(.dot):not(.send-btn),
+input[type="button"],
+input[type="submit"],
+input[type="reset"] { border-radius: var(--radius-sm); }
+
+/* 侧栏这三颗是 ID 规则（7/8px 圆角），要用同样的 ID 级别写回来 */
+#btn-settings,
+#btn-theme,
+#btn-logout,
+#btn-new,
+#op-rename { border-radius: var(--radius-sm); }
+
+/* 没有 class 的按钮（面板里的普通动作）就当标准按钮使：32px 高、左右 12px。 */
+button:not([class]) { min-height: var(--ctl-h); padding: 5px 12px; }
+
+/* 历史上这些地方各自定过 4/5/6/8px 的内边距和 5/8px 的圆角，同一屏里能出现三种控件
+   高度。这里逐个点名收回来（不用 !important：都是同类选择器，写在后面就赢）：
+   圆角 6、单行高 32、边框一律 --line-strong。字号/等宽这些「地方特色」保留。 */
+.mission-settings select,
+.aw-task-label select,
+.wp-dir select,
+.acard .bind select,
+.side-chat-task select,
+.cache-bar select,
+.u-ops select,
+.dash-filters select,
+.dash-filters input,
+.dash-cache-controls input,
+.pp-search input,
+.eff-add input,
+.exp-merge-threshold input,
+.aw-toolbar select {
+  min-height: var(--ctl-h);
+  padding: 5px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line-strong);
+}
+
+.aw-toolbar button { min-height: var(--ctl-h); padding: 5px 12px; border-radius: var(--radius-sm); }
+
+/* 次级按钮：只有描边没有底色（弹窗里的「取消」这类） */
+.btn.ghost { background: transparent; border-color: transparent; color: var(--ink-2); box-shadow: none; }
+.btn.ghost:hover:not(:disabled) { background: var(--surface-2); border-color: var(--line); color: var(--ink); }
 
 /* ---------------- 12. 降级 ---------------- */
 
