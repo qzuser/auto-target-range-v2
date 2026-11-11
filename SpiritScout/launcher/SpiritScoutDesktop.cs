@@ -1,4 +1,4 @@
-// 灵枢桌面版 —— 自带窗口的 Windows 客户端（WinForms + WebView2）
+﻿// 灵枢桌面版 —— 自带窗口的 Windows 客户端（WinForms + WebView2）
 //
 // 为什么要有它：控制台是本地 Web 服务，之前只能双击 .cmd / .exe 开个黑窗口，
 // 再自己去浏览器里开 127.0.0.1:8010。这对「装成软件给人用」来说缺三样东西：
@@ -612,6 +612,8 @@ namespace SpiritScoutDesktop
         private bool _runtimeBroken;    // 单文件版这次没解开运行时（杀软拦、磁盘满、目录不可写）
 
         private WebView2 _web;          // 延迟创建：内嵌浏览器初始化失败也要能开窗
+        private Panel _canvas;          // 主区域：装浏览器控件，兜底时换成一页提示
+        private bool _fallbackShown;    // 兜底卡片已经画过，别重复叠
         private Process _server;
         private int _port = PreferredPort;
         private bool _webReady;
@@ -796,6 +798,7 @@ namespace SpiritScoutDesktop
             canvas.BackColor = BackColor;
             canvas.Controls.Add(CreateWebView());
             Controls.Add(canvas);
+            _canvas = canvas;
         }
 
         /// <summary>
@@ -1720,6 +1723,21 @@ namespace SpiritScoutDesktop
             {
                 _webReady = false;
                 AppendLog("[!] 没有内嵌浏览器控件：" + (Runtime.LastError ?? "控件创建失败"));
+                ShowBrowserFallback("内嵌浏览器控件没建起来（"
+                    + (Runtime.LastError ?? "WebView2 的三个 DLL 解不出来") + "）。");
+                return;
+            }
+            // 先确认这台机器上到底有没有 WebView2 运行时：没有的话再试也是白试，
+            // 直接把界面交给系统浏览器，别去弹「缺组件」那种让人以为程序坏了的框。
+            string runtimeVersion = null;
+            try { runtimeVersion = CoreWebView2Environment.GetAvailableBrowserVersionString(); }
+            catch (Exception) { }
+            if (string.IsNullOrEmpty(runtimeVersion))
+            {
+                _webReady = false;
+                AppendLog("[!] 这台机器没装 Edge WebView2 运行时，改用系统浏览器承载界面");
+                ShowBrowserFallback("这台机器没装 Microsoft Edge WebView2 运行时，窗口里画不了页面；"
+                    + "控制台照样能在浏览器里用，是同一份页面，排版样式完全一致。");
                 return;
             }
             try
@@ -1732,39 +1750,37 @@ namespace SpiritScoutDesktop
                 bool started = false;
                 string dir = UserDataDir();
                 string failure = null;
-                try
+                // 逐级换目录，每一级都用新控件（失败过的控件再初始化只会甩 E_UNEXPECTED）：
+                //   1. 常用的那份 profile；
+                //   2. 带进程号的兄弟目录——上一次的 msedgewebview2.exe 没退干净时，
+                //      常用目录会被独占（0x800700AA），换一个就绕开了；
+                //   3. 临时目录，最后再赌一次。
+                string pid = Process.GetCurrentProcess().Id.ToString();
+                string[] attempts = new string[]
                 {
-                    await EnsureBrowserAsync(dir);
-                    started = true;
-                }
-                catch (Exception ex)
+                    dir,
+                    dir + "-" + pid,
+                    Path.Combine(Path.GetTempPath(), "SpiritScout-webview2-" + pid),
+                };
+                for (int i = 0; i < attempts.Length && !started; i++)
                 {
-                    failure = ex.Message;
-                }
-                if (!started)
-                {
-                    AppendLog("[!] 浏览器数据目录起不来：" + failure);
-                    string moved = QuarantineProfile(dir);
-                    if (moved != null) { AppendLog("[i] 把这份 profile 挪到：" + moved); }
-                    if (RecreateWebView())
+                    string current = attempts[i];
+                    if (i > 0 && !RecreateWebView()) { break; }
+                    try
                     {
-                        try
-                        {
-                            await EnsureBrowserAsync(dir);
-                            started = true;
-                            AppendLog("[+] 换了份干净的浏览器数据目录，起来了");
-                        }
-                        catch (Exception retry)
-                        {
-                            AppendLog("[!] 干净目录也不行：" + retry.Message);
-                        }
+                        await EnsureBrowserAsync(current);
+                        started = true;
+                        if (i > 0) { AppendLog("[+] 换到备用浏览器数据目录起来了：" + current); }
+                    }
+                    catch (Exception ex)
+                    {
+                        failure = ex.Message;
+                        AppendLog("[!] 浏览器数据目录起不来（" + current + "）：" + ex.Message);
                     }
                 }
                 if (!started)
                 {
-                    string isolated = Path.Combine(Path.GetTempPath(),
-                        "SpiritScout-webview2-" + Process.GetCurrentProcess().Id);
-                    if (RecreateWebView()) { await EnsureBrowserAsync(isolated); }
+                    throw new InvalidOperationException(failure ?? "浏览器数据目录全都起不来", null);
                 }
                 _web.CoreWebView2.Settings.AreDevToolsEnabled = false;
                 InstallShortcutBridge();
@@ -1815,11 +1831,169 @@ namespace SpiritScoutDesktop
             {
                 _webReady = false;
                 AppendLog("[!] 内嵌浏览器初始化失败：" + ex.Message);
-                MessageBox.Show("这台机器缺「Microsoft Edge WebView2 Runtime」，窗口里画不了界面。"
-                    + Environment.NewLine + "装完重开即可；也可以先用浏览器打开控制台。"
-                    + Environment.NewLine + Environment.NewLine + ex.Message,
-                    "灵枢 · 缺少内嵌浏览器组件", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                ShowBrowserFallback(DescribeBrowserFailure(ex));
             }
+        }
+
+        /// <summary>
+        /// 内嵌浏览器用不了时的兜底：窗口里画一张跟控制台同色的提示卡，
+        /// 控制台本身交给系统浏览器（Edge 的 --app 窗口，没有地址栏）。
+        /// 不给用户看「缺少内嵌浏览器组件」那种弹框——他要的是那份页面，
+        /// 页面在浏览器里是同一份，排版样式完全一致。
+        /// </summary>
+        private void ShowBrowserFallback(string reason)
+        {
+            _webReady = false;
+            if (_fallbackShown && _canvas != null && _canvas.Controls.Count > 0) { return; }
+            _fallbackShown = true;
+            AppendLog("[i] 界面改由系统浏览器承载：" + reason);
+            try
+            {
+                BuildFallbackPage(reason);
+            }
+            catch (Exception ex)
+            {
+                AppendLog("[!] 兜底页画不出来：" + ex.Message);
+            }
+            // 服务已经起来的话，直接把控制台在浏览器里打开；没起来就等
+            // NavigateToConsole()（它看到 _webReady=false 会走 OpenExternal）。
+            if (_server != null && !_server.HasExited) { OpenExternal(); }
+        }
+
+        /// <summary>兜底页：一张白卡片 + 主按钮，配色/字号跟控制台那套令牌对齐。</summary>
+        private void BuildFallbackPage(string reason)
+        {
+            Panel host = _canvas;
+            if (host == null) { return; }
+            host.SuspendLayout();
+            host.Controls.Clear();
+
+            Panel page = new Panel();
+            page.Dock = DockStyle.Fill;
+            page.BackColor = Color.FromArgb(246, 248, 250);   // --bg
+            page.Padding = new Padding(28);
+
+            Panel card = new Panel();
+            card.Dock = DockStyle.Top;
+            card.Height = 232;
+            card.BackColor = Color.White;                     // --surface
+            card.Paint += delegate(object sender, PaintEventArgs e)
+            {
+                using (Pen pen = new Pen(Color.FromArgb(216, 222, 228)))   // --line
+                {
+                    e.Graphics.DrawRectangle(pen, 0, 0, card.Width - 1, card.Height - 1);
+                }
+            };
+
+            Label title = new Label();
+            title.Text = "已在浏览器里打开控制台";
+            title.Font = new Font("Microsoft YaHei UI", 12.5f, FontStyle.Bold);
+            title.ForeColor = Color.FromArgb(31, 35, 40);     // --ink
+            title.AutoSize = true;
+            title.Location = new Point(22, 20);
+
+            Label lead = new Label();
+            lead.Text = "窗口里的内嵌浏览器这次没起来，控制台交给系统浏览器打开了——就是那份页面，排版和样式跟窗口里完全一致。";
+            lead.Font = new Font("Microsoft YaHei UI", 9.5f);
+            lead.ForeColor = Color.FromArgb(89, 99, 110);     // --ink-2
+            lead.AutoSize = false;
+            lead.Size = new Size(card.Width > 120 ? card.Width - 44 : 420, 44);
+            lead.Location = new Point(22, 56);
+            lead.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+
+            Label detail = new Label();
+            detail.Text = reason;
+            detail.Font = new Font("Consolas", 8.5f);
+            detail.ForeColor = Color.FromArgb(129, 139, 152);  // --ink-3
+            detail.AutoSize = false;
+            detail.Size = new Size(lead.Width, 58);
+            detail.Location = new Point(22, 104);
+            detail.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+
+            Button again = MakeFlatButton("再打开一次", true, 104);
+            again.Location = new Point(22, 176);
+            again.Click += delegate { OpenExternal(); };
+
+            Button retry = MakeFlatButton("重试内嵌浏览器", false, 128);
+            retry.Location = new Point(134, 176);
+            retry.Click += delegate { RetryEmbedded(); };
+
+            Button quit = MakeFlatButton("退出", false, 76);
+            quit.Location = new Point(270, 176);
+            quit.Click += delegate { Close(); };
+
+            card.Controls.Add(title);
+            card.Controls.Add(lead);
+            card.Controls.Add(detail);
+            card.Controls.Add(again);
+            card.Controls.Add(retry);
+            card.Controls.Add(quit);
+            page.Controls.Add(card);
+            host.Controls.Add(page);
+            host.ResumeLayout();
+        }
+
+        /// <summary>控制台按钮那套尺寸：32px 高、6px 圆角、主按钮 #0969da。</summary>
+        private static Button MakeFlatButton(string text, bool primary, int width)
+        {
+            Button button = new Button();
+            button.Text = text;
+            button.AutoSize = false;
+            button.Size = new Size(width, 32);
+            button.FlatStyle = FlatStyle.Flat;
+            button.FlatAppearance.BorderSize = 1;
+            button.FlatAppearance.BorderColor = primary
+                ? Color.FromArgb(7, 87, 186) : Color.FromArgb(188, 196, 205);
+            button.BackColor = primary ? Color.FromArgb(9, 105, 218) : Color.White;
+            button.ForeColor = primary ? Color.White : Color.FromArgb(31, 35, 40);
+            button.Font = new Font("Microsoft YaHei UI", 9f, primary ? FontStyle.Bold : FontStyle.Regular);
+            button.UseVisualStyleBackColor = false;
+            button.Cursor = Cursors.Hand;
+            return button;
+        }
+
+        /// <summary>兜底页上的「重试内嵌浏览器」：重建控件再来一次，成功就切回窗口里。</summary>
+        private async void RetryEmbedded()
+        {
+            AppendLog("[>] 再试一次内嵌浏览器");
+            _fallbackShown = false;
+            try
+            {
+                if (_canvas != null) { _canvas.Controls.Clear(); }
+                if (!RecreateWebView())
+                {
+                    ShowBrowserFallback("浏览器控件重建失败，还是用浏览器。");
+                    return;
+                }
+                if (_canvas != null) { _canvas.Controls.Add(_web); }
+                await InitWebViewAsync();
+                if (_webReady) { NavigateToConsole(); }
+            }
+            catch (Exception ex)
+            {
+                AppendLog("[!] 重试失败：" + ex.Message);
+                ShowBrowserFallback(DescribeBrowserFailure(ex));
+            }
+        }
+
+        /// <summary>把 WebView2 的异常翻成人话，写进兜底卡片。</summary>
+        private static string DescribeBrowserFailure(Exception ex)
+        {
+            string text = ex == null ? "" : ex.ToString();
+            if (text.IndexOf("0x800700AA", StringComparison.OrdinalIgnoreCase) >= 0
+                || text.IndexOf("使用中", StringComparison.Ordinal) >= 0
+                || text.IndexOf("正在使用", StringComparison.Ordinal) >= 0
+                || text.IndexOf("being used", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return "浏览器数据目录被另一个灵枢窗口或残留的 WebView2 进程占着（0x800700AA）。"
+                    + "关掉多余的窗口再按「重试内嵌浏览器」；不重试也没关系，浏览器里那一份一样能用。";
+            }
+            if (text.IndexOf("0x8000FFFF", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return "浏览器进程没能初始化（0x8000FFFF），多半是上一次的进程没退干净。"
+                    + "按「重试内嵌浏览器」再试一次即可。";
+            }
+            return ex == null ? "内嵌浏览器没起来。" : ex.Message;
         }
 
         /// <summary>把起不来的 profile 挪到一边（不删，万一还要查），返回新位置。</summary>
@@ -1873,8 +2047,29 @@ namespace SpiritScoutDesktop
         private async Task EnsureBrowserAsync(string userDataDir)
         {
             CoreWebView2Environment environment =
-                await CoreWebView2Environment.CreateAsync(null, userDataDir, null);
+                await CoreWebView2Environment.CreateAsync(null, userDataDir, BrowserOptions());
             await _web.EnsureCoreWebView2Async(environment);
+        }
+
+        /// <summary>
+        /// 调试口：只有设了 SPIRITSCOUT_WEBVIEW_DEBUG_PORT 才给 WebView2 开 CDP。
+        /// 开着它就能用 Playwright/DevTools 连上真窗口，量字号、圆角、有没有溢出，
+        /// 比拿 file:// 打开同一份 HTML 猜要靠谱——WebView2 的字体回退和缩放跟外面不一样。
+        /// 平时不设这个变量，就不加任何浏览器参数。
+        /// </summary>
+        private CoreWebView2EnvironmentOptions BrowserOptions()
+        {
+            string raw = Environment.GetEnvironmentVariable("SPIRITSCOUT_WEBVIEW_DEBUG_PORT");
+            int port;
+            if (string.IsNullOrEmpty(raw) || !int.TryParse(raw, out port) || port < 1024 || port > 65535)
+            {
+                return null;
+            }
+            CoreWebView2EnvironmentOptions options = new CoreWebView2EnvironmentOptions();
+            options.AdditionalBrowserArguments =
+                "--remote-debugging-port=" + port.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            AppendLog("[i] 已开调试口 http://127.0.0.1:" + port.ToString() + "（CDP，可在真窗口里量样式）");
+            return options;
         }
 
         /// <summary>WebView2 的用户数据目录：跟解压目录一样三级回退，别写进工作区。</summary>

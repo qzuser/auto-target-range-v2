@@ -89,3 +89,9 @@ pip-install-*/
 pip-target-*/
 pip-ephem-wheel-cache-*/
 pip-build-tracker-*/
+
+# 测试临时目录：Windows 上 TemporaryDirectory 清理常失败，跑一轮能留上千个
+SpiritScout/tmp*/
+spiritscout-tests-*/
+.stale-*/
+SpiritScout/__pycache__/

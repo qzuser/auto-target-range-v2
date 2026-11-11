@@ -403,6 +403,56 @@ class DesktopShellUiTests(unittest.TestCase):
         self.assertIn("'shell-pages.css'", script)
         self.assertIn('"/resource:" + $shellCssPath + ",app.shellcss"', script)
 
+    def test_missing_component_box_is_replaced_by_browser_fallback(self) -> None:
+        """内嵌浏览器起不来不能弹「缺组件」——那多半是误判，用户要的是页面。"""
+        source = DESKTOP_CS.read_text(encoding="utf-8-sig")
+        # 那句「缺组件」的弹框必须没了（注释里可以提，弹出来不行）
+        self.assertNotIn("灵枢 · 缺少内嵌浏览器组件", source)
+        self.assertNotIn('MessageBox.Show("这台机器缺', source)
+        # 兜底三件套：探测运行时 → 画同色卡片 → 用系统浏览器打开控制台
+        self.assertIn("GetAvailableBrowserVersionString()", source)
+        self.assertIn("ShowBrowserFallback(", source)
+        self.assertIn("BuildFallbackPage(", source)
+        self.assertIn("DescribeBrowserFailure(", source)
+        self.assertIn("RetryEmbedded(", source)
+        self.assertIn("MakeFlatButton(", source)
+        # 卡片用的是控制台那套令牌色，别再冒出另一套配色
+        self.assertIn("Color.FromArgb(246, 248, 250)", source)   # --bg
+        self.assertIn("Color.FromArgb(9, 105, 218)", source)     # --accent
+        # 失败翻译要认得出「profile 被占用」这一类
+        self.assertIn("0x800700AA", source)
+        self.assertIn("0x8000FFFF", source)
+
+    def test_webview_profile_walks_three_dirs_before_giving_up(self) -> None:
+        """常用 profile 被上一次的浏览器进程占着时，要换目录重来，而不是原地重试。"""
+        source = DESKTOP_CS.read_text(encoding="utf-8-sig")
+        self.assertIn("string[] attempts = new string[]", source)
+        self.assertIn("dir + \"-\" + pid", source)
+        self.assertIn('"SpiritScout-webview2-" + pid', source)
+        self.assertIn("for (int i = 0; i < attempts.Length && !started; i++)", source)
+        # 每一级都得重建控件：失败过的 WebView2 再初始化只会甩 E_UNEXPECTED
+        self.assertIn("if (i > 0 && !RecreateWebView()) { break; }", source)
+        self.assertNotIn("if (!started)\n                {\n                    AppendLog(\"[!] 浏览器数据目录起不来：\"", source)
+
+    def test_webview_debug_port_is_env_gated(self) -> None:
+        """CDP 调试口默认不开，只认环境变量，且端口要过范围检查。"""
+        source = DESKTOP_CS.read_text(encoding="utf-8-sig")
+        self.assertIn("SPIRITSCOUT_WEBVIEW_DEBUG_PORT", source)
+        self.assertIn("port < 1024 || port > 65535", source)
+        self.assertIn('"--remote-debugging-port="', source)
+        self.assertIn("CreateAsync(null, userDataDir, BrowserOptions())", source)
+
+    def test_temp_dir_cleanup_script_covers_the_leaks(self) -> None:
+        """测试临时目录残留要有维护脚本和忽略规则兜着。"""
+        script = PACKAGE / "scripts" / "clean_temp_dirs.py"
+        self.assertTrue(script.exists())
+        text = script.read_text(encoding="utf-8")
+        self.assertIn('"tmp*"', text)
+        self.assertIn("pip-ephem-wheel-cache-*", text)
+        self.assertIn("--dry-run", text)
+        ignore = (PACKAGE.parent / ".gitignore").read_text(encoding="utf-8")
+        self.assertIn("SpiritScout/tmp*/", ignore)
+
     def test_portable_build_cleans_pip_temp_dirs(self) -> None:
         """pip 装依赖中途被杀会在仓库根留一堆空临时目录，构建脚本要顺手收掉。"""
         script = (self.LAUNCHER / "build-portable.ps1").read_text(encoding="utf-8-sig")

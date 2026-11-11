@@ -57,6 +57,14 @@ bubblewrap 和命名空间权限。测试密钥使用明确标记的夹具值，
 ```bash
 .venv/bin/python -m ruff check src/ tests/ deploy.py deploy
 .venv/bin/python -m unittest discover -s tests -v
+
+Windows 上测试里的 `TemporaryDirectory` 经常因为句柄没释放而清理失败；跑完发现仓库里
+多了 `tmpXXXXXXXX` 目录时，用维护脚本扫掉（只认这几种模式，别的目录不碰）：
+
+```bash
+python SpiritScout/scripts/clean_temp_dirs.py --dry-run   # 先看
+python SpiritScout/scripts/clean_temp_dirs.py             # 真删
+```
 ```
 
 前端没有构建步骤，使用 Node.js 22+ 检查语法并运行回归：
