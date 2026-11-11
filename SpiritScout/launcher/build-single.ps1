@@ -45,6 +45,9 @@ if (-not $PortableDir) {
 if (-not (Test-Path (Join-Path $PortableDir 'py\python.exe'))) {
     throw "这不是便携版目录（没有 py\python.exe）：$PortableDir"
 }
+# 清单里的相对路径是拿 FullName 截出来的：先转成绝对路径，否则
+# 传相对路径进来会截出「靶/dist-portable/…」这种看不懂的假路径
+$PortableDir = (Resolve-Path -LiteralPath $PortableDir).Path.TrimEnd('\')
 $pyMb = [math]::Round(((Get-ChildItem (Join-Path $PortableDir 'py') -Recurse -File | Measure-Object Length -Sum).Sum / 1MB), 1)
 Write-Step "运行时来源：$PortableDir（py\ 约 $pyMb MB）"
 
@@ -66,20 +69,35 @@ New-Item -ItemType Directory -Force -Path $work | Out-Null
 $zip = Join-Path $work 'runtime.zip'
 if (Test-Path $zip) { Remove-Item $zip -Force }
 
-Write-Step '压运行时（py\ + configs\），这一步几分钟'
+Write-Step '生成运行时清单（大小 + 相对路径，解压后按它核对）'
+$manifest = Join-Path $PortableDir 'runtime.manifest.tsv'
+$manifestLines = New-Object System.Collections.Generic.List[string]
+$manifestLines.Add('# 灵枢运行时清单：<大小>TAB<相对路径>；解压后逐个核对，缺文件就重解')
+foreach ($root in @('py', 'configs')) {
+    Get-ChildItem (Join-Path $PortableDir $root) -Recurse -File | ForEach-Object {
+        $rel = $_.FullName.Substring($PortableDir.Length + 1).Replace('\', '/')
+        $manifestLines.Add(('{0}' -f $_.Length) + "`t" + $rel)
+    }
+}
+[System.IO.File]::WriteAllLines($manifest, $manifestLines, (New-Object System.Text.UTF8Encoding($false)))
+$badLines = $manifestLines | Where-Object { $_ -notmatch '^#' -and $_ -notmatch "`t(py|configs)/" }
+if ($badLines) { throw "清单里有 $(@($badLines).Count) 行路径不对，第一条：$(@($badLines)[0])" }
+Write-Ok ("runtime.manifest.tsv：" + ($manifestLines.Count - 1) + ' 个文件')
+
+Write-Step '压运行时（py\ + configs\ + 清单），这一步几分钟'
 $tar = Join-Path $env:SystemRoot 'System32\tar.exe'
 $zipped = $false
 if (Test-Path $tar) {
     Push-Location $PortableDir
     try {
-        & $tar '-a' '-cf' $zip 'py' 'configs'
+        & $tar '-a' '-cf' $zip 'py' 'configs' 'runtime.manifest.tsv'
         $zipped = ($LASTEXITCODE -eq 0) -and (Test-Path $zip)
     }
     finally { Pop-Location }
 }
 if (-not $zipped) {
     Write-Warn2 'tar.exe 打不了，退到 Compress-Archive（慢一些）'
-    Compress-Archive -Path (Join-Path $PortableDir 'py'), (Join-Path $PortableDir 'configs') -DestinationPath $zip -CompressionLevel Optimal
+    Compress-Archive -Path (Join-Path $PortableDir 'py'), (Join-Path $PortableDir 'configs'), $manifest -DestinationPath $zip -CompressionLevel Optimal
 }
 $zipLen = (Get-Item $zip).Length
 Write-Ok ("runtime.zip：" + [math]::Round($zipLen / 1MB, 1) + ' MB')

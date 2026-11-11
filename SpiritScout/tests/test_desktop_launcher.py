@@ -225,6 +225,12 @@ class SingleFileBundleTests(unittest.TestCase):
         self.assertIn("tar.exe", self.text)
         self.assertIn("Compress-Archive", self.text)
 
+    def test_build_writes_and_ships_a_manifest(self) -> None:
+        # 解出来的树要靠清单自证完整：少一个文件时先别写 .ready
+        self.assertIn("runtime.manifest.tsv", self.text)
+        self.assertIn('$manifestLines.Add', self.text)
+        self.assertIn("'configs' 'runtime.manifest.tsv'", self.text)
+
     def test_smoke_runs_from_another_directory(self) -> None:
         # 冒烟要从空目录启动，才验得了「自己解运行时」这条路
         self.assertIn("$sandbox", self.text)
@@ -266,6 +272,50 @@ class SingleFileDesktopModeTests(unittest.TestCase):
         self.assertIn("Fingerprint", self.text)
         self.assertIn("\"SpiritScout\", \"runtime\", tag", self.text)
         self.assertIn("灵枢运行时-", self.text)
+
+    def test_verifies_the_extracted_tree(self) -> None:
+        self.assertIn('private const string ManifestName = "runtime.manifest.tsv"', self.text)
+        self.assertIn("VerifyTree", self.text)
+        self.assertIn("VerifyTree(candidate, out broken)", self.text)
+
+    def test_ready_checks_sentinels_not_just_marker(self) -> None:
+        # .ready 在、文件却被清理过：这种情况要能识别出来，否则首页直接 500
+        self.assertIn('private const string ReadyMarker = ".ready"', self.text)
+        self.assertIn('"knowledge", "seed.py"', self.text)
+        self.assertIn('"data", "seed.json"', self.text)
+
+    def test_damaged_runtime_is_re_extracted(self) -> None:
+        self.assertIn("上次解出来的运行时缺文件，重解一遍", self.text)
+        self.assertIn("if (File.Exists(Path.Combine(candidate, ReadyMarker)))", self.text)
+
+    def test_single_file_failure_never_falls_into_portable_mode(self) -> None:
+        # 解压失败后不能把 _singleFile 关掉：关了就会走 desktop.json 分支，
+        # 弹出一句「desktop.json 指向的解释器不存在」，用户以为还得自己配环境
+        self.assertIn("_runtimeBroken = true;", self.text)
+        self.assertNotIn("_singleFile = false;   // 退到普通模式", self.text)
+        self.assertIn('_btnFix.Text = "重试解压";', self.text)
+        self.assertIn("内置运行时没解开", self.text)
+
+    def test_single_file_failure_offers_retry(self) -> None:
+        self.assertIn("if (_runtimeBroken && _singleFile)", self.text)
+        self.assertIn("await UnpackBundledRuntimeAsync();", self.text)
+        self.assertIn('_btnFix.Text = "一键修复";', self.text)
+
+    def test_child_python_ignores_host_python_env(self) -> None:
+        # 宿主机的 PYTHONHOME/PYTHONPATH 会把内嵌解释器带歪（换台机器就炸的典型原因）
+        for name in ("PYTHONHOME", "PYTHONPATH", "PYTHONSTARTUP"):
+            self.assertIn('psi.EnvironmentVariables.Remove("' + name + '");', self.text)
+        self.assertIn('psi.EnvironmentVariables["PYTHONNOUSERSITE"] = "1";', self.text)
+
+    def test_shell_exe_tells_user_to_grab_single_file_build(self) -> None:
+        self.assertIn("这个 exe 只是窗口壳", self.text)
+        self.assertIn("single-win64.exe", self.text)
+
+    def test_readiness_check_skips_marker_before_it_is_written(self) -> None:
+        # 解压完那一刻 .ready 还没写；这时按「必须带标记」判会白解三次
+        self.assertIn("private static bool Ready(string dir, bool requireMarker)", self.text)
+        self.assertIn("if (!Ready(candidate, false))", self.text)
+        self.assertIn("if (Ready(candidate, true))", self.text)
 
     def test_extracts_before_showing_environment(self) -> None:
         index = self.text.index("await UnpackBundledRuntimeAsync();")

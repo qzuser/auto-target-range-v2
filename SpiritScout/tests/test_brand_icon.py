@@ -75,7 +75,7 @@ class PageReferenceTests(unittest.TestCase):
             with self.subTest(page=page):
                 html = _read(page)
                 self.assertEqual(html.count('name="theme-color"'), 2)
-                self.assertIn('content="#a4681e"', html)
+                self.assertIn('content="#f6f8fa"', html)
 
     def test_brand_marks_are_inline_and_hidden_from_screen_readers(self) -> None:
         cases = (("index.html", "brand-mark"), ("login.html", "login-mark"))

@@ -163,6 +163,9 @@ namespace SpiritScoutDesktop
     internal static class BundledRuntime
     {
         private const string Marker = "SSRTPAY1";    // 尾部最后 8 字节；改了就互不认
+        // 解出来的树得能自证完整：清单是 大小<TAB>相对路径，按行读，不引 JSON 库
+        private const string ManifestName = "runtime.manifest.tsv";
+        private const string ReadyMarker = ".ready";
         private const int TrailerSize = 40;          // 8 长度 + 24 校验 + 8 标记
         private const int HashBytes = 24;            // 载荷 SHA-256 只存前 24 字节，够防下载残缺
 
@@ -227,11 +230,62 @@ namespace SpiritScoutDesktop
             return true;
         }
 
-        private static bool Ready(string dir)
+        /// <summary>
+        /// 运行时能不能用。光看 .ready 不够：本机实测过杀毒/EDR 把安装目录里某些
+        /// 文件单独清理掉，.ready 还在、python 还在，但缺一个知识库模块就让首页 500，
+        /// 所以这里额外抽查几个关键文件。
+        /// <para>requireMarker=false 用在**刚解压完、标记还没写**的那一刻——
+        /// 否则会因为「没有 .ready」判定失败，白解三次。</para>
+        /// </summary>
+        private static bool Ready(string dir, bool requireMarker)
         {
-            return File.Exists(Path.Combine(dir, "py", "python.exe"))
-                && File.Exists(Path.Combine(dir, "configs", "system.yaml"))
-                && File.Exists(Path.Combine(dir, ".ready"));
+            if (!File.Exists(Path.Combine(dir, "py", "python.exe"))) { return false; }
+            if (!File.Exists(Path.Combine(dir, "configs", "system.yaml"))) { return false; }
+            if (requireMarker && !File.Exists(Path.Combine(dir, ReadyMarker))) { return false; }
+            string site = Path.Combine(dir, "py", "Lib", "site-packages");
+            string[] sentinels = new string[]
+            {
+                Path.Combine(site, "spiritscout", "web", "app.py"),
+                Path.Combine(site, "spiritscout", "knowledge", "seed.py"),
+                Path.Combine(site, "spiritscout", "knowledge", "data", "seed.json"),
+                Path.Combine(site, "litellm", "__init__.py"),
+            };
+            foreach (string path in sentinels)
+            {
+                if (!File.Exists(path)) { return false; }
+            }
+            return true;
+        }
+
+        /// <summary>按清单核对解出来的树：缺文件或大小不符都算坏。返回问题描述（最多几条）。</summary>
+        private static string VerifyTree(string dir, out int broken)
+        {
+            broken = 0;
+            string manifest = Path.Combine(dir, ManifestName);
+            if (!File.Exists(manifest)) { return ""; }   // 老载荷没有清单，别误判成坏
+            string[] lines;
+            try { lines = File.ReadAllLines(manifest); }
+            catch (IOException) { return ""; }
+            List<string> problems = new List<string>();
+            foreach (string raw in lines)
+            {
+                string line = raw.Trim();
+                if (line.Length == 0 || line[0] == '#') { continue; }
+                int tab = line.IndexOf('\t');
+                if (tab <= 0) { continue; }
+                long size;
+                if (!long.TryParse(line.Substring(0, tab), out size)) { continue; }
+                string rel = line.Substring(tab + 1).Replace('/', Path.DirectorySeparatorChar);
+                string full = Path.Combine(dir, rel);
+                FileInfo info = new FileInfo(full);
+                if (!info.Exists || info.Length != size)
+                {
+                    broken++;
+                    if (problems.Count < 5) { problems.Add(rel.Replace(Path.DirectorySeparatorChar, '/')); }
+                }
+            }
+            if (broken == 0) { return ""; }
+            return string.Join("、", problems.ToArray()) + (broken > problems.Count ? " 等 " + broken + " 个" : "");
         }
 
         /// <summary>解出运行时并返回程序目录；失败返回 null，原因写进 Error。</summary>
@@ -261,10 +315,16 @@ namespace SpiritScoutDesktop
             }
             probes.Add(Path.Combine(Path.GetTempPath(), "SpiritScout-runtime", tag));
 
-            // 已经解过一次就别再动：同一台机器第二次启动直接进界面
+            // 已经解过一次就别再动：同一台机器第二次启动直接进界面。
+            // 但 .ready 在、关键文件却缺（杀软清理过）时要认账，清掉重解。
             foreach (string candidate in probes)
             {
-                if (Ready(candidate)) { Root = candidate; return candidate; }
+                if (Ready(candidate, true)) { Root = candidate; return candidate; }
+                if (File.Exists(Path.Combine(candidate, ReadyMarker)))
+                {
+                    progress("上次解出来的运行时缺文件，重解一遍：" + candidate);
+                    try { Directory.Delete(candidate, true); } catch (Exception) { }
+                }
             }
 
             List<string> errors = new List<string>();
@@ -287,7 +347,18 @@ namespace SpiritScoutDesktop
                     {
                         throw new InvalidOperationException("解开后没有 py\\python.exe");
                     }
-                    File.WriteAllText(Path.Combine(candidate, ".ready"), tag, Encoding.UTF8);
+                    int broken;
+                    string problems = VerifyTree(candidate, out broken);
+                    if (broken > 0)
+                    {
+                        throw new InvalidOperationException(
+                            "解开后缺 " + broken + " 个文件（可能被杀毒软件清理）：" + problems);
+                    }
+                    if (!Ready(candidate, false))
+                    {
+                        throw new InvalidOperationException("解出来的运行时没通过自检");
+                    }
+                    File.WriteAllText(Path.Combine(candidate, ReadyMarker), tag, Encoding.UTF8);
                     Root = candidate;
                     return candidate;
                 }
@@ -447,6 +518,7 @@ namespace SpiritScoutDesktop
         private string _pythonOverride; // desktop.json 里指定的解释器（便携/单文件版内嵌的那个）
         private bool _portable;         // 便携版：依赖已装进内嵌 Python，没有 venv 也没有 bootstrap.py
         private bool _singleFile;       // 单文件版：exe 尾巴上挂着运行时 zip，首次启动解出来
+        private bool _runtimeBroken;    // 单文件版这次没解开运行时（杀软拦、磁盘满、目录不可写）
 
         private readonly Label _status = new Label();
         private readonly TextBox _log = new TextBox();
@@ -736,9 +808,17 @@ namespace SpiritScoutDesktop
             _btnFix.Enabled = true;
             if (string.IsNullOrEmpty(root))
             {
-                AppendLog("[x] 运行时解不出来：" + BundledRuntime.Error);
-                SetStatus("运行时解不出来：换一个可写目录再试（日志里有原因）。", Color.FromArgb(235, 120, 120));
-                _singleFile = false;   // 退到普通模式，至少让「用浏览器打开」还能用
+                // 关键：这里不能把 _singleFile 关掉。关掉之后就按「便携版 + desktop.json」
+                // 继续走，最后弹出一句「desktop.json 指向的解释器不存在」——用户根本
+                // 不知道发生了什么，还以为单文件版要装环境。
+                _runtimeBroken = true;
+                AppendLog("[x] 内置运行时解不出来：" + BundledRuntime.Error);
+                SetStatus("内置运行时没解开：点「重试解压」；还不行就看日志里的原因。", Color.FromArgb(235, 120, 120));
+                _btnStart.Enabled = false;
+                _btnFix.Text = "重试解压";
+                _btnFix.Enabled = true;
+                _placeholder.Text = "单文件版自带运行时，不需要装 Python。\n"
+                    + "这次没解开，多半是杀毒软件拦了、磁盘空间不够，或者当前目录不能写。";
                 return;
             }
             _repoRoot = root;
@@ -746,6 +826,8 @@ namespace SpiritScoutDesktop
             _pythonOverride = Path.Combine(root, "py", "python.exe");
             _portable = true;
             _logDir = Path.Combine(root, LogFolderName);
+            _runtimeBroken = false;
+            _btnFix.Text = "一键修复";
             AppendLog("[+] 运行时就绪：" + root);
         }
 
@@ -865,6 +947,11 @@ namespace SpiritScoutDesktop
             psi.EnvironmentVariables["PYTHONIOENCODING"] = "utf-8";
             // 便携版自带依赖：别让宿主机 %APPDATA%\Python 里的同名包装进 sys.path
             psi.EnvironmentVariables["PYTHONNOUSERSITE"] = "1";
+            // 宿主机要是设过 PYTHONHOME / PYTHONPATH / PYTHONSTARTUP，内嵌解释器会被带歪
+            // （典型症状：同一个 exe 在别人机器上 import 就崩）。这里一律清掉。
+            psi.EnvironmentVariables.Remove("PYTHONHOME");
+            psi.EnvironmentVariables.Remove("PYTHONPATH");
+            psi.EnvironmentVariables.Remove("PYTHONSTARTUP");
             return psi;
         }
 
@@ -903,6 +990,13 @@ namespace SpiritScoutDesktop
 
         private async Task CheckEnvironmentAsync(bool verbose)
         {
+            if (_runtimeBroken)
+            {
+                // 运行时都没解出来，再去探解释器只会弹一句看不懂的 desktop.json 报错
+                SetStatus("内置运行时还没准备好：点「重试解压」。", Color.FromArgb(240, 190, 110));
+                _btnStart.Enabled = false;
+                return;
+            }
             SetStatus("正在检查环境…", Color.FromArgb(200, 205, 205));
             string python = PickPythonForBootstrap();
             string script = Path.Combine(_packageDir, "scripts", "bootstrap.py");
@@ -1026,8 +1120,10 @@ namespace SpiritScoutDesktop
         {
             if (python == null || !File.Exists(python))
             {
-                SetStatus("找不到内嵌的 Python：desktop.json 里的 python 路径不对。", Color.FromArgb(235, 120, 120));
-                AppendLog("[x] desktop.json 指向的解释器不存在；便携版要整份目录一起拷，不能只拿 exe。");
+                SetStatus("这个 exe 只是窗口壳，需要同目录的运行时；想双击就用请下「单文件版」。", Color.FromArgb(235, 120, 120));
+                AppendLog("[x] 找不到内置 Python：" + (string.IsNullOrEmpty(python) ? "（没配解释器）" : python));
+                AppendLog("    这个 exe 是 834 KB 的窗口壳，运行时（py\\ + configs\\）得跟它放在一起；"
+                    + "嫌配环境麻烦就下 spiritscout-<版本>-single-win64.exe，那个一个文件全带。");
                 _btnStart.Enabled = false;
                 return;
             }
@@ -1059,6 +1155,13 @@ namespace SpiritScoutDesktop
         {
             if (_portable)
             {
+                if (_runtimeBroken && _singleFile)
+                {
+                    AppendLog("[>] 重新解一次内置运行时");
+                    await UnpackBundledRuntimeAsync();
+                    await CheckEnvironmentAsync(false);
+                    return;
+                }
                 // 便携版没有 venv 也没有 bootstrap.py：依赖关系在打包时就装进内嵌解释器了。
                 SetStatus("便携版不需要修复：依赖已随包装好，坏了就重新解压整份目录。", Color.FromArgb(200, 205, 205));
                 AppendLog("[i] 便携版的 Python 与依赖都在程序目录里，没有 venv 可修。");
@@ -1252,8 +1355,10 @@ namespace SpiritScoutDesktop
             if (_web == null)
             {
                 _webReady = false;
-                AppendLog("[!] 没有内嵌浏览器控件：" + (Runtime.LastError ?? "控件创建失败")
-                          + "；退路是用「用浏览器打开」。");
+                AppendLog("[!] 没有内嵌浏览器控件：" + (Runtime.LastError ?? "控件创建失败"));
+                AppendLog("    Windows 10/11 一般自带 WebView2 运行时；缺了就去装一个名字叫"
+                    + "「Microsoft Edge WebView2 Runtime」的组件，装完重开本程序。");
+                SetStatus("缺内嵌浏览器组件：点「用浏览器打开」照样能用。", Color.FromArgb(240, 190, 110));
                 return;
             }
             try
