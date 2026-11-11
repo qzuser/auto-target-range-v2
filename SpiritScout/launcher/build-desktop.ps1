@@ -99,7 +99,8 @@ $loaderDll = Join-Path $sdkDir 'WebView2Loader.dll'
 $iconPath = Join-Path $PSScriptRoot 'icon.ico'
 $iconArgs = @()
 if (Test-Path $iconPath) {
-    $iconArgs = @(("/win32icon:" + $iconPath))
+    # 既做 exe 的图标，也作为资源嵌进去让窗口自己用（WinForms 不会自动继承 exe 图标）
+    $iconArgs = @(("/win32icon:" + $iconPath), ("/resource:" + $iconPath + ",app.icon"))
 } else {
     Write-Host '    [!] 没找到 launcher/icon.ico，先按没有图标的编（跑一次 make-icon.py 就有了）'
 }

@@ -638,6 +638,7 @@ namespace SpiritScoutDesktop
             }
             _logDir = Path.Combine(_repoRoot, LogFolderName);
 
+            ApplyAppIcon();
             Text = "灵枢桌面版 · SpiritScout";
             StartPosition = FormStartPosition.CenterScreen;
             MinimumSize = new Size(980, 640);
@@ -724,6 +725,31 @@ namespace SpiritScoutDesktop
 
         // ---------------- 界面 ----------------
 
+        /// <summary>
+        /// 窗口和任务栏的图标。WinForms 不会自动用 exe 里那份——不设 Icon 的话标题栏
+        /// 和任务栏一直是 .NET 那个通用图标，看着就像「图标根本没改」。
+        /// 优先读构建时嵌进来的 app.icon（和网页 favicon 同一张图），
+        /// 拿不到再从 exe 资源里抽。
+        /// </summary>
+        private void ApplyAppIcon()
+        {
+            try
+            {
+                System.IO.Stream stream =
+                    typeof(DesktopForm).Assembly.GetManifestResourceStream("app.icon");
+                if (stream != null)
+                {
+                    using (stream)
+                    {
+                        Icon = new Icon(stream);
+                        return;
+                    }
+                }
+            }
+            catch (Exception) { }
+            try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); }
+            catch (Exception) { }
+        }
         private void BuildLayout()
         {
             FlowLayoutPanel bar = new FlowLayoutPanel();

@@ -178,3 +178,13 @@ class DesktopIconTests(unittest.TestCase):
         self.assertIn("/win32icon:", script)
         self.assertIn("icon.ico", script)
         self.assertIn("$iconArgs", script)
+    def test_window_sets_its_own_icon(self) -> None:
+        # WinForms 不会自动用 exe 里那份图标，不显式设就一直是通用图标
+        source = (self.LAUNCHER / "SpiritScoutDesktop.cs").read_text(encoding="utf-8-sig")
+        self.assertIn("ApplyAppIcon();", source)
+        self.assertIn('GetManifestResourceStream("app.icon")', source)
+        self.assertIn("Icon.ExtractAssociatedIcon(Application.ExecutablePath)", source)
+
+    def test_build_embeds_the_icon_as_a_resource_too(self) -> None:
+        script = (self.LAUNCHER / "build-desktop.ps1").read_text(encoding="utf-8-sig")
+        self.assertIn('"/resource:" + $iconPath + ",app.icon"', script)

@@ -1,7 +1,20 @@
 # 更新日志
 
-项目采用 `主版本.次版本.修订号`。当前版本为 **0.47.2**，版本唯一来源是
+项目采用 `主版本.次版本.修订号`。当前版本为 **0.47.3**，版本唯一来源是
 `src/spiritscout/__init__.py`；包构建、命令行、控制台及 MCP 握手共用该值。
+
+## [0.47.3] - 2026-11-11
+
+标题栏和任务栏的图标其实一直是 WinForms 的通用图标——上一版只把图标嵌进了 exe，
+而 `Form.Icon` 不设就不会去用 exe 里那份，所以看上去"图标根本没改"。
+
+- 窗口构造时 `ApplyAppIcon()`：先读构建时嵌进去的 `app.icon` 资源（就是把
+  `static/favicon.svg` 画出来的那张 `launcher/icon.ico`），拿不到再从 exe 资源抽；
+- `build-desktop.ps1` 除了 `/win32icon:`，同时 `"/resource:<icon.ico>,app.icon"`，
+  窗口、任务栏、Alt+Tab 与浏览器标签页用同一张图；
+- 实测：新 exe 起来后对窗口发 `WM_GETICON`，32×32 取到的中心是 `#faf9f6`、
+  底边 `#a4681e`，和 favicon.svg 一致；
+- 测试：图标用例 13 → 15（`ApplyAppIcon` 与 `app.icon` 资源各一条）。
 
 ## [0.47.2] - 2026-11-11
 
