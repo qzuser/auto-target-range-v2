@@ -403,6 +403,14 @@ class DesktopShellUiTests(unittest.TestCase):
         self.assertIn("'shell-pages.css'", script)
         self.assertIn('"/resource:" + $shellCssPath + ",app.shellcss"', script)
 
+    def test_portable_build_cleans_pip_temp_dirs(self) -> None:
+        """pip 装依赖中途被杀会在仓库根留一堆空临时目录，构建脚本要顺手收掉。"""
+        script = (self.LAUNCHER / "build-portable.ps1").read_text(encoding="utf-8-sig")
+        self.assertIn("function Clear-PipTempDirs {", script)
+        self.assertIn("'pip-install-*'", script)
+        self.assertIn("'pip-ephem-wheel-cache-*'", script)
+        self.assertIn("finally {\n        Clear-PipTempDirs", script.replace("\r\n", "\n"))
+
     def test_password_is_set_inside_the_window(self) -> None:
         """设密码不许再弹一个黑色控制台让人瞎输——走窗口里的表单。"""
         source = self._shell()

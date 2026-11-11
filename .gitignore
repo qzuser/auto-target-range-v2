@@ -83,3 +83,9 @@ debug.log
 
 # 构建产物：build-desktop.ps1 用控制台的 base.css + polish.css + shell-pages.css 拼出来
 SpiritScout/launcher/ui/shell.css
+
+# pip 中途被杀会留在仓库根的空临时目录（build-portable.ps1 收尾时会删，这里再兜一层）
+pip-install-*/
+pip-target-*/
+pip-ephem-wheel-cache-*/
+pip-build-tracker-*/

@@ -39,6 +39,21 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+# pip 有时会把临时目录建在当前目录里（pip-install-* / pip-target-* / pip-ephem-wheel-cache-* /
+# pip-build-tracker-*）。正常跑完它自己会删；装依赖那步要几分钟，中途 Ctrl+C 或者被任务管理器
+# 杀掉，就会在仓库根上留一堆空文件夹。这里收个尾：只删空目录，有东西的不动。
+function Clear-PipTempDirs {
+    foreach ($pattern in @('pip-build-tracker-*', 'pip-ephem-wheel-cache-*', 'pip-install-*', 'pip-target-*')) {
+        Get-ChildItem -Path (Get-Location) -Directory -Filter $pattern -ErrorAction SilentlyContinue | ForEach-Object {
+            $left = @(Get-ChildItem $_.FullName -Recurse -File -ErrorAction SilentlyContinue)
+            if ($left.Count -eq 0) {
+                Remove-Item $_.FullName -Recurse -Force -ErrorAction SilentlyContinue
+                Write-Host ('    [收尾] 删掉空临时目录 ' + $_.Name) -ForegroundColor DarkGray
+            }
+        }
+    }
+}
+
 function Write-Step([string]$Text) { Write-Host "[>] $Text" -ForegroundColor Cyan }
 function Write-Ok([string]$Text) { Write-Host "[+] $Text" -ForegroundColor Green }
 function Write-Warn2([string]$Text) { Write-Host "[!] $Text" -ForegroundColor Yellow }
@@ -154,8 +169,13 @@ if (-not $SkipInstall) {
 
     Write-Step '装依赖（litellm / langgraph / fastapi 这一坨，几分钟起步，别关窗口）'
     Write-Host ('    ' + $pyExe + ' ' + ($pipArgs -join ' ')) -ForegroundColor DarkGray
-    & $pyExe @pipArgs
-    if ($LASTEXITCODE -ne 0) { throw "pip install 失败（退出码 $LASTEXITCODE）" }
+    try {
+        & $pyExe @pipArgs
+        if ($LASTEXITCODE -ne 0) { throw "pip install 失败（退出码 $LASTEXITCODE）" }
+    }
+    finally {
+        Clear-PipTempDirs
+    }
 }
 else {
     Write-Warn2 '跳过安装（-SkipInstall）：目录里只有解释器，没有依赖'
