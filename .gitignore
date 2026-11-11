@@ -79,3 +79,4 @@ SpiritScout/.tmp/
 dist-portable/
 SpiritScout/launcher/.cache/python/
 dist-single/
+debug.log
