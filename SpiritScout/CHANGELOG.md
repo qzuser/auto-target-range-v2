@@ -1,8 +1,50 @@
 # 更新日志
 
-项目采用 `主版本.次版本.修订号`。当前版本为 **0.46.0**，版本唯一来源是
+项目采用 `主版本.次版本.修订号`。当前版本为 **0.47.0**，版本唯一来源是
 `src/spiritscout/__init__.py`；包构建、命令行、控制台及 MCP 握手共用该值。
 
+## [0.47.0] - 2026-11-11
+
+三件事：**一个 exe 就能跑**（单文件版）、**界面重做了一遍**、**前后端接口开始对账**。
+
+### 新增
+
+- **单文件版**（`launcher/build-single.ps1`）：把桩 exe 和 `runtime.zip`（`py\` + `configs\`，
+  131 MB）拼成一个 exe，末尾 40 字节是 `[载荷长度][载荷 SHA-256 前 24 字节][SSRTPAY1]`。
+  `BundledRuntime` 读尾标 → 倒出载荷 → **先校验哈希再解压** → 用系统自带的 `tar.exe` 展开
+  （没有就退到 PowerShell 的 `Expand-Archive`）→ 写 `.ready` 认账。可写目录试三处：
+  `%LOCALAPPDATA%\SpiritScout\runtime\<长度-指纹>` → exe 旁的 `灵枢运行时-<…>` → `%TEMP%`。
+  实测首启 15 秒解完 322 MB / 19881 个文件，第二次 1.7 秒进就绪。
+- **三种形态同一个 exe**：有尾标载荷 = 单文件版（先开窗再解运行时，日志与状态栏跟着报）；
+  旁边有 `desktop.json` = 便携版；都没有 = 仓库版。
+- **界面精修**（`static/css/polish.css`）：配色从暖纸+琥珀换成冷灰蓝+靛青，圆角/间距/阴影
+  统一成一套刻度；卡片 hover 抬升、主按钮渐变与按压反馈、输入框焦点圈改 box-shadow、
+  表格吸顶表头 + 斑马纹、细滚动条、对话框投影 + 背景模糊、空状态虚线框、`::selection`
+  与 `tabular-nums`、`prefers-reduced-motion` / `prefers-contrast` 降级。只覆盖观感，
+  没动类名与结构。
+- **前后端契约检查**（`tests/test_api_contract.py`）：扫 `static/js/*.js` 里的 `/api/...`
+  字面量，逐个对 `web/` 下 `@app.<method>` 声明的路由，模板变量与 `{param}` 都算通配。
+  路径改名忘了改前端会在这里挂，而不是等用户点下去收到 404。
+- **载荷完整性**：尾标里带 SHA-256 前 24 字节，下载被截断/被改过的 exe 在解压前就拒绝，
+  不会在磁盘上留一个半成品运行时目录。
+
+### 测试
+
+- `tests/test_desktop_launcher.py` 22 → 32 条：单文件脚本必须带 BOM、尾标 8 字节标记
+  （9 个字符会 `CopyTo` 越界——踩过）、必须记哈希并校验、必须校验拼出来的大小/长度/哈希、
+  必须 `tar.exe` 优先 + `Compress-Archive` 退路、C# 侧 `BundledRuntime`/`VerifyPayload`
+  在展开之前跑。
+- 新增 `tests/test_api_contract.py` 3 条。
+
+### 文档
+
+- 根 README、包内 README / README_EN、`docs/部署与配置.md` 补单文件版：三种形态怎么选、
+  为什么 132 MB、首次解到哪儿、第二次为什么快。
+
+### 备注
+
+- 载荷哈希校验和契约检查这两个思路参考了 Project Muteki（AGPL-3.0）的
+  `build_desktop_runtime.py` 与 CI 契约步骤；只借思路与做法，没有复制它的代码。
 ## [0.46.0] - 2026-11-10
 
 桌面版还是「壳子」：真正干活的 Python 与一坨依赖得目标机器上自己装。这一版做便携版——

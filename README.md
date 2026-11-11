@@ -129,6 +129,7 @@ Release 上按需取：
 
 | 附件 | 给谁用 |
 | --- | --- |
+| `spiritscout-<版本>-single-win64.exe` | **单文件版（约 132 MB）**：一个 exe 把 Python 运行时挂在尾巴上，拷过去双击就开，不装 Python、不带源码、不解压 |
 | `spiritscout-desktop-<版本>-win64.exe` | Windows 桌面版（约 828 KB）：自带窗口，但机器上要有 Python 3.11+ 与一份仓库 |
 | `spiritscout-<版本>-portable-win64.zip` | **便携版（约 150 MB）**：内嵌 Python 与 95 个依赖，解压双击 `灵枢桌面版.exe` 就用，目标机什么都不装 |
 | `spiritscout-<版本>-py3-none-any.whl` | `pip install` 用。带 CTF 工具箱要写成 `pip install "spiritscout[toolkit] @ file:///…whl"`——写成 `xxx.whl[toolkit]` 会被 pip **静默丢弃 extras**，一个工具箱依赖都不装还不报错 |

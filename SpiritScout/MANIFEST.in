@@ -6,7 +6,7 @@ global-exclude *.pyc *.pyo
 # 桌面版（Windows 自带窗口的客户端）：源码与编译脚本进 sdist，够别人自己编；
 # 下下来的 WebView2 SDK 缓存（约 8 MB）与编好的 exe 不入包——exe 作为 release 附件单独发。
 include launcher/SpiritScoutDesktop.cs
-include launcher/build-desktop.ps1 launcher/build-portable.ps1
+include launcher/build-desktop.ps1 launcher/build-portable.ps1 launcher/build-single.ps1
 include launcher/SpiritScoutLauncher.cs
 include launcher/build-launcher.ps1
 prune launcher/.cache

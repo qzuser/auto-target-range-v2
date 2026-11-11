@@ -133,7 +133,11 @@ if (-not $SkipInstall) {
     if (-not (Test-Path $GetPip)) { throw "get-pip.py 不存在：$GetPip" }
 
     Write-Step '给内嵌解释器装 pip'
-    & $pyExe $GetPip --no-warn-script-location --disable-pip-version-check
+    # get-pip 也要走镜像：直连 PyPI 时它会在这一步反复重试，卡十几分钟不动
+    $getPipArgs = @($GetPip, '--no-warn-script-location', '--disable-pip-version-check')
+    $mirror = if ($IndexUrl) { $IndexUrl } elseif ($env:SPIRITSCOUT_PIP_INDEX) { $env:SPIRITSCOUT_PIP_INDEX } else { '' }
+    if ($mirror) { $getPipArgs += @('--index-url', $mirror) }
+    & $pyExe @getPipArgs
     if ($LASTEXITCODE -ne 0) { throw "get-pip.py 失败（退出码 $LASTEXITCODE）" }
 
     # ---------- 3. 装灵枢与依赖 ----------

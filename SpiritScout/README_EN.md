@@ -9,7 +9,7 @@ and progress, evidence, and artifacts stay in the same session.
 
 **English · [简体中文](README.md)**
 
-[![Version](https://img.shields.io/badge/version-v0.46.0-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
+[![Version](https://img.shields.io/badge/version-v0.47.0-2563eb?style=flat-square)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square)](pyproject.toml) [![CI](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FLIAZ/SpiritScout/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-16a34a?style=flat-square)](LICENSE)
 
 [Quick start](#quick-start) · [Three modes](#three-modes) · [Interface](#interface) · [How it works](#how-it-works) · [Configuration](#configuration) · [FAQ](#faq) · [Deployment guide (中文)](docs/部署与配置.md)
 
@@ -196,7 +196,7 @@ up models, so a fixed delay would either lie or waste time. After that it report
 line every 60 seconds, so you do not need a task manager to know it is alive.
 
 ```
-灵枢 Web 控制台 v0.46.0: http://127.0.0.1:8010  (管理员登录已启用，并发上限 4，Ctrl+C 停止)
+灵枢 Web 控制台 v0.47.0: http://127.0.0.1:8010  (管理员登录已启用，并发上限 4，Ctrl+C 停止)
 
 [就绪] 浏览器可以打开了: http://127.0.0.1:8010
        每 60 秒报一次状态；Ctrl+C 停止
@@ -215,6 +215,20 @@ external address.
 The shell/Python sandbox needs Linux with bubblewrap. Native Windows and macOS consoles fall back to the host backend and lose that isolation; use Docker when you need the full toolchain. Never share virtual environments across Windows, WSL, and Linux.
 
 </details>
+
+One step further is the **single-file build**: the same exe with the runtime zip appended to its
+own tail — copy it over, double-click, done (no unzip).
+
+```powershell
+powershell -ExecutionPolicy Bypass -File SpiritScout\launcher\build-portable.ps1   # portable folder first
+powershell -ExecutionPolicy Bypass -File SpiritScout\launcher\build-single.ps1     # glue into one exe (~132 MB)
+```
+
+The first launch unpacks the runtime into `%LOCALAPPDATA%\SpiritScout\runtime\<length-fingerprint>`
+(falling back to the exe folder, then `%TEMP%`), which takes ~15 s; later launches are ready in ~2 s.
+All three forms (single-file / portable / repo) are the same exe, chosen by the trailer payload and
+the presence of `desktop.json`.
+
 
 ### Portable build: nothing to install on the target machine
 
@@ -250,14 +264,14 @@ Prefer a ready-made package over a source checkout? All three artifacts carry th
 
 | Asset | What it ships |
 | --- | --- |
-| `spiritscout-0.46.0-py3-none-any.whl` | `pip install` target: console assets, knowledge seeds, report templates, the 206 built-in security skills (`knowledge/data/security_skills.json`) and all 342 experience entries (`knowledge/data/experience.json` + `experience.md`). It does **not** include the custom `skills/` packs — 5669 files would make the wheel unreasonably heavy |
-| `spiritscout-0.46.0.tar.gz` | sdist (~24 MB): full source + the text part of `skills/` (4549 files; images and demo videos stay in the zip) + config templates (`skills.yaml`, `models.example.yaml`, `models.mock.yaml`, `system.example.yaml`) + experience. Real `models.yaml` / `system.yaml` stay out |
-| `spiritscout-0.46.0.zip` | full repository source: code, `skills/`, `configs/`, `experience-export/`, `EXPERIENCE.md` — unzip and follow *Quick start* |
-| `spiritscout-desktop-0.46.0-win64.exe` | **Windows desktop build** (~824 KB): its own window with an embedded WebView2 instead of a browser tab; the WebView2 DLLs are packed inside and unpacked on first run to `%LOCALAPPDATA%`. Still needs Python 3.11+ and a copy of the repository — it starts/stops the server and runs the environment check, it does not replace the interpreter |
+| `spiritscout-0.47.0-py3-none-any.whl` | `pip install` target: console assets, knowledge seeds, report templates, the 206 built-in security skills (`knowledge/data/security_skills.json`) and all 342 experience entries (`knowledge/data/experience.json` + `experience.md`). It does **not** include the custom `skills/` packs — 5669 files would make the wheel unreasonably heavy |
+| `spiritscout-0.47.0.tar.gz` | sdist (~24 MB): full source + the text part of `skills/` (4549 files; images and demo videos stay in the zip) + config templates (`skills.yaml`, `models.example.yaml`, `models.mock.yaml`, `system.example.yaml`) + experience. Real `models.yaml` / `system.yaml` stay out |
+| `spiritscout-0.47.0.zip` | full repository source: code, `skills/`, `configs/`, `experience-export/`, `EXPERIENCE.md` — unzip and follow *Quick start* |
+| `spiritscout-desktop-0.47.0-win64.exe` | **Windows desktop build** (~824 KB): its own window with an embedded WebView2 instead of a browser tab; the WebView2 DLLs are packed inside and unpacked on first run to `%LOCALAPPDATA%`. Still needs Python 3.11+ and a copy of the repository — it starts/stops the server and runs the environment check, it does not replace the interpreter |
 | `SHA256SUMS` | checksums for the three files above |
 
 ```bash
-pip install spiritscout-0.46.0-py3-none-any.whl
+pip install spiritscout-0.47.0-py3-none-any.whl
 spiritscout --help
 ```
 
@@ -396,7 +410,7 @@ Use `python deploy.py migrate` for Docker. Manually: stop the service, copy `.sp
 
 ## Docs and contributing
 
-Current code version: **v0.46.0**. The single source of the version, the bump rules, and the history: see [version management (中文)](CONTRIBUTING.md#版本管理).
+Current code version: **v0.47.0**. The single source of the version, the bump rules, and the history: see [version management (中文)](CONTRIBUTING.md#版本管理).
 
 | I want to | Read |
 | --- | --- |

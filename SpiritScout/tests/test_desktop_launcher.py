@@ -189,5 +189,86 @@ class PortableDesktopModeTests(unittest.TestCase):
     def test_repair_explains_itself_in_portable_mode(self) -> None:
         self.assertIn("_portable", self.text)
         self.assertIn("便携版不需要修复", self.text)
+SINGLE_PS1 = PACKAGE / "launcher" / "build-single.ps1"
+
+
+class SingleFileBundleTests(unittest.TestCase):
+    """单文件版：一个 exe 里挂着运行时，双击就能跑。"""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        if not SINGLE_PS1.is_file():
+            raise unittest.SkipTest("单文件脚本不在这个包里（release 的 wheel 不带 launcher/）")
+        cls.raw = SINGLE_PS1.read_bytes()
+        cls.text = cls.raw.decode("utf-8-sig")
+
+    def test_script_is_utf8_bom(self) -> None:
+        self.assertTrue(self.raw.startswith(b"\xef\xbb\xbf"))
+
+    def test_trailer_is_eight_bytes(self) -> None:
+        # 9 个字符的标记塞进 8 字节会把 CopyTo 撑爆（Array.CopyTo 越界），踩过
+        self.assertIn("SSRTPAY1", self.text)
+        self.assertNotIn("SSRT1PAY1", self.text)
+        self.assertIn("New-Object byte[] 40", self.text)
+
+    def test_trailer_carries_payload_hash(self) -> None:
+        # 只记长度的话，下载被截断/拷坏的 exe 会解出一堆垃圾；带上 SHA-256 才能当场拒绝
+        self.assertIn("SHA256", self.text)
+        self.assertIn("$tailHash -ne $payloadHash", self.text)
+
+    def test_verifies_size_and_trailer(self) -> None:
+        # 拼完必须自己读回来核一遍：大小 = 桩 + 载荷 + 24，尾标里的长度也要对
+        self.assertIn("$tailLen -ne $zipLen", self.text)
+        self.assertIn('$tailMagic -ne', self.text)
+
+    def test_uses_tar_with_compress_archive_fallback(self) -> None:
+        self.assertIn("tar.exe", self.text)
+        self.assertIn("Compress-Archive", self.text)
+
+    def test_smoke_runs_from_another_directory(self) -> None:
+        # 冒烟要从空目录启动，才验得了「自己解运行时」这条路
+        self.assertIn("$sandbox", self.text)
+        self.assertIn("Start-Process", self.text)
+        self.assertIn("内嵌运行时可用", self.text)
+
+
+class SingleFileDesktopModeTests(unittest.TestCase):
+    """exe 侧：读尾标、倒载荷、展 zip、认缓存。"""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        if not DESKTOP_CS.is_file():
+            raise unittest.SkipTest("桌面版源码不在这个包里")
+        cls.text = DESKTOP_CS.read_text(encoding="utf-8")
+
+    def test_reads_trailer_magic(self) -> None:
+        self.assertIn("internal static class BundledRuntime", self.text)
+        self.assertIn('private const string Marker = "SSRTPAY1"', self.text)
+        self.assertIn("HasPayload", self.text)
+        self.assertIn("ReadTrailer", self.text)
+
+    def test_verifies_payload_hash_before_unpacking(self) -> None:
+        self.assertIn("private const int TrailerSize = 40", self.text)
+        self.assertIn("VerifyPayload", self.text)
+        self.assertIn("SHA256", self.text)
+        # 校验必须发生在展开之前：解一半才发现载荷坏掉，磁盘上就留个半成品目录
+        self.assertLess(
+            self.text.index("if (!VerifyPayload(zip, ReadExpectedHash(self)))"),
+            self.text.index("Expand(zip, candidate);"),
+        )
+
+    def test_expands_with_tar_then_powershell(self) -> None:
+        self.assertIn("tar.exe", self.text)
+        self.assertIn("Expand-Archive", self.text)
+
+    def test_cache_key_uses_length_and_fingerprint(self) -> None:
+        # 只按长度做键，两个不同版本可能撞车；带上载荷指纹才分得开
+        self.assertIn("Fingerprint", self.text)
+        self.assertIn("\"SpiritScout\", \"runtime\", tag", self.text)
+        self.assertIn("灵枢运行时-", self.text)
+
+    def test_extracts_before_showing_environment(self) -> None:
+        index = self.text.index("await UnpackBundledRuntimeAsync();")
+        self.assertLess(index, self.text.index("await CheckEnvironmentAsync(false);"))
 if __name__ == "__main__":
     unittest.main()

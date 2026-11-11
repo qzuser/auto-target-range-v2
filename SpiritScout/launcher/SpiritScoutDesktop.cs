@@ -20,6 +20,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -154,6 +155,222 @@ namespace SpiritScoutDesktop
         }
     }
 
+    /// <summary>
+    /// 单文件版：exe 末尾挂着一个 zip（里面是 py\ 与 configs\），尾部 24 字节是
+    /// [载荷长度][保留][标记]。首次启动把载荷倒出来解到可写目录，之后直接用。
+    /// 这样发出去就是「一个 exe，双击能跑」，不用带一堆文件、也不用机器上装 Python。
+    /// </summary>
+    internal static class BundledRuntime
+    {
+        private const string Marker = "SSRTPAY1";    // 尾部最后 8 字节；改了就互不认
+        private const int TrailerSize = 40;          // 8 长度 + 24 校验 + 8 标记
+        private const int HashBytes = 24;            // 载荷 SHA-256 只存前 24 字节，够防下载残缺
+
+        internal static string Root { get; private set; }
+        internal static string Error { get; private set; }
+
+        /// <summary>当前这个 exe 是不是带载荷的单文件版。</summary>
+        internal static bool HasPayload()
+        {
+            long offset;
+            long length;
+            try { return ReadTrailer(Application.ExecutablePath, out offset, out length); }
+            catch (Exception) { return false; }
+        }
+
+        private static bool ReadTrailer(string self, out long offset, out long length)
+        {
+            offset = 0;
+            length = 0;
+            using (FileStream fs = File.OpenRead(self))
+            {
+                if (fs.Length < TrailerSize + 1024) { return false; }
+                fs.Seek(-TrailerSize, SeekOrigin.End);
+                byte[] tail = new byte[TrailerSize];
+                if (fs.Read(tail, 0, TrailerSize) != TrailerSize) { return false; }
+                string marker = Encoding.ASCII.GetString(tail, 32, 8);
+                if (marker != Marker) { return false; }
+                length = BitConverter.ToInt64(tail, 0);
+                offset = fs.Length - TrailerSize - length;
+                return length > 0 && offset > 0;
+            }
+        }
+
+        /// <summary>尾标里记的载荷 SHA-256 前 24 字节；读不到就返回空。</summary>
+        private static byte[] ReadExpectedHash(string self)
+        {
+            using (FileStream fs = File.OpenRead(self))
+            {
+                if (fs.Length < TrailerSize) { return new byte[0]; }
+                fs.Seek(-TrailerSize, SeekOrigin.End);
+                byte[] tail = new byte[TrailerSize];
+                if (fs.Read(tail, 0, TrailerSize) != TrailerSize) { return new byte[0]; }
+                byte[] hash = new byte[HashBytes];
+                Array.Copy(tail, 8, hash, 0, HashBytes);
+                return hash;
+            }
+        }
+
+        /// <summary>倒出来的载荷够不够完整？下载断了/被截断的 exe 会在这里露馅。</summary>
+        private static bool VerifyPayload(string zip, byte[] expected)
+        {
+            if (expected == null || expected.Length != HashBytes) { return true; }
+            using (FileStream fs = File.OpenRead(zip))
+            using (SHA256 sha = SHA256.Create())
+            {
+                byte[] actual = sha.ComputeHash(fs);
+                for (int i = 0; i < HashBytes; i++)
+                {
+                    if (actual[i] != expected[i]) { return false; }
+                }
+            }
+            return true;
+        }
+
+        private static bool Ready(string dir)
+        {
+            return File.Exists(Path.Combine(dir, "py", "python.exe"))
+                && File.Exists(Path.Combine(dir, "configs", "system.yaml"))
+                && File.Exists(Path.Combine(dir, ".ready"));
+        }
+
+        /// <summary>解出运行时并返回程序目录；失败返回 null，原因写进 Error。</summary>
+        internal static string Ensure(Action<string> progress)
+        {
+            Error = null;
+            string self = Application.ExecutablePath;
+            long offset;
+            long length;
+            if (!ReadTrailer(self, out offset, out length))
+            {
+                Error = "exe 尾部没有运行时载荷";
+                return null;
+            }
+            string tag = length.ToString() + "-" + Fingerprint(self, offset).ToString("x8");
+
+            List<string> probes = new List<string>();
+            string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            if (!string.IsNullOrEmpty(localAppData))
+            {
+                probes.Add(Path.Combine(localAppData, "SpiritScout", "runtime", tag));
+            }
+            string exeDir = Path.GetDirectoryName(self);
+            if (!string.IsNullOrEmpty(exeDir))
+            {
+                probes.Add(Path.Combine(exeDir, "灵枢运行时-" + tag));
+            }
+            probes.Add(Path.Combine(Path.GetTempPath(), "SpiritScout-runtime", tag));
+
+            // 已经解过一次就别再动：同一台机器第二次启动直接进界面
+            foreach (string candidate in probes)
+            {
+                if (Ready(candidate)) { Root = candidate; return candidate; }
+            }
+
+            List<string> errors = new List<string>();
+            foreach (string candidate in probes)
+            {
+                try
+                {
+                    Directory.CreateDirectory(candidate);
+                    progress("解出运行时到：" + candidate);
+                    string zip = Path.Combine(candidate, "runtime.zip");
+                    ExtractPayload(self, offset, length, zip, progress);
+                    if (!VerifyPayload(zip, ReadExpectedHash(self)))
+                    {
+                        throw new InvalidOperationException("载荷校验不通过（下载不完整或被改过）");
+                    }
+                    progress("展开 " + (length / 1048576) + " MB，两万多个文件，耐心等一下…");
+                    Expand(zip, candidate);
+                    try { File.Delete(zip); } catch (IOException) { }
+                    if (!File.Exists(Path.Combine(candidate, "py", "python.exe")))
+                    {
+                        throw new InvalidOperationException("解开后没有 py\\python.exe");
+                    }
+                    File.WriteAllText(Path.Combine(candidate, ".ready"), tag, Encoding.UTF8);
+                    Root = candidate;
+                    return candidate;
+                }
+                catch (Exception ex)
+                {
+                    errors.Add(candidate + " → " + ex.Message);
+                    try { Directory.Delete(candidate, true); } catch (Exception) { }
+                }
+            }
+            Error = string.Join("；", errors.ToArray());
+            return null;
+        }
+
+        /// <summary>载荷前 64 KB 的 FNV-1a：同一份运行时算出来的值一致，攒成缓存目录名。</summary>
+        private static uint Fingerprint(string self, long offset)
+        {
+            uint hash = 2166136261;
+            using (FileStream fs = File.OpenRead(self))
+            {
+                fs.Seek(offset, SeekOrigin.Begin);
+                byte[] buffer = new byte[65536];
+                int read = fs.Read(buffer, 0, buffer.Length);
+                for (int i = 0; i < read; i++)
+                {
+                    hash = (hash ^ buffer[i]) * 16777619;
+                }
+            }
+            return hash;
+        }
+
+        private static void ExtractPayload(string self, long offset, long length, string target, Action<string> progress)
+        {
+            using (FileStream input = File.OpenRead(self))
+            using (FileStream output = File.Create(target))
+            {
+                input.Seek(offset, SeekOrigin.Begin);
+                byte[] buffer = new byte[1 << 20];
+                long left = length;
+                long done = 0;
+                while (left > 0)
+                {
+                    int want = (int)Math.Min(buffer.Length, left);
+                    int read = input.Read(buffer, 0, want);
+                    if (read <= 0) { throw new IOException("载荷读取提前结束"); }
+                    output.Write(buffer, 0, read);
+                    left -= read;
+                    done += read;
+                    if (progress != null && done % (64L << 20) < buffer.Length)
+                    {
+                        progress("已倒出 " + (done / 1048576) + " / " + (length / 1048576) + " MB");
+                    }
+                }
+            }
+        }
+
+        /// <summary>解 zip：优先系统自带的 tar.exe（快），没有就退到 PowerShell 的 Expand-Archive。</summary>
+        private static void Expand(string zip, string dir)
+        {
+            string tar = Path.Combine(Environment.SystemDirectory, "tar.exe");
+            if (File.Exists(tar))
+            {
+                ProcessStartInfo psi = new ProcessStartInfo(tar, "-xf \"" + zip + "\" -C \"" + dir + "\"");
+                psi.UseShellExecute = false;
+                psi.CreateNoWindow = true;
+                using (Process p = Process.Start(psi))
+                {
+                    p.WaitForExit();
+                    if (p.ExitCode == 0) { return; }
+                }
+            }
+            ProcessStartInfo ps = new ProcessStartInfo("powershell.exe",
+                "-NoProfile -ExecutionPolicy Bypass -Command \"Expand-Archive -LiteralPath '" + zip
+                + "' -DestinationPath '" + dir + "' -Force\"");
+            ps.UseShellExecute = false;
+            ps.CreateNoWindow = true;
+            using (Process p = Process.Start(ps))
+            {
+                p.WaitForExit();
+                if (p.ExitCode != 0) { throw new InvalidOperationException("解题失败（tar 与 Expand-Archive 都没成）"); }
+            }
+        }
+    }
+
     internal static class Program
     {
         [STAThread]
@@ -223,11 +440,13 @@ namespace SpiritScoutDesktop
         private const int PreferredPort = 8010;
         private const string LogFolderName = "logs";
 
-        private readonly string _repoRoot;      // 仓库根（start-local.ps1 所在目录）；便携版是程序目录
-        private readonly string _packageDir;    // SpiritScout/（pyproject.toml 与 .venv 在这）；便携版是程序目录
-        private readonly string _logDir;
-        private readonly string _pythonOverride; // desktop.json 里指定的解释器（便携版内嵌的那个）
-        private readonly bool _portable;         // 便携版：依赖已装进内嵌 Python，没有 venv 也没有 bootstrap.py
+        // 不是 readonly：单文件版要先开窗、再解运行时，解完才知道真正的程序目录
+        private string _repoRoot;      // 仓库根（start-local.ps1 所在目录）；便携/单文件版是程序目录
+        private string _packageDir;    // SpiritScout/（pyproject.toml 与 .venv 在这）；便携/单文件版是程序目录
+        private string _logDir;
+        private string _pythonOverride; // desktop.json 里指定的解释器（便携/单文件版内嵌的那个）
+        private bool _portable;         // 便携版：依赖已装进内嵌 Python，没有 venv 也没有 bootstrap.py
+        private bool _singleFile;       // 单文件版：exe 尾巴上挂着运行时 zip，首次启动解出来
 
         private readonly Label _status = new Label();
         private readonly TextBox _log = new TextBox();
@@ -253,10 +472,21 @@ namespace SpiritScoutDesktop
 
         public DesktopForm()
         {
-            // 便携版靠 exe 旁边的 desktop.json 指路：root 是程序目录，python 是内嵌解释器。
-            // 没有这个文件就是「仓库里跑」的常规模式。
+            // 三种形态，优先级从高到低：
+            //   1. 单文件版：exe 尾部挂着运行时 zip（build-single.ps1 拼的），先开窗再解；
+            //   2. 便携版：exe 旁边的 desktop.json 指路（root=程序目录、python=内嵌解释器）；
+            //   3. 仓库版：在仓库根里找 SpiritScout/。
+            _singleFile = BundledRuntime.HasPayload();
             DesktopConfig cfg = ReadDesktopConfig();
-            if (cfg != null && !string.IsNullOrEmpty(cfg.Root) && Directory.Exists(cfg.Root))
+            if (_singleFile)
+            {
+                // 真正的程序目录要等运行时解完才知道：先拿 exe 所在目录顶着，日志也先写这儿
+                _repoRoot = Path.GetDirectoryName(Application.ExecutablePath);
+                _packageDir = _repoRoot;
+                _pythonOverride = null;
+                _portable = true;
+            }
+            else if (cfg != null && !string.IsNullOrEmpty(cfg.Root) && Directory.Exists(cfg.Root))
             {
                 _repoRoot = cfg.Root;
                 // 便携版把 configs/ 放在程序目录；万一有人把整仓塞进来，就认 SpiritScout/ 那层。
@@ -476,9 +706,11 @@ namespace SpiritScoutDesktop
 
         private async void OnLoaded(object sender, EventArgs e)
         {
-            AppendLog("灵枢桌面版启动。仓库根：" + _repoRoot);
+            AppendLog("灵枢桌面版启动。程序目录：" + _repoRoot
+                + (_singleFile ? "（单文件版：运行时随 exe 一起）" : ""));
             try
             {
+                if (_singleFile) { await UnpackBundledRuntimeAsync(); }
                 await InitWebViewAsync();
                 await CheckEnvironmentAsync(false);
             }
@@ -487,6 +719,34 @@ namespace SpiritScoutDesktop
                 AppendLog("[x] 启动自检出错：" + ex.Message);
                 SetStatus("启动自检出错：日志里有细节。", Color.FromArgb(235, 120, 120));
             }
+        }
+
+        /// <summary>单文件版第一次启动：把 exe 尾部的 zip 解出来，之后启动直接复用。</summary>
+        private async Task UnpackBundledRuntimeAsync()
+        {
+            SetStatus("正在准备运行时（首次启动要解一次，约 320 MB）…", Color.FromArgb(240, 190, 110));
+            _btnCheck.Enabled = false;
+            _btnFix.Enabled = false;
+            _btnStart.Enabled = false;
+            string root = await Task.Run(delegate
+            {
+                return BundledRuntime.Ensure(delegate(string message) { AppendLog(message); });
+            });
+            _btnCheck.Enabled = true;
+            _btnFix.Enabled = true;
+            if (string.IsNullOrEmpty(root))
+            {
+                AppendLog("[x] 运行时解不出来：" + BundledRuntime.Error);
+                SetStatus("运行时解不出来：换一个可写目录再试（日志里有原因）。", Color.FromArgb(235, 120, 120));
+                _singleFile = false;   // 退到普通模式，至少让「用浏览器打开」还能用
+                return;
+            }
+            _repoRoot = root;
+            _packageDir = root;
+            _pythonOverride = Path.Combine(root, "py", "python.exe");
+            _portable = true;
+            _logDir = Path.Combine(root, LogFolderName);
+            AppendLog("[+] 运行时就绪：" + root);
         }
 
         // ---------------- 日志 ----------------
