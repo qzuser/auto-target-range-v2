@@ -88,6 +88,8 @@ The challenges tab exists in competition mode only; the write-up tab only appear
 | Projects and artifacts | Persist assets and sessions; independently reproduce vulnerability candidates; generate reports or write-ups |
 | CTF solution write-up | Draft a write-up in the organizer's template: confirm team info and chapters first (optional, remembered next time), chapters by direction, steps and flag capture per challenge, downloadable as Markdown |
 | Browser and tools | Connect MCP servers, Skills, and shell/Python sandboxes; SRC can reuse authenticated sessions and let you handle CAPTCHAs |
+| Local models | A local endpoint (LM Studio / Ollama) in two roles: exposed as an MCP tool (status, list models, single-turn ask), or **used directly as the main model for the whole solve loop**. On an 8 GB GPU it has solved challenges with a well-defined procedure (West Lake Forum IoT custom-base64 reverse: 9 tool calls, ~95k tokens). No egress, no billing |
+| Local tool index | Point "Settings → Local tools" at a few tool directories and agents can look tools up by name and run them: the directory is copied to a staging copy with an isolated temp dir and HOME, reconciled afterwards (additions removed, edits reverted), checked against the manifest, then destroyed — **nothing left behind**; over-limit or unreconcilable runs are refused |
 | Models and usage | Configure providers, teams, and models; inspect estimated cost, tokens, and endpoint-reported input cache usage |
 | Experience | Write verified judgements back into the experience store and reuse them in similar tasks |
 

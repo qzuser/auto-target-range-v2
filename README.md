@@ -14,6 +14,7 @@
 `deploy-spiritscout.ps1` | Docker Desktop 一键部署（CTF 的 shell/python 工具硬依赖 bubblewrap，Windows 原生沙箱不可用时需要它）
 `_work/build_release.py` | 组装「解压即用」便携包：内嵌 CPython 3.11 + site-packages + app + configs + data，再打 zip
 `_work/validate_release.py` | 打包前的冒烟：包内解释器导入、沙箱解释器探测、配置数据落点、控制台真起停；跑完清掉它在 `data\` 留下的运行数据，好让下一步打出一个没被人点开过的包
+`_work/run-spiritscout.ps1` | 本机一键启动：`chcp 65001` + UTF-8 输出（中文不糊）→ 前台起 `8010` 控制台并把日志 tee 到 `_work\agent-server.log`。python 退出后窗口自动关闭，不留「弹出来什么都没干」的空壳。**保留 UTF-8 BOM**——PowerShell 5.1 按 BOM 判断编码，丢了中文注释会被当 GBK 读崩
 `experience-export/` | 运行期经验沉淀的**脱敏快照**（`experience-insights.json`，条数见文件里的 `total`）：`export_experience.py` 从 `SpiritScout/.spiritscout/experience.db` 导出，pre-commit 钩子保证每次提交都把它一起带上。装钩子：`python experience-export/install_hook.py`。细节见该目录 README
 `packages/`（未提交） | 构建产物落点：wheel / sdist / portable zip，通过 GitHub Release 分发
 [`PUSH-POLICY.md`](PUSH-POLICY.md) | **什么进仓库、什么只留本机**：源码/测试/文档/配置模板推，运行数据/密钥/构建产物/本机私用脚本不推。含推送前三十秒自检清单
@@ -152,7 +153,7 @@ powershell -ExecutionPolicy Bypass -File SpiritScout\launcher\build-portable.ps1
 ```
 
 产物 `dist-portable\灵枢便携版-<版本>\` 约 334 MB，`desktop.json` 指路、`configs\` 只有模板、
-`py\` 里是解释器和 95 个依赖。整份目录拷到别的机器，解压双击 `灵枢桌面版.exe` 就开——
+`py\` 里是解释器和全套依赖。整份目录拷到别的机器，解压双击 `灵枢桌面版.exe` 就开——
 不装 Python、不联外网也能起来（调模型当然还要网）。
 
 
@@ -160,7 +161,7 @@ powershell -ExecutionPolicy Bypass -File SpiritScout\launcher\build-portable.ps1
 
 仓库同时提交 [`SpiritScout/configs/system.yaml`](SpiritScout/configs/system.yaml)（本机现行）
 和 [`system.example.yaml`](SpiritScout/configs/system.example.yaml)（上游最小模板）。
-把两份按 `段.键` 摊平到叶子（列表按下标展开）分别是 105 与 93 个键。
+把两份按 `段.键` 摊平到叶子（列表按下标展开）分别是 108 与 98 个键。
 两者有意保留差异，diff 一遍的结果记在这里：
 
 | 只在哪份里写出 | 键 | 影响 |
@@ -184,7 +185,7 @@ Release 上按需取：
 | --- | --- |
 | `spiritscout-<版本>-single-win64.exe` | **单文件版（约 132 MB）**：一个 exe 把 Python 运行时挂在尾巴上，拷过去双击就开，不装 Python、不带源码、不解压 |
 | `spiritscout-desktop-<版本>-win64.exe` | Windows 桌面版（约 828 KB）：自带窗口，但机器上要有 Python 3.11+ 与一份仓库 |
-| `spiritscout-<版本>-portable-win64.zip` | **便携版（约 150 MB）**：内嵌 Python 与 95 个依赖，解压双击 `灵枢桌面版.exe` 就用，目标机什么都不装 |
+| `spiritscout-<版本>-portable-win64.zip` | **便携版（约 150 MB）**：内嵌 Python 与全套依赖（直接依赖 12 个，含传递依赖约 140 个包），解压双击 `灵枢桌面版.exe` 就用，目标机什么都不装 |
 | `spiritscout-<版本>-py3-none-any.whl` | `pip install` 用。带 CTF 工具箱要写成 `pip install "spiritscout[toolkit] @ file:///…whl"`——写成 `xxx.whl[toolkit]` 会被 pip **静默丢弃 extras**，一个工具箱依赖都不装还不报错 |
 | `spiritscout-<版本>.tar.gz` | sdist：源码 + `scripts/` + `skills/` 文本素材 + 配置模板 |
 | `spiritscout-<版本>.zip` | 整仓源码，解开就能跑 |
