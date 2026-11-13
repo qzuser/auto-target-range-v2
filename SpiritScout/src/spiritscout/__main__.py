@@ -34,7 +34,7 @@ os.environ.setdefault("LITELLM_LOCAL_MODEL_COST_MAP", "True")
 from spiritscout import __version__
 from spiritscout.config import load_model_config, load_system_config
 from spiritscout.core.exceptions import SpiritScoutError
-from spiritscout.platform_support import force_utf8_streams
+from spiritscout.platform_support import force_utf8_streams, quiet_event_loop_errors
 
 
 def _load_dotenv(path: Path) -> None:
@@ -273,6 +273,9 @@ def _banner(host: str, port: int, auth_note: str, max_concurrent: int) -> str:
 def main(argv: list[str] | None = None) -> int:
     # 英文 Windows 的重定向输出可能默认 cp1252，中文帮助/错误信息也须能输出。
     force_utf8_streams()
+    # 浏览器关标签页/断网时 asyncio 会在回调里抛 WinError 10054，日志看着像崩了，
+    # 其实服务无恙；只对这类连接错误静默，别的异常照旧。
+    quiet_event_loop_errors()
     args = build_parser().parse_args(argv)
     dotenv = _find_dotenv()
     if dotenv:

@@ -8,6 +8,7 @@ import asyncio
 import contextlib
 import copy
 import json
+import os
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -18,6 +19,11 @@ from spiritscout.config.settings import GatewayConfig, ModelEntry
 from spiritscout.core.audit import AuditLogger, NullAuditLogger
 from spiritscout.core.exceptions import SpiritScoutError
 from spiritscout.gateway.attempts import AttemptTrace, current_attempt_trace
+
+# LiteLLM 默认会去 GitHub 拉模型价格表：一次调用前先跑三个外网请求，离线/内网
+# 环境里纯属白等（还留下 SDK 连外网的日志）。本地模型和"不出网"测试都要求它闭嘴。
+os.environ.setdefault("LITELLM_LOCAL_MODEL_COST_MAP", "True")
+
 from spiritscout.gateway.backends import (
     ChatBackend,
     DeltaCallback,
@@ -28,10 +34,25 @@ from spiritscout.gateway.backends import (
 )
 from spiritscout.gateway.cache import PrefixTracker, cache_summary
 from spiritscout.gateway.capabilities import EndpointCapabilities
-from spiritscout.gateway.context import DecisionMemory
+from spiritscout.gateway.context import DecisionMemory, estimate_input_tokens
 from spiritscout.gateway.pricing import estimate_deepseek_cny
 from spiritscout.gateway.registry import ModelRegistry
 from spiritscout.tools.invocation import ExecutionScope, current_execution_scope
+
+
+class ModelUnavailableError(SpiritScoutError):
+    """端点连续不可用（熔断中）。
+
+    和普通「这一次调用失败了」不同：这条异常的意思是「别再试了，先把端点修好」。
+    上层拿到它必须停止推进本轮循环，而不是当成一次抖动继续下一回合——否则
+    模型挂了之后，规划层会把每一轮都记成「调查了一次」，任务越堆越多，会话
+    永远到不了终态（用户看到的就是"卡住"）。
+    """
+
+
+# 连续多少次「全链失败」就熔断；熔断后多久放一次探活请求
+MODEL_BREAKER_THRESHOLD = 3
+MODEL_BREAKER_COOLDOWN_SECONDS = 30.0
 
 # 瞬时断连就地重试的间隔：远端渠道一次抖动通常瞬时，等 1 秒重发比整轮失败划算
 _TRANSIENT_RETRY_DELAY = 1.0
@@ -42,6 +63,11 @@ _TRANSIENT_RETRY_DELAY = 1.0
 _TRANSIENT_HINTS = ("connection error", "connection reset", "connection aborted",
                     "server disconnected", "incompletestream", "timed out", "timeout",
                     "apiconnectionerror", "remotedisconnected", "temporarily unavailable")
+
+# 工具调用参数没写完（撞到输出上限）时 llama.cpp 的原文。属于「额度不够，不是端点坏了」：
+# 这类错误放大输出预算重发一次，比整轮判失败划算。
+_TOOL_ARGUMENT_TRUNCATION_HINTS = ("failed to parse tool call arguments",
+                                   "tool call arguments as json")
 
 # 「输入装不下窗口」不是抖动：端点已经明确说装不下，重发同一份请求必然再失败一次。
 # 本地端点一次推理常要几十秒，而槽位分片会让这条错误连着出现——实测 LM Studio 以
@@ -72,6 +98,12 @@ def _is_transient(exc: BaseException) -> bool:
         return True
     text = str(exc).lower()
     return any(hint in text for hint in _TRANSIENT_HINTS)
+
+
+def _is_tool_argument_truncation(exc: BaseException) -> bool:
+    """端点说「工具调用参数不是合法 JSON」：多半是参数没写完就撞了输出上限。"""
+    text = str(exc).lower()
+    return any(hint in text for hint in _TOOL_ARGUMENT_TRUNCATION_HINTS)
 
 
 @dataclass
@@ -126,7 +158,10 @@ async def chat_decision(
             audit.log("llm.output_retry", actor, {
                 "task_type": kwargs.get("task_type", ""),
                 "finish_reason": resp.finish_reason,
-                "content_chars": len(resp.content or "")})
+                "content_chars": len(resp.content or ""),
+                # 思考型模型把额度全花在 reasoning_content 上时正文为空：这条
+                # 字段就是判断「是模型想太多还是端点没回」的唯一线索
+                "reasoning_chars": len(resp.reasoning or "")})
         try:
             retry_kwargs = {**kwargs, "max_tokens": max(32768, (kwargs.get("max_tokens") or 0) * 2)}
             retried = await gateway.chat(messages, **retry_kwargs)
@@ -253,6 +288,10 @@ class ModelGateway:
         # 端点并发闸：按端点（base_url 优先）复用信号量，避免把十几个任务同时
         # 砸到一个单槽本地模型上——那样每个请求都在排队里耗到硬超时。
         self._gates: dict[str, asyncio.Semaphore] = {}
+        # 端点熔断状态：连续全链失败计数 + 熔断到期时间 + 最后一次错误
+        self._breaker_failures = 0
+        self._breaker_open_until = 0.0
+        self._breaker_last_error = ""
 
     def set_session_model(self, model: Any) -> None:
         """设置本会话优先使用的模型（空 = 跟随设置页的优先级链）。
@@ -337,6 +376,16 @@ class ModelGateway:
         由模型档案声明（ModelEntry.max_output_tokens）或端点自定；上限只影响
         生成在哪停，设小了思考型模型会把额度耗在思考上、正文被截成半截。
         小通道（路由/连通性探测）可传定值收紧。"""
+        now = time.monotonic()
+        if now < self._breaker_open_until:
+            # 熔断中：立刻失败，不再排队、不再等 300s 硬超时。上层据此停止本轮循环。
+            self.audit.log("model.breaker_open", "gateway", {
+                "remaining_seconds": round(self._breaker_open_until - now, 1),
+                "failures": self._breaker_failures,
+                "last_error": self._breaker_last_error[:200]})
+            raise ModelUnavailableError(
+                f"模型端点连续不可用（已熔断 {round(self._breaker_open_until - now, 1)}s，"
+                f"期间不再重试）：{self._breaker_last_error[:200]}")
         entry = self._route(
             task_type, model=model, required_capability=required_capability,
         )
@@ -369,6 +418,10 @@ class ModelGateway:
                     task_type=task_type,
                     preserve_context=preserve_context, preserve_tool_order=preserve_tool_order,
                 )
+                # 成功一次就把熔断状态清干净：抖动恢复后不该还背着历史失败
+                self._breaker_failures = 0
+                self._breaker_open_until = 0.0
+                self._breaker_last_error = ""
                 if idx > 0:
                     resp.fallback_used = True
                     self.audit.log(
@@ -390,6 +443,17 @@ class ModelGateway:
             # 的坑——界面显示 16384，按 4 路并行就只有 4096 可用，看着够实际不够。
             hint = ("；模型窗口装不下本轮输入：换上下文更大的模型，或把端点的窗口调大"
                     "（并行槽数会把总窗口按槽平分，单槽只有 1/N）")
+        self._breaker_failures += 1
+        self._breaker_last_error = f"{type(last_exc).__name__}: {last_exc}"
+        if self._breaker_failures >= MODEL_BREAKER_THRESHOLD:
+            self._breaker_open_until = time.monotonic() + MODEL_BREAKER_COOLDOWN_SECONDS
+            self.audit.log("model.breaker_tripped", "gateway", {
+                "failures": self._breaker_failures,
+                "cooldown_seconds": MODEL_BREAKER_COOLDOWN_SECONDS,
+                "last_error": self._breaker_last_error[:200]})
+            raise ModelUnavailableError(
+                f"模型端点连续 {self._breaker_failures} 次不可用，熔断 "
+                f"{int(MODEL_BREAKER_COOLDOWN_SECONDS)}s 后放探活：{last_exc}{hint}") from last_exc
         raise SpiritScoutError(f"模型调用全链失败（主备均不可用）: {last_exc}{hint}")
 
     async def _invoke_with_retry(self, entry: ModelEntry, *args: Any, **kwargs: Any) -> ChatResponse:
@@ -398,11 +462,28 @@ class ModelGateway:
         远端渠道的 `Connection error` 属于「这条连接没了，换一条就好」：不重试的话
         上层要么被一次抖动拖到硬超时上限，要么直接判失败白跑一轮。只重试瞬时类错误
         （连接中断、读超时），鉴权/参数/额度错误立即上抛，不做无意义重试。
+
+        工具调用参数被截断（llama.cpp 报 `Failed to parse tool call arguments as JSON`）
+        单独再试一次，并把输出预算翻倍：那不是端点坏了，是模型想写的参数比给它的
+        额度长，翻倍后同一份请求大多能一次写完。
         """
         try:
             return await self._invoke(entry, *args, **kwargs)
         except Exception as exc:
-            if isinstance(exc, asyncio.CancelledError) or not _is_transient(exc):
+            if isinstance(exc, asyncio.CancelledError):
+                raise
+            if _is_tool_argument_truncation(exc) and kwargs.get("max_tokens"):
+                bigger = min(int(kwargs["max_tokens"]) * 2,
+                             entry.max_output_tokens or int(kwargs["max_tokens"]) * 2)
+                if bigger > int(kwargs["max_tokens"]):
+                    self.audit.log("model.retry", "gateway",
+                                   {"model": entry.model,
+                                    "reason": "tool_arguments_truncated",
+                                    "error": str(exc)[:160],
+                                    "max_tokens": [int(kwargs["max_tokens"]), bigger]})
+                    kwargs["max_tokens"] = bigger
+                    return await self._invoke(entry, *args, **kwargs)
+            if not _is_transient(exc):
                 raise
             self.audit.log("model.retry", "gateway",
                            {"model": entry.model, "reason": str(exc)[:200],
@@ -484,15 +565,30 @@ class ModelGateway:
     ) -> ChatResponse:
         backend: ChatBackend = backend_for(entry, self._mock, capabilities=self.endpoint_capabilities)
         messages = copy.deepcopy(messages)
+        # 引入必须无条件执行：决策通道传 preserve_context=True 时不进下面的压缩分支，
+        # 把 import 写在分支里会让后面的 clamp 直接 UnboundLocalError。
+        from spiritscout.gateway.context import clamp_output_tokens
+
         if entry.context_window and not preserve_context:
             from spiritscout.gateway.context import (
                 compact_history_tokens,
                 input_window_budget,
+                shrink_history_to_window,
             )
 
             budget = input_window_budget(entry.context_window, max_tokens or entry.max_output_tokens)
             if budget is not None:
                 compact_history_tokens(messages, budget, tools=tools)
+                # 节选压不进窗口时丢掉最早的几组工具往返：小窗口模型跑到几十回合
+                # 后输入仍超窗，端点 400，整条路线报废；丢旧观察比丢整轮划算。
+                dropped = shrink_history_to_window(
+                    messages, entry.context_window, tools=tools,
+                    reserve=max_tokens or entry.max_output_tokens)
+                if dropped:
+                    self.audit.log("model.history_trimmed", "gateway", {
+                        "model": entry.model, "context_window": entry.context_window,
+                        "dropped_messages": dropped,
+                        "estimated_input_tokens": estimate_input_tokens(messages, tools)})
         if tools:
             tools = copy.deepcopy(tools)
             if not preserve_tool_order:
@@ -502,6 +598,9 @@ class ModelGateway:
         # 声明下发；档案也没声明就 None（请求不带该字段，端点自定）
         if max_tokens is None and entry.max_output_tokens > 0:
             max_tokens = entry.max_output_tokens
+        # 输出上限不能把窗口撑破：窗口小的模型（本地 4k/8k）输入 + 输出越界时端点
+        # 直接 400，上层只能看到「模型调用全链失败」。按估算输入把余量收回窗口内。
+        max_tokens = clamp_output_tokens(messages, tools, entry.context_window or 0, max_tokens)
         started = time.perf_counter()
         wall = time.time()                      # 记账用墙钟（时序图按日聚合）
         scope = current_execution_scope.get() or ExecutionScope()

@@ -24,6 +24,37 @@ def process_options() -> dict[str, Any]:
     return {"start_new_session": True}
 
 
+_BENIGN_LOOP_ERRORS = (ConnectionResetError, ConnectionAbortedError, BrokenPipeError)
+"""客户端断开长连接时事件循环抛的「异常」，服务本身没事。"""
+
+
+def quiet_event_loop_errors() -> None:
+    """让「浏览器/SSE 客户端断开」不再打印成 traceback。
+
+    Windows 的 Proactor 在客户端强断（关标签页、切网络、Ctrl+C 掉客户端）时会
+    在 ``_call_connection_lost`` 回调里抛 ``ConnectionResetError: [WinError 10054]
+    远程主机强迫关闭了一个现有的连接``。这是 asyncio 在回调里无人可抛的噪音，
+    日志里看着像服务崩了，实际一切正常。只对这几类连接错误静默，其它异常照旧
+    走默认处理器——不掩盖真正的故障。
+    """
+
+    class _QuietPolicy(asyncio.DefaultEventLoopPolicy):
+        def new_event_loop(self) -> asyncio.AbstractEventLoop:
+            loop = super().new_event_loop()
+            loop.set_exception_handler(_quiet_handler)
+            return loop
+
+    with contextlib.suppress(Exception):
+        asyncio.set_event_loop_policy(_QuietPolicy())
+
+
+def _quiet_handler(loop: asyncio.AbstractEventLoop, context: dict[str, Any]) -> None:
+    exc = context.get("exception")
+    if isinstance(exc, _BENIGN_LOOP_ERRORS):
+        return
+    loop.default_exception_handler(context)
+
+
 def force_utf8_streams() -> None:
     """把控制台/管道输出钉成 UTF-8。
 

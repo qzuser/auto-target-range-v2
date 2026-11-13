@@ -37,7 +37,10 @@ def _ctf_plan(challenges=CHALLENGES):
 class WriteUpApiTests(unittest.TestCase):
     def _client(self, tmp: str, *, mode: str = "ctf", challenges=CHALLENGES):
         root = Path(tmp)
-        app = create_app(SystemConfig(workspace=WorkspaceConfig(root=tmp)), [])
+        app = create_app(SystemConfig(workspace=WorkspaceConfig(root=tmp),
+                              # 模型清单指到空文件：这些用例盯的是「没有可用模型时
+                              # 也要出文档」的骨架行为，别让本机跑着的模型改变结果
+                              models_config_path=str(Path(tmp) / "no-models.yaml")), [])
         manager = app.state.manager
         session = Session(session_id="sess-wp", mode=mode, target="http://a.test",
                           workspace=root / "sess-wp")
@@ -168,7 +171,10 @@ class WriteUpDiscoveryTests(unittest.TestCase):
 
     def _client(self, tmp: str, *, mode: str = "ctf"):
         root = Path(tmp)
-        app = create_app(SystemConfig(workspace=WorkspaceConfig(root=tmp)), [])
+        app = create_app(SystemConfig(workspace=WorkspaceConfig(root=tmp),
+                              # 模型清单指到空文件：这些用例盯的是「没有可用模型时
+                              # 也要出文档」的骨架行为，别让本机跑着的模型改变结果
+                              models_config_path=str(Path(tmp) / "no-models.yaml")), [])
         manager = app.state.manager
         session = Session(session_id="sess-auto", mode=mode, target="http://a.test",
                           workspace=root / "sess-auto")

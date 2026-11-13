@@ -227,6 +227,65 @@ def _host_shell() -> list[str] | None:
     return ["/bin/sh", "-c"]
 
 
+# Windows 盘符路径 → Git Bash（MSYS）形式。模型看到的工作区路径是
+# `C:\Users\x`，写进 shell 命令时常变成 `/C:/Users/x` 或 `C:/Users/x`，
+# bash 里一律找不到（实测 57 条命令全是「No such file or directory」，
+# 模型就此陷入换着写法的死循环）。执行前统一改写成 `/c/Users/x`。
+_MSYS_DRIVE_PATH = re.compile(r"(?<![\w])(/?)([A-Za-z]):([\\/][^\s\"'`;|&<>]*)")
+
+# Python 侧反过来：Windows 解释器不认 `/c/Users/x`，只认 `C:/Users/x`。
+# 只改「单字母 + 斜杠」这种明确的盘符形态，`/tmp`、`/usr/bin` 不碰。
+_MSYS_PATH_LITERAL = re.compile(r"([\"'])/([A-Za-z])/")
+
+
+def _to_host_shell_paths(command: str) -> str:
+    """把命令里的 Windows 盘符路径改写成 host shell 认的形式（幂等）。"""
+    if not _IS_WINDOWS:
+        return command
+
+    def rewrite(match: re.Match[str]) -> str:
+        drive = match.group(2).lower()
+        rest = match.group(3).replace("\\", "/")
+        return f"/{drive}{rest}"
+
+    return _MSYS_DRIVE_PATH.sub(rewrite, command)
+
+
+def _to_host_python_paths(code: str) -> str:
+    """把 Python 代码字符串字面量里的 `/c/...` 改回 `C:/...`（幂等）。"""
+    if not _IS_WINDOWS:
+        return code
+    return _MSYS_PATH_LITERAL.sub(lambda m: f"{m.group(1)}{m.group(2)}:/", code)
+
+
+def _host_path_hint(rundir: Path) -> str:
+    """给模型看的「这个路径在 host shell 里怎么写」，避免它自己猜。"""
+    text = str(rundir)
+    if not _IS_WINDOWS:
+        return text
+    posix = _to_host_shell_paths(text)
+    return f"{text}（bash 里写作 {posix}，也可以直接用相对路径）"
+
+
+def _link_attachments(rundir: Path, attachments: Path) -> None:
+    """把 attachments/ 变成工作目录里可直达的入口（软链，失败则目录联接）。
+
+    只是个便利入口：建不起来就跳过，工具结果里依然给出附件的真实路径。
+    """
+    link = rundir / "attachments"
+    if link.exists() or link.is_symlink():
+        return
+    with contextlib.suppress(OSError, NotImplementedError):
+        link.symlink_to(attachments, target_is_directory=True)
+        return
+    if not _IS_WINDOWS:
+        return
+    with contextlib.suppress(OSError, subprocess.SubprocessError):
+        subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(attachments)],
+                       capture_output=True, timeout=20, check=False,
+                       creationflags=_NO_WINDOW)
+
+
 def _host_python() -> str | None:
     venv = _project_venv()
     exe = _venv_python(venv) if venv is not None else None
@@ -469,6 +528,10 @@ async def sandbox_exec(
         rundir.mkdir(parents=True, exist_ok=True)
         (workspace / "artifacts").mkdir(exist_ok=True)
         (workspace / "attachments").mkdir(exist_ok=True)
+        # 附件挂到工作目录里：模型最自然的写法就是 `cat attachments/base64.c`，
+        # 而它实际在 sandbox/<scope>/ 下（相对路径算错就一路 No such file）。
+        # 链接建不起来（无权限）不算错，工具结果里仍会给出真实路径。
+        _link_attachments(rundir, workspace / "attachments")
     except OSError as exc:
         return ToolResult(tool="sandbox_exec", ok=False, returncode=-1,
                           error=f"沙箱工作区不可用: {exc}")
@@ -486,6 +549,10 @@ async def sandbox_exec(
     env: dict[str, str] | None = None
     popen_kwargs: dict[str, Any] = {}
     if lang == "python":
+        # host 后端跑的是本机 Windows Python：模型从 shell 语境带过来的
+        # `/c/...` 路径要翻回盘符写法，否则脚本里 open('/c/x') 必炸。
+        if backend == "host":
+            code = _to_host_python_paths(code)
         script = rundir / f"run_{int(time.time() * 1000)}_{os.urandom(3).hex()}.py"
         script.write_text(code, encoding="utf-8")
         py = _host_python() if backend == "host" else None
@@ -506,6 +573,8 @@ async def sandbox_exec(
             if shell is None:
                 return ToolResult(tool="sandbox_exec", ok=False, returncode=-1,
                                   error="host 后端缺少可用 shell（装 Git Bash 或改 SPIRITSCOUT_HOST_BASH）")
+            # Git Bash 是 MSYS：`C:\x` 与 `/C:/x` 都不认，先统一成 `/c/x`
+            code = _to_host_shell_paths(code)
             inner = [*shell, code]
 
     if backend == "bwrap":
@@ -604,6 +673,10 @@ async def sandbox_exec(
         stdout=stdout, stderr=stderr, timed_out=timed_out,
         parsed={"language": lang, "exit_code": rc, "sandbox": backend,
                 "duration_ms": round(duration, 1), "workdir": str(rundir),
+                "workdir_hint": _host_path_hint(rundir),
+                "attachments_dir": str(workspace / "attachments"),
+                "attachments_rel": os.path.relpath(workspace / "attachments", rundir),
+                "artifacts_dir": str(workspace / "artifacts"),
                 "hardening": hardening or {},
                 "output_file": str(log_path) if log_path else "",
                 "output_rotated": bool(log_fh and log_fh.rotated),

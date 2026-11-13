@@ -11,13 +11,14 @@ import binascii
 import codecs
 import contextlib
 import copy
+import hashlib
 import html
 import json
 import re
 import time
 import urllib.parse
 import zlib
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, ClassVar
@@ -33,6 +34,7 @@ from spiritscout.gateway.context import (
     compact_history_tokens,
     estimate_input_tokens,
 )
+from spiritscout.gateway.gateway import ModelUnavailableError
 from spiritscout.tools.catalog import MCP_PROXY_SCHEMAS, search_mcp_tools
 from spiritscout.tools.invocation import ExecutionScope, current_execution_scope
 from spiritscout.tools.search_policy import search_allowed
@@ -41,6 +43,12 @@ from spiritscout.tools.web_search import SEARCH_SCHEMA
 
 # 题面中疑似编码串的最小长度（降噪）
 _MIN_BLOB_LEN = 12
+
+# 同一条路线里同一个问题最多问几遍：第 1 遍照常送达用户，之后回放旧答复，
+# 到这个次数直接判为「不要再用提问推进」（防止问-答-再问的空转）
+ASK_USER_REPEAT_LIMIT = 3
+# 一条路线最多真正转交几次提问；超过就自己决策（换措辞重问挡不住）
+ASK_USER_TOTAL_LIMIT = 3
 # 外部安全技能库（NoorQureshi/security-skills，MIT，206 条）——
 # 内存检索，kb_search 时按关键词匹配返回
 _SEC_SKILLS: list[dict[str, Any]] | None = None
@@ -66,6 +74,21 @@ _TOOL_RESULT_CAP = 6000
 _FETCH_RECORD_CAP = 3600
 # 沙箱输出回灌模型的上限（头尾保留；完整输出已落盘，不丢过程）
 _SAND_MODEL_CAP = 3600
+# 同一条工具调用最多真执行几次；之后只回灌「已执行过」的说明（省 token、断死循环）
+_REPEAT_EXEC_LIMIT = 2
+_REPEAT_GUARDED = frozenset({"shell", "python", "analyze_attachments", "analyze_text",
+                             "local_tool", "steering_feedback"})
+# 回灌文本长到这个量级才做「逐字相同」去重；短回执重复无所谓
+_DEDUPE_MIN_CHARS = 600
+# 「一次命令都没跑就交总结」最多推回去几次；超过就按无结论收尾（对话已留档）
+_NO_EXEC_NUDGE_LIMIT = 4
+# 当作「题目材料」直读正文的附件后缀：源码/脚本/配置/题面文本
+_TEXT_ATTACHMENT_SUFFIXES = frozenset({
+    ".c", ".h", ".cc", ".cpp", ".hpp", ".py", ".js", ".mjs", ".ts", ".sh", ".ps1",
+    ".php", ".java", ".go", ".rs", ".rb", ".lua", ".pl", ".sql", ".asm", ".s",
+    ".txt", ".md", ".json", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf",
+    ".xml", ".html", ".htm", ".css", ".tpl", ".smt2", ".sage", ".ipynb",
+})
 # 解题环单次 LLM 调用超时：重推理模型单次可达 3~4 分钟
 _SOLVER_TIMEOUT = 420
 # 单回合路线进度增量（进度展示用；无固定回合顶，进度饱和于 1.0）
@@ -153,6 +176,78 @@ def _model_messages(messages: list[dict[str, Any]], *, initialized: bool) \
     """
     return copy.deepcopy([{k: v for k, v in message.items() if not k.startswith("_context_")}
                           for message in messages])
+
+
+_LOOP_HEAD = re.compile(r"^\s*(?:for|while)\s*\(.*", re.M)
+
+
+_INLINE_PY = re.compile(r"\bpython[0-9.]*\s+-c\b")
+
+
+def _inline_multiline_python(command: str) -> bool:
+    """判断一条 shell 命令是不是「多行 Python 硬塞进 python -c」。
+
+    只认两类确定坏掉的形状：参数里带字面 ``\\n`` 转义，或引号数不成对。
+    单行 ``python -c "print(1+1)"`` 照旧放行。
+    """
+    if not _INLINE_PY.search(command or ""):
+        return False
+    if "\\n" in command or "\n" in command:
+        return True
+    return command.count('"') % 2 == 1 or command.count("'") % 2 == 1
+
+
+def _stderr_digest(stderr: str) -> str:
+    """从 traceback 里提炼一行「错误要点」，让小模型第一眼看到报错本质。
+
+    现场：Qwen-7B 在 `IndexError` 后反复重发同一条命令——完整 stderr 有
+    三千字符，报错类型和出错行埋在中间，7B 的注意力抓不住，于是它判断
+    「算法写错了」却不改代码。把「错误类型: 消息 ← 第 N 行：源码」提炼成
+    一行放在回灌文本最前面，改错这件事才有下手的地方。
+    """
+    marker = "Traceback (most recent call last)"
+    cut = stderr.rfind(marker)
+    if cut < 0:
+        return ""
+    tail_lines = [ln.strip() for ln in stderr[cut:].splitlines() if ln.strip()]
+    error_line = tail_lines[-1] if tail_lines else ""
+    src_line = ""
+    for idx, ln in enumerate(tail_lines):
+        if (ln.startswith("File ") and ", line " in ln
+                and idx + 1 < len(tail_lines)):
+            next_ln = tail_lines[idx + 1]
+            if not next_ln.startswith(("File ", "Traceback", "During handling")):
+                src_line = next_ln
+    lineno = ""
+    match = re.findall(r", line (\d+)", stderr[cut:])
+    if match:
+        lineno = match[-1]
+    parts = ["报错要点："]
+    if error_line:
+        parts.append(error_line)
+    if lineno and src_line:
+        parts.append(f"← 第 {lineno} 行：{src_line}")
+    digest = " ".join(parts)
+    return digest if error_line else ""
+
+
+def _last_outcome_failed(state: dict[str, Any]) -> bool:
+    """上一次执行是否报错：决定「重复调用」的提示要不要指向报错本身。"""
+    return bool(state.get("last_exit_failed"))
+
+
+def _source_loops(text: str, limit: int = 12) -> list[str]:
+    """摘出源码里的循环头（含行号）：算法就藏在这些循环里。"""
+    found: list[str] = []
+    for match in _LOOP_HEAD.finditer(text or ""):
+        line = match.group(0).strip()
+        if len(line) < 6:
+            continue
+        number = text.count("\n", 0, match.start()) + 1
+        found.append(f"  L{number}: {line[:160]}")
+        if len(found) >= limit:
+            break
+    return found
 
 
 def _complete_tool_history(messages: Any) -> bool:
@@ -566,23 +661,26 @@ class CTFBaseAgent(SubAgent):
             "适合 HTTP 交互、socket 通信、文件检索与处理等命令行动作；"
             "具体命令以实际执行为准，不确定时先 `command -v <name>` 探测；"
             "工作目录在会话内持久（脚本与产物落那里，跨回合直接可用；"
-            "/tmp 每次运行即焚），系统文件只读，联网仅限授权目标。命令全文"
+            "/tmp 每次运行即焚），系统文件只读，联网仅限授权目标。"
+            "要跑 Python 就用 shell 里的 `python -c \"...\"` 或先写脚本再 `python s.py`"
+            "（沙箱里 python 可用）；命令全文"
             "留痕于审计。每次调用"
             "必须用 action 如实声明这条命令要做什么——审计与审批以它为准。",
             {
                 "command": {"type": "string", "description": "要执行的命令"},
                 "action": {"type": "string",
-                           "description": "本次执行的行为类别（如实自报，缺了"
-                           "不执行）：analysis=只读分析/读取/计算/解码；"
+                           "description": "本次执行的行为类别：analysis=只读"
+                           "分析/读取/计算/解码；"
                            "delete_files=删除文件；reverse_shell=反弹 shell；"
                            "webshell_upload=上传 WebShell；container_escape="
                            "容器/沙箱逃逸尝试；brute_force=爆破；"
-                           "intrusive_write=其他有副作用的写入/上传。删除/"
-                           "爆破/反弹连接/WebShell/逃逸会即时请示用户，每次"
-                           "单独批准；其余如实注明即可。"},
+                           "intrusive_write=其他有副作用的写入/上传。SRC 模式"
+                           "必须如实声明（缺了不执行）；CTF/竞赛模式可省略，"
+                           "按 analysis 记录。删除/爆破/反弹连接/WebShell/逃逸"
+                           "会即时请示用户，每次单独批准。"},
                 "timeout": {"type": "number",
                             "description": "超时秒数（缺省 60，上限 300）"},
-            }, required=["command", "action"]),
+            }, required=["command"]),
         _fn("python",
             "在隔离沙箱里执行一段 Python 代码（python3），拿到输出与退出码。"
             "适合 WebSocket/socket 协议交互、数据计算与解码、脚本化构造请求；"
@@ -595,17 +693,18 @@ class CTFBaseAgent(SubAgent):
             {
                 "code": {"type": "string", "description": "完整 Python 代码"},
                 "action": {"type": "string",
-                           "description": "本次执行的行为类别（如实自报，缺了"
-                           "不执行）：analysis=只读分析/读取/计算/解码；"
+                           "description": "本次执行的行为类别：analysis=只读"
+                           "分析/读取/计算/解码；"
                            "delete_files=删除文件；reverse_shell=反弹 shell；"
                            "webshell_upload=上传 WebShell；container_escape="
                            "容器/沙箱逃逸尝试；brute_force=爆破；"
-                           "intrusive_write=其他有副作用的写入/上传。删除/"
-                           "爆破/反弹连接/WebShell/逃逸会即时请示用户，每次"
-                           "单独批准；其余如实注明即可。"},
+                           "intrusive_write=其他有副作用的写入/上传。SRC 模式"
+                           "必须如实声明（缺了不执行）；CTF/竞赛模式可省略，"
+                           "按 analysis 记录。删除/爆破/反弹连接/WebShell/逃逸"
+                           "会即时请示用户，每次单独批准。"},
                 "timeout": {"type": "number",
                             "description": "超时秒数（缺省 60，上限 300）"},
-            }, required=["code", "action"]),
+            }, required=["code"]),
         _fn("analyze_text",
             "对题面文本做编码链解码（Base64/Hex/URL/Rot13 递归）与 Flag 提取。"
             "怀疑线索藏在题面或编码串里时用它；已经分析过就不必再来。",
@@ -1222,6 +1321,13 @@ class CTFBaseAgent(SubAgent):
         budget_for = getattr(self.ctx.gateway, "context_budget", None)
         budget = budget_for(task_type="execution") if callable(budget_for) else None
         if budget is not None:
+            # 常驻材料是压缩之后才插进去的 system 消息：不先从预算里扣掉，
+            # 压缩就会把历史压到「刚好塞满」，加上材料直接超窗（实测 8 次 400）。
+            materials = self._materials_message(task, state)
+            if materials:
+                budget = max(1024, budget - estimate_input_tokens(
+                    [{"role": "system", "content": materials}]))
+        if budget is not None:
             before = estimate_input_tokens(state["messages"], self.tool_schemas)
             if compact_history_tokens(state["messages"], budget, tools=self.tool_schemas):
                 self.ctx.audit.log("context.compacted", self.agent_id, {
@@ -1242,6 +1348,18 @@ class CTFBaseAgent(SubAgent):
                     "reason": "unknown_window_legacy", "chars": size})
         messages: list[dict[str, Any]] = _model_messages(
             state["messages"], initialized=not include_initial_system)
+        materials = self._materials_message(task, state)
+        if materials:
+            messages.insert(1 if messages and messages[0].get("role") == "system" else 0,
+                            {"role": "system", "content": materials})
+        stage = self._stage_hint(task, state)
+        # 只在阶段真正切换时插一次：每轮都插会把稳定前缀打碎，prefill 全废。
+        if stage is not None and state.get("stage_announced") != stage["key"]:
+            messages.append({"role": "user", "content": stage["text"]})
+            state["stage_announced"] = stage["key"]
+            self.ctx.audit.log("agent.stage_announced", self.agent_id, {
+                "challenge": self.challenge_id(task), "stage": stage["key"],
+                "turn": state.get("turn", 0)})
         directives = self._active_steering(task, route)
         emitter = _DeltaEmitter(self.ctx.audit, self.agent_id, route=route.name,
                                 challenge=self.challenge_id(task), turn=turn)
@@ -1261,6 +1379,10 @@ class CTFBaseAgent(SubAgent):
                 preserve_context=True,
                 on_delta=emitter,
                 reasoning_effort=self.task_effort(task))
+        except ModelUnavailableError:  # 端点熔断：停止推进，让会话落终态
+            # 端点已熔断：再「下一回合重试」只会把任务越堆越多、会话永远不落终态。
+            emitter.flush()
+            raise
         except Exception as exc:  # noqa: BLE001 —— 单次调用失败允许下一回合重试
             emitter.flush()
             state["llm_failures"] += 1
@@ -1287,6 +1409,17 @@ class CTFBaseAgent(SubAgent):
                 instruction_id=directive["id"], status="delivered")
 
         calls = [c for c in (resp.tool_calls or []) if isinstance(c, dict)]
+        if not calls:
+            # 小模型常把工具调用当正文写出来（```json / <tool_call>），按协议
+            # 解析就得到「没有工具调用」→ 整条路线被当成调查结束。认出来就执行。
+            from spiritscout.agents.inline_calls import recover_inline_tool_calls
+
+            recovered = recover_inline_tool_calls(resp.content or "")
+            if recovered:
+                calls = recovered
+                self.ctx.audit.log("agent.tool_call_recovered", self.agent_id, {
+                    "route": route.name, "challenge": self.challenge_id(task),
+                    "turn": turn, "names": [c["name"] for c in recovered]})
         assistant: dict[str, Any] = {"role": "assistant",
                                      "content": resp.content or ""}
         if getattr(resp, "reasoning", ""):
@@ -1304,6 +1437,36 @@ class CTFBaseAgent(SubAgent):
         if not calls:
             # 不再调用工具 = 调查结束，这条消息就是结论
             summary = (resp.content or "").strip()
+            if (self._attachments_of(task) and not state.get("executions")
+                    and not state.get("flags")):
+                # 一次命令都没跑就写总结，不是结论：材料刚进上下文时小模型最爱
+                # 「已观测事实 1. 附件内容…」这样交差。给一次明确的机会，把它推回
+                # 工具上；这不是禁止收尾，只是「没动手就不算调查结束」。
+                nudges = int(state.get("no_exec_nudges") or 0) + 1
+                state["no_exec_nudges"] = nudges
+                if nudges <= _NO_EXEC_NUDGE_LIMIT:
+                    written = "```" in summary or "for " in summary or "def " in summary
+                    state["messages"].append({"role": "user", "content": (
+                        "（你这条回复里已经把脚本写出来了，但贴在正文里的代码不会运行。"
+                        "现在只做一件事：把那段代码原样放进 python 工具的 code 参数跑一次，"
+                        "把打印出来的值贴回来。）" if written else
+                        "（这一轮你只写了分析，还没有执行过任何命令或脚本。）"
+                        "分析不算结论。现在动手算，多行代码用 python 工具的 code 参数"
+                        "（code 里直接换行写，不要用 heredoc），把材料里那几行 for/while "
+                        "原样贴进来改成 Python，再 print 中间变量：\n"
+                        '{"name": "python", "arguments": {"code": "a = 0\\nfor i in range(3):'
+                        '\\n    a += i\\nprint(a)"}}\n'
+                        "只能写一行时用 shell："
+                        '{"name": "shell", "arguments": {"command": "python -c \\"print(1+1)\\""}}。'
+                        "把打印出来的中间值（字母表、密钥、明文片段）贴回来再判断对不对。")})
+                    self.ctx.audit.log("agent.no_execution_nudge", self.agent_id, {
+                        "route": route.name, "challenge": self.challenge_id(task),
+                        "turn": turn, "times": nudges})
+                    note = self._extend_or_finish(
+                        plan, state, f"第 {turn} 回合：只给了分析、没动手，已推回执行")
+                    self._save_inv_state(task, route, state)
+                    return StepResult(ok=True, value=boot_value,
+                                      note=self._merge_note(boot_note, note))
             if not summary:
                 # 协议修复：正文为空且无工具调用，多见于思考型模型把输出
                 # 额度耗在思考段——空回合不是结论，注入提示再给一次机会；
@@ -1395,6 +1558,39 @@ class CTFBaseAgent(SubAgent):
 
     # ------------------------------------------------------------ 工具执行
 
+    def _repeat_guard(self, task: Task, route, state: dict[str, Any],
+                      name: str, args: dict[str, Any]) -> _ToolOutcome | None:
+        """同一条调用重复太多次就不再执行。
+
+        本地小模型的典型死循环：`cat attachments/base64.c` 连做十几遍——它以为没读到，
+        其实输出就在对话里；每读一遍都把同一份源码再塞一次上下文，压掉别的观察，
+        于是下一轮更觉得没读到。这里只做「重复计数」，不判断模型该怎么做：
+        超过次数就不再执行，回灌一条说明并让它换动作或收尾。
+        """
+        if name not in _REPEAT_GUARDED:
+            return None
+        signature = f"{name}|" + json.dumps(args, ensure_ascii=False, sort_keys=True)[:400]
+        counters = state.setdefault("call_counts", {})
+        seen = int(counters.get(signature) or 0)
+        counters[signature] = seen + 1
+        if seen < _REPEAT_EXEC_LIMIT:
+            return None
+        self.ctx.audit.log("agent.repeat_call_skipped", self.agent_id, {
+            "route": route.name, "challenge": self.challenge_id(task),
+            "turn": state.get("turn", 0), "tool": name,
+            "times": seen + 1, "arguments": args})
+        return _ToolOutcome(
+            ok=True, value=0.0, empty=True,
+            note=f"{name} 重复调用第 {seen + 1} 次（未执行）",
+            text=(f"这条 {name} 调用你已经执行过 {seen} 次，输出就在上面的对话里，"
+                  "再跑一次不会有任何新信息，所以本次没有执行。"
+                  + (" 上一次执行是报错的：报错通常来自代码本身（下标越界、变量没定义、"
+                     "缩进不对），照原样再发一遍只会得到同样的错。请先把报错那一行改掉"
+                     "——该取模就取模、该初始化就初始化——再跑。"
+                     if _last_outcome_failed(state) else "")
+                  + "换动作：改脚本参数后重跑，或换一条完全不同的路子；"
+                  "也可以直接给出结论——拿到了什么、依据是什么、还差什么。"))
+
     async def _run_tool_call(self, task: Task, route, state: dict[str, Any],
                              call: dict[str, Any]) -> _ToolOutcome:
         """单次工具调用：确定性校验 → 执行 → 结果回灌（异常也回灌，模型自纠）。"""
@@ -1416,6 +1612,9 @@ class CTFBaseAgent(SubAgent):
                 ok=False,
                 text=f"工具 {name} 不在 {self.agent_type.value} 的工具目录内。",
             )
+        repeat = self._repeat_guard(task, route, state, name, args)
+        if repeat is not None:
+            return repeat
         if name == "steering_feedback":
             ring = self.ctx.ring
             status = str(args.get("status") or "")
@@ -1425,7 +1624,11 @@ class CTFBaseAgent(SubAgent):
                         self.agent_type.value, task_id=task.task_id, route_id=route.route_id,
                         instruction_id=str(args.get("instruction_id") or ""),
                         status=status, detail=detail)):
-                return _ToolOutcome(ok=False, text="指令不存在、已被替换、不属于本任务或回执缺失。")
+                # 回执失败在当前任务里基本不可恢复（指令 id 过期/被替换）：说清楚，
+                # 否则弱模型会拿同样的参数一直重试——本机实测连发 24 次。
+                return _ToolOutcome(ok=False, text=(
+                    "这条回执没有对应的有效指令（id 不存在、已被替换或不属于本任务）。"
+                    "不要再重试回执：继续用工具推进任务即可，回报与否不影响执行。"))
             return _ToolOutcome(ok=True, note=f"督导回执 {status}：{detail[:160]}",
                                 text="回执已交灵枢；实际完成情况仍以工具结果与证据为准。")
         if name == "note":
@@ -1498,7 +1701,28 @@ class CTFBaseAgent(SubAgent):
                 text=f"工具执行异常：{type(exc).__name__}: {str(exc)[:200]}")
             self.ctx.audit.log("agent.error", self.agent_id,
                                {"tool": name, "error": str(exc)[:200]})
-        return out
+        return self._dedupe_output(state, name, out)
+
+    def _dedupe_output(self, state: dict[str, Any], name: str,
+                       out: _ToolOutcome) -> _ToolOutcome:
+        """同一份输出不回灌第二遍全文。
+
+        换个写法再读同一份材料（`cat a.c` 之后 `head -n 400 a.c`）会得到逐字相同的
+        输出；全文回灌等于把上下文重新塞满，压掉别的观察。指纹相同只留一行提示，
+        真正的原文在历史消息里，模型要引用时仍在。
+        """
+        text = out.text or ""
+        if len(text) < _DEDUPE_MIN_CHARS:
+            return out
+        digest = hashlib.sha1(text.encode("utf-8", "replace")).hexdigest()
+        seen = state.setdefault("output_digests", {})
+        previous = seen.get(digest)
+        seen[digest] = float(state.get("turn") or 0)
+        if previous is None:
+            return out
+        return replace(out, text=(
+            f"（{name} 的这次输出与第 {int(previous) or 1} 回合那次逐字相同，"
+            "已省略重复内容；结论与上下文里的同一份输出一致。）"))
 
     # ------------------------------------------------------------ 知识库 / 路径探测 / MCP
 
@@ -1752,10 +1976,45 @@ class CTFBaseAgent(SubAgent):
 
         用户答复（点选选项或自由输入）与勾选扩围的目标原样回灌；会话停止
         时按「无答复」唤醒，模型据此自行决定继续或收尾。
+
+        同一条路线里重复问同一个问题不重复打搅用户：第一次的答复直接回放，
+        并且告诉模型「别问了，用工具推进」。这不是禁止提问，是防止模型在
+        「问一句 → 得到答复 → 再问同一句」里空转——本机实测一条路线能这样
+        转十几圈、烧掉几十万 token 却一步没走。
         """
         question = str(args.get("question", "") or "").strip()
         if not question:
             return _ToolOutcome(ok=False, text="ask_user 需要 question 参数。")
+        asked = state.setdefault("asked_questions", {})
+        # 换个说法再问同一件事，按内容去重挡不住：本机实测模型连问 8 次
+        # 「确认解题方向？」，每次措辞都不同。按路线给个总次数上限——问到这个数
+        # 就自己决策，把不确定点写进结论，而不是继续等用户拍板。
+        total = int(state.get("ask_total") or 0) + 1
+        state["ask_total"] = total
+        if total > ASK_USER_TOTAL_LIMIT:
+            self.ctx.audit.log("agent.ask_user_capped", self.agent_id, {
+                "route": route.name, "challenge": self.challenge_id(task),
+                "total": total, "question": question[:200]})
+            return _ToolOutcome(ok=False, text=(
+                f"这条路线已经问过 {total - 1} 次，本任务不再转交提问。"
+                "解题方向由你基于现场证据自己决定：读附件、跑脚本验证，"
+                "把仍不确定的点写进结论。"))
+        signature = " ".join(question.split()).lower()
+        if signature in asked:
+            entry = asked[signature]
+            entry["count"] = int(entry.get("count", 1)) + 1
+            self.ctx.audit.log("agent.ask_user_deduped", self.agent_id, {
+                "route": route.name, "challenge": self.challenge_id(task),
+                "count": entry["count"], "question": question[:200]})
+            if entry["count"] >= ASK_USER_REPEAT_LIMIT:
+                return _ToolOutcome(ok=False, text=(
+                    "同一个问题已经问过并得到答复，用户不会再答一遍。停止提问："
+                    "读附件、跑脚本、用工具去验证，把结论写进 finish；如果确实"
+                    "缺信息，就在结论里写清缺什么。"))
+            return _ToolOutcome(ok=True, value=0.0,
+                                note=f"重复提问（第 {entry['count']} 次）已折叠",
+                                text=(f"这个问题你刚问过，用户当时的答复是：{entry.get('answer') or '（无明确答复）'}\n"
+                                      "不要重复提问，直接用工具推进。"))
         options = [str(o).strip()[:200] for o in (args.get("options") or [])[:6]
                    if isinstance(o, (str, int, float)) and str(o).strip()]
         from spiritscout.policy.questions import normalize_targets
@@ -1786,6 +2045,7 @@ class CTFBaseAgent(SubAgent):
         if added:
             lines.append("以下目标已由用户确认加入本会话授权范围，可继续测试: "
                          + ", ".join(added))
+        asked[signature] = {"count": 1, "answer": answer[:400]}
         self.ctx.audit.log("agent.ask_answered", self.agent_id, {
             "route": route.name, "answer": answer[:300], "scope_added": added})
         return _ToolOutcome(ok=True, value=0.1,
@@ -2150,9 +2410,26 @@ class CTFBaseAgent(SubAgent):
         code = str(args.get(param, "") or "").strip()
         if not code:
             return _ToolOutcome(ok=False, text=_missing_exec_param(name, param, args))
+        if name == "shell" and _inline_multiline_python(code):
+            # 现场实测：模型把整段循环塞进 python -c "..."，换行和引号全被 shell
+            # 吃掉，退化成 SyntaxError / unexpected EOF，然后它以为算法写错了。
+            # 这不是解题问题，是调用方式问题——直接告诉它换成代码参数。
+            return _ToolOutcome(ok=False, text=(
+                "这条命令把多行 Python 塞进了 shell 的 python -c \"...\" 里：shell 会"
+                "先吃掉换行和引号，代码到不了解释器（退出码 2 / SyntaxError 都是这个原因）。"
+                "多行代码请改用 python 工具，把同样的内容放进 code 参数——code 支持直接换行，"
+                "不需要转义也不需要 heredoc。"))
         # 行为类别须模型如实自报（通用执行入口无法确认性质就不执行——
-        # 不以 readonly 自动放行）；危险语义由策略门即时请示用户
+        # 不以 readonly 自动放行）；危险语义由策略门即时请示用户。
+        # CTF/竞赛模式下所有工具操作本来就预授权（见 AGENTS.md），漏报 action
+        # 不该让整条路线卡死：按 analysis 执行并在结果里标明是补的默认值。
+        # SRC 模式保持原样——那里 action 是审批链的输入，缺了就不能猜。
         action = str(args.get("action", "") or "").strip()
+        if not action and getattr(self.ctx, "mode", None) in (RunMode.CTF, RunMode.COMPETITION):
+            action = "analysis"
+            action_defaulted = True
+        else:
+            action_defaulted = False
         if not action:
             return _ToolOutcome(ok=False, text=(
                 f"{name} 工具需要 action 参数：如实声明本次执行的行为类别"
@@ -2165,6 +2442,8 @@ class CTFBaseAgent(SubAgent):
             timeout = 60.0
         first = code.splitlines()[0][:80]
         desc = f"{name}: {first}"
+        if action_defaulted:
+            desc += "（action 未声明，按 analysis 记）"
         res = await self.ctx.tools.call(
             "sandbox_exec",
             {"code": code, "language": "python" if name == "python" else "shell",
@@ -2185,13 +2464,26 @@ class CTFBaseAgent(SubAgent):
             {"action": desc,
              "result": f"{status}；{evidence}"})
         workdir = str((res.parsed or {}).get("workdir") or "")
+        workdir_hint = str((res.parsed or {}).get("workdir_hint") or workdir)
+        attachments_dir = str((res.parsed or {}).get("attachments_dir") or "")
+        attachments_rel = str((res.parsed or {}).get("attachments_rel") or "")
         out_file = str((res.parsed or {}).get("output_file") or "")
+        # 模型常在沙箱里直接 `cat 附件名`，但附件不在工作目录而在同级 attachments/：
+        # 每条执行结果都带上这个位置，省掉它在目录里瞎翻的回合。
+        extra = ""
+        if attachments_dir:
+            rel = f"（相对当前工作目录是 {attachments_rel}/）" if attachments_rel else ""
+            extra = f"；题目附件在 {attachments_dir}{rel}"
         head = (f"（{status}，耗时 {res.duration_ms / 1000:.1f}s，"
-                f"工作目录 {workdir or '见输出'}——会话内持久；/tmp 即焚）")
+                f"工作目录 {workdir_hint or '见输出'}——会话内持久；/tmp 即焚{extra}）")
         lines = [f"$ {first}", head]
         if res.stdout:
             lines.append("stdout:\n" + _head_tail(res.stdout, _SAND_MODEL_CAP))
         if res.stderr:
+            # 报错要点前置：完整 traceback 在下面，但 7B 模型只看得进第一行。
+            digest = _stderr_digest(res.stderr)
+            if digest:
+                lines.append(digest)
             lines.append("stderr:\n" + _head_tail(res.stderr, 1200))
         if out_file:
             label = "输出已轮转，仅保留最近两代" if res.parsed.get("output_rotated") else "输出已存盘"
@@ -2202,6 +2494,11 @@ class CTFBaseAgent(SubAgent):
         if res.timed_out:
             lines.append("提示：超时通常意味着脚本在等待输入或死循环——"
                          "交互式脚本请改为非交互（预置输入/设置超时）。")
+        state["executions"] = int(state.get("executions") or 0) + 1
+        state["last_exit_failed"] = bool(res.parsed.get("exit_code"))
+        # 打印出来的中间量是下一阶段的输入；历史会被压缩折叠，这里留一份。
+        if (res.stdout or "").strip():
+            state["last_stdout"] = res.stdout.strip()[:1200]
         return _ToolOutcome(
             ok=True, value=0.05, empty=not (res.stdout or "").strip(),
             findings=[],
@@ -2239,18 +2536,43 @@ class CTFBaseAgent(SubAgent):
                 parsed_map[str(path)] = res.parsed
         return parsed_map
 
+    def _attachments_of(self, task: Task) -> list[str]:
+        """本题附件：优先赛题清单，没有清单就扫工作区的 attachments/。
+
+        用户最常见的走法是「建会话 → 直接传附件」，这时没有 challenges YAML。
+        工具若只看赛题配置，就会回答「本题没有附件」——本机实测模型因此反复
+        向用户确认附件在哪、烧掉几十万 token 却没读一行源码。
+        """
+        declared = [str(path) for path in
+                    (self.challenge_of(task).get("attachments") or [])
+                    if str(path).strip()]
+        if declared:
+            return declared
+        workspace = str((getattr(self.ctx, "builtin_ctx", None) or {}).get("workspace_root") or "")
+        if not workspace:
+            return []
+        try:
+            return [str(path) for path in sorted((Path(workspace) / "attachments").iterdir())
+                    if path.is_file()]
+        except OSError:
+            return []
+
     async def _tool_analyze_attachments(self, task: Task) -> _ToolOutcome:
         """对全部附件做魔数识别 + 字符串提取，文本进 Flag 提取。"""
-        attachments = self.challenge_of(task).get("attachments", [])
+        attachments = self._attachments_of(task)
         if not attachments:
             return _ToolOutcome(ok=False, text="本题没有附件。")
         findings: list[dict[str, Any]] = []
         notes: list[str] = []
         body_lines: list[str] = []
         all_strings: list[str] = []
+        # 正文节选按总预算分配：多条附件时若每个都给满，拼起来会超过回灌上限，
+        # 被从头截断的恰恰是「正文」——模型于是继续认为没读到材料，转头又去问用户。
+        per_file = min(2400, max(800, 4800 // max(1, len(attachments))))
         for path in attachments:
             res = await self.ctx.tools.call(
-                "file_analyze", {"path": path}, **self._tool_ctx(task))
+                "file_analyze", {"path": path, "text_excerpt_chars": per_file},
+                **self._tool_ctx(task))
             if not res.ok:
                 notes.append(f"{path}: {res.error}")
                 body_lines.append(f"{path}: 解析失败 {str(res.error)[:120]}")
@@ -2262,10 +2584,17 @@ class CTFBaseAgent(SubAgent):
             findings.append({"type": "file", "path": path,
                              "magic": parsed["magic"], "size": parsed["size"]})
             self.cache.put(self.route_namespace, f"file|{path}", parsed)
-            body_lines.append(
-                f"{path}: magic={parsed['magic']} size={parsed['size']} "
-                f"is_elf={parsed.get('is_elf')}\n  字符串样本: "
-                + " | ".join(str(s)[:120] for s in strings[:40]))
+            head = (f"{path}: magic={parsed['magic']} size={parsed['size']} "
+                    f"is_elf={parsed.get('is_elf')}"
+                    + (f" lines={parsed.get('line_count')}" if parsed.get("line_count") else ""))
+            # 文本类附件（源码/配置/脚本）的正文排在字符串样本前面：解题材料就是它，
+            # 只给字符串样本等于让模型凭空猜算法，排在后面又会被回灌上限截掉。
+            excerpt = str(parsed.get("text_excerpt") or "")
+            if excerpt:
+                body_lines.append(head + f"\n  正文（{Path(str(path)).name}）:\n{excerpt}")
+                continue
+            body_lines.append(head + "\n  字符串样本: "
+                              + " | ".join(str(s)[:120] for s in strings[:20]))
         return _ToolOutcome(ok=True, value=0.3,
                             findings=findings, note="; ".join(notes),
                             text="\n".join(body_lines)[:_TOOL_RESULT_CAP])
@@ -2325,7 +2654,7 @@ class CTFBaseAgent(SubAgent):
                     agent_name=self._ring_name(route), action="bootstrap",
                     outcome=value, note=f"入口页 {status}")
             return value, blocker or f"入口页 {status}"
-        attachments = ch.get("attachments", [])
+        attachments = self._attachments_of(task)
         if attachments:
             out = await self._tool_analyze_attachments(task)
             state["flags"].extend(f["value"] for f in out.findings if f["type"] == "flag")
@@ -2395,6 +2724,25 @@ class CTFBaseAgent(SubAgent):
             "脚本与产物放在那里，后续回合直接可用；/tmp 每次运行即焚，需要"
             "留存的文件不要写进 /tmp。WebSocket/socket 等协议交互、数据计算、"
             "脚本化构造请求，凡是 http_request 够不着的，一律用它们去完成。\n"
+            "逆向与算法题：让工具替你算——把源码或反汇编里的关键算法逐行翻成脚本，"
+            "先只跑「生成常量/查表」这一段并把它打印出来核对（长度、字符集、有无重复、"
+            "界内索引），确认这一步对了再写下一步；一次把翻译和求解写在同一段里，"
+            "中间错了你也看不出错在哪。C 里 `for (i = 0; i < 20;)` 这类空步进循环，"
+            "步进写在循环体里，翻译时必须用 while——照抄成 range(20) 会多跑一遍。"
+            "源码里的函数通常是加密方向，要取明文得做它的逆运算（查表拿下标再拼回字节、"
+            "跳过填充），别拿标准库同款算法硬套自定义表。每段脚本写完就真跑一次看输出，"
+            "不要只在脑子里推。"
+            "现成工具只认标准格式：材料里一旦出现自己实现的编码/加密（自定义字母表、"
+            "异或、移位），`base64 -d`、`xxd`、`tr` 这类命令解出来必然是乱码——乱码本身"
+            "就是证据，说明变换不是标准的那一种。这时回到源码把那段实现翻成脚本，"
+            "不要反复清洗、截断乱码试图凑出明文，那一步永远凑不出来。\n"
+            "顺序：附件题的第一次工具调用只能是「读」——`shell cat attachments/<文件名>` "
+            "或 analyze_attachments，看过材料再动手。不要先写脚本猜结构，也不要用 "
+            "`python -c 'import x'`、`ls`、`pwd` 这类空探针充数：它们不产生解题信息，"
+            "连续多轮只有空探针就说明你在原地打转，回到材料上重读。"
+            "上一段脚本打印出来的中间量（字母表、密钥、偏移、明文片段）就是下一段的输入，"
+            "直接写成下一段脚本里的常量继续用，不要从零重推一遍——重推出来的值与原值不一致时，"
+            "以打印出来的那份为准，并回头核对是哪一步翻译错了。\n"
             "交付文件：需要给用户留存的分析产物写到工作目录的 ../artifacts/，"
             "会话的产出与事实页会列出这些文件；结论注明文件名、来源与证据，"
             "临时计算文件继续放在工作目录。\n"
@@ -2408,11 +2756,15 @@ class CTFBaseAgent(SubAgent):
             "有冲突就给证据反馈，不要忽略指令、反复重复原有操作。\n"
             "提问：遇到授权范围外的目标或需要用户拍板的分叉，用 ask_user 向"
             "用户提问——问题与选项用你自己的话写清楚；用户同意的目标会被"
-            "加入本会话范围，之后可正常测试。\n"
+            "加入本会话范围，之后可正常测试。材料齐全时不必为「确认解题方向」"
+            "「确认我的思路对不对」提问：那是你要用工具验证的事，直接把脚本跑"
+            "出来看结果；确实缺凭证、缺文件、缺范围授权时再问。\n"
             "团队扩展：把任务拆成多个可独立验证的子问题——用 spawn 派生"
             "分支执行者并行推进，brief 写清「为什么需要它、它专属的任务、"
             "解决什么问题、与当前工作的边界」；其结论会回传给你。各司其职："
-            "每个分支只做分内之事，顺手能做的不要派。\n"
+            "每个分支只做分内之事，顺手能做的不要派。派生前先想清楚：手上已有两个"
+            "互不相同的具体假设才值得并行，只有一个方向时自己往下做——分支越多，"
+            "每条线分到的回合越少，弱模型尤其容易在分支间来回抖动、一条也走不完。\n"
             "收尾：判定拿到 Flag 时先用 submit_flag 提交（写明依据），拿到平台"
             "应答再收尾；当你不再调用工具时，最后一条消息就是交给主 Agent 的"
             "结论——简明写清「拿到了什么（Flag 原文）、依据是什么、还差什么」。"
@@ -2440,6 +2792,80 @@ class CTFBaseAgent(SubAgent):
 
             prompt += "\n" + competition_solver_prompt()
         return prompt
+
+    def _materials_message(self, task: Task, state: dict[str, Any]) -> str:
+        """把文本类附件正文放进常驻 system 消息。
+
+        工具结果会被上下文压缩折叠掉，而附件正文是本题的常量——折叠之后模型的
+        处境是「以为自己没读过」，于是再 `cat` 一遍，读完又被折叠，无限循环
+        （实测同一份源码被读了 19 次）。放进 system 消息后每回合都在，模型不必
+        重读，压缩也不会把它折进历史。
+        """
+        cached = state.get("materials_block")
+        if isinstance(cached, str):
+            return cached
+        lines: list[str] = []
+        budget = 6000
+        for path in self._attachments_of(task):
+            source = Path(str(path))
+            # 直接读源文件，不依赖分析缓存：缓存会被淘汰，而「材料常驻」这件事
+            # 一旦某回合漏了就前功尽弃（模型又回去 cat 一遍）。
+            if source.suffix.lower() not in _TEXT_ATTACHMENT_SUFFIXES:
+                continue
+            try:
+                text = source.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            if not text.strip() or "\x00" in text[:2048]:
+                continue
+            room = budget - sum(len(line) for line in lines)
+            if room <= 200:
+                break
+            entry = f"### {source.name}\n{text[:room]}"
+            loops = _source_loops(text)
+            if loops:
+                # 源码里真正干活的地方是循环：把循环头单独列出来，模型才不会只
+                # 复述「附件内容」就交差。这是结构事实，不是解题步骤。
+                entry += ("\n（该文件里的循环结构，算法就在其中：\n"
+                          + "\n".join(loops) + "\n）")
+            lines.append(entry)
+        block = ""
+        if lines:
+            block = ("【题目材料·常驻上下文】下列内容已随任务加载，不必再用 shell 读取；"
+                     "要计算就在脚本里引用这里的常量。\n" + "\n\n".join(lines))
+            state["materials_block"] = block      # 没有内容就不缓存，下回合再试
+            self.ctx.audit.log("agent.materials_loaded", self.agent_id, {
+                "challenge": self.challenge_id(task), "files": len(lines),
+                "chars": len(block)})
+        return block
+
+    def _stage_hint(self, task: Task, state: dict[str, Any]) -> dict[str, Any] | None:
+        """附件题的两段式推进提示：先只算中间值，再求解。
+
+        本地小模型在「一次把翻译和求解写完」上必错，而在「先打印常量、再拿常量
+        算」上能跑通（0.47.9 已实测）。平台这里只按事实切换阶段、不判断对错，
+        也不规定算法：阶段 1 缺的是「有没有真跑过脚本」，阶段 2 缺的是「有没有
+        拿打印出来的那份常量继续」。没有附件（纯 URL 题）不插提示。
+        """
+        if not self._attachments_of(task):
+            return None
+        if not state.get("executions"):
+            return {"key": "compute", "text": (
+                "【阶段 1/2：先算中间值】材料已在上下文里。现在把其中那段算法的循环"
+                "写成脚本真跑一次，只打印中间量（字母表、密钥、偏移、表的下标映射），"
+                "先别急着求解——这一步的输出就是下一步的输入。"
+                "多行代码用 python 工具的 code 参数（直接换行，不要 heredoc）。")}
+        printed = str(state.get("last_stdout") or "").strip()
+        if printed:
+            return {"key": "solve", "text": (
+                "【阶段 2/2：拿打印出来的常量求解】你上一次脚本打印的是：\n"
+                + printed[:900]
+                + "\n把这份值直接写成脚本里的常量继续算（不要从零重推一遍）；"
+                "材料里的函数是加密方向，取明文要做它的逆运算。算出形如 flag{...} 的明文"
+                "就调 submit_flag 提交。")}
+        return {"key": "compute", "text": (
+            "【阶段 1/2：先算中间值】脚本跑过了但没打印出可用的常量——再跑一次，"
+            "把字母表/密钥/偏移这些中间量 print 出来，后面直接引用它们。")}
 
     def _seed_messages(self, task: Task, route, plan: RoutePlan,
                        state: dict[str, Any]) -> None:

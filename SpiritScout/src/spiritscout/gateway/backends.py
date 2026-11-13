@@ -106,6 +106,32 @@ def normalize_tool_calls(raw: Any) -> list[dict[str, Any]]:
     return out
 
 
+def _merge_stray_system_messages(messages: list[dict[str, Any]]) -> None:
+    """把出现在消息序列中后段的 system 消息并入第一条 system（就地修改）。
+
+    现场：LM Studio 的 Qwen3.5 聊天模板在 system 不位于开头时直接抛
+    「System message must be at the beginning」（模板 raise_exception，
+    HTTP 400/500）。CTF 求解器会把常驻材料块作为第二条 system 插进消息列表，
+    llama-server 对此宽容，LM Studio 严格校验——同一份代码前者能跑后者全炸。
+    合并而不是丢弃：材料内容一条不少，只是并进主 system 的文本末尾。
+    """
+    first = next((m for m in messages if m.get("role") == "system"), None)
+    if first is None:
+        return
+    first_index = messages.index(first)
+    merged: list[int] = []
+    for index, message in enumerate(messages):
+        if index <= first_index or message.get("role") != "system":
+            continue
+        if message.get("content"):
+            head = first.get("content") or ""
+            sep = "\n\n" if head else ""
+            first["content"] = f"{head}{sep}{message['content']}"
+        merged.append(index)
+    for index in reversed(merged):
+        del messages[index]
+
+
 class ChatBackend(abc.ABC):
     @abc.abstractmethod
     async def complete(
@@ -244,6 +270,7 @@ class LiteLLMBackend(ChatBackend):
 
         messages = copy.deepcopy(messages)
         tools = copy.deepcopy(tools)
+        _merge_stray_system_messages(messages)
         if entry.prompt_caching == "anthropic_ephemeral":
             if not anthropic:
                 raise ValueError("显式 Anthropic 缓存需要 anthropic_messages 协议")

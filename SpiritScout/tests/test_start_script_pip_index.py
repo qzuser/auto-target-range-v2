@@ -39,11 +39,26 @@ def _run(args: list[str], *, env: dict[str, str] | None = None) -> subprocess.Co
     merged.pop("SPIRITSCOUT_PIP_INDEX", None)
     if env:
         merged.update(env)
-    return subprocess.run(
+    proc = subprocess.run(
         [PWSH, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(SCRIPT), *args],
-        capture_output=True, text=True, encoding="utf-8", errors="replace",
-        env=merged, timeout=120,
+        capture_output=True, env=merged, timeout=120,
     )
+    # 子进程的输出编码随控制台代码页走：整包跑测试时前面有用例改过代码页，之后
+    # PowerShell 会退回 GBK，中文标签按 UTF-8 解就成了问号。按「先 UTF-8 再 GBK」
+    # 解字节，两种代码页都能读对，不去赌环境留下的状态。
+    return subprocess.CompletedProcess(
+        proc.args, proc.returncode,
+        _decode_output(proc.stdout), _decode_output(proc.stderr))
+
+
+def _decode_output(raw: bytes | None) -> str:
+    data = raw or b""
+    for encoding in ("utf-8", "gbk"):
+        try:
+            return data.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return data.decode("utf-8", errors="replace")
 
 
 def _index_of(stdout: str) -> str:

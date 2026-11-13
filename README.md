@@ -59,6 +59,58 @@ py -3.11 -m venv SpiritScout\.venv
 只要界面点一遍、不真解题：把 `SpiritScout/configs/models.mock.yaml` 复制成 `models.yaml`，
 模拟模型是确定性应答、不消耗 token。
 
+## 本地小模型：怎么配、能解什么
+
+没有 API 额度也能跑：LM Studio（或 Ollama）起一个 OpenAI 兼容端点，灵枢直接对接。
+8 GB 显存这一档实测下来，配置对错比模型大小更决定成败。
+
+### 推理服务：两套，自动切换
+
+优先用 LM Studio 的服务（`lms server start`）；它起不来时用 LM Studio 自带的
+llama-server 兜底。兜底命令有个必须注意的前提——**要在后端目录下运行**，否则报
+`0xC0000135`（缺 DLL）：
+
+```powershell
+cd $env:USERPROFILE\.lmstudio\extensions\backends\llama.cpp-win-x86_64-nvidia-cuda12-avx2-*
+$env:PATH = "$PWD;$env:USERPROFILE\.lmstudio\extensions\backends\vendor\win-llama-cuda12-vendor-v2;$env:PATH"
+llama-server.exe -m <Qwen3.5-9B-Q4_K_M.gguf> -a qwen3.5-9b -c 16384 -ngl 99 `
+  --host 127.0.0.1 --port 1234 -np 1 --reasoning-budget 0
+```
+
+CUDA 运行时在 `vendor\win-llama-cuda12-vendor-v2`，不加进 PATH 也是同一个报错。
+
+### 配置要点（8 GB 显存）
+
+| 项 | 取值 | 为什么 |
+|---|---|---|
+| 模型 | `qwen3.5-9b`（Q4_K_M，5.24 GB） | 这一档唯一能完整走完解题环的；见下方实测表 |
+| 上下文 | 16384（单模型独占时可到 32768） | 32k 单槽实测占 7305/8151 MiB 能跑；**同时有别的模型占显存就绑不上**，退 16384 |
+| 单次输出 | 1024~2048 | 太大会输出半截 JSON 判失败，太小写不完一段脚本 |
+| 并发 | 1（`--parallel 1`） | LM Studio 会把总上下文按并行槽平分，4 槽时每个请求只剩 1/4 |
+| 思考 | 关闭（`--reasoning-budget 0`）或 `reasoning_effort: low` | 思考型模型会把输出额度全烧在推理上，正文为空 |
+| 显存纪律 | **同时只加载一个模型** | 两个实例抢显存是本机最常见的「提交后一直转圈」 |
+
+### 实测能力边界（本机 8 GB 显存，qwen3.5-9b）
+
+| 题型 | 结果 |
+|---|---|
+| 西湖论剑 2021 IoT base64 逆向（自定义字母表） | ✅ 9 次工具调用、约 9.5 万 token 解出 |
+| 三层 base64（有现成工具 `decode_chain`） | ✅ 3 步、4–5 分钟 |
+| 网上 RSA 真题（需要读懂变量覆盖） | ❌ 65k token 未解出 |
+| Knapsack（子集和 + AES） | ❌ 调用链崩（非法 JSON + 500） |
+| PNG / zip / web SQLi（单 agent 模式） | ⚠️ 给模板能过，不给模板不行 |
+
+**规律：有现成工具、流程明确的题能解；需要模型自己想通关键点的题，基本解不出。**
+同题对照过的模型：`bonsai-27b` Q1_0 正文全空、`gemma-4-12b` 16k 上下文直接 OOM、
+`qwen2.5-coder-7b` 报错后重发同一命令打转——不是参数量问题，是量化与管线问题。
+
+### 常见问题
+
+- **提交后一直转圈、token 不涨**：多半有两个模型实例在抢显存。卸掉重载一个。
+- **窗口里没有日志**：确认 bat 是 **CRLF 换行**（cmd 按字节读，LF 会让中文行错位）。
+- **想让它做更难的题**：只有两条路有效——给它现成工具，或在任务描述里写清步骤。
+  单纯调温度、加资料都验证过无效。
+
 ## 桌面版：带自己窗口的那种开法
 
 不想开黑窗口、也不想在浏览器标签页里跑控制台，就双击 **`灵枢桌面版.exe`**：左边是环境自检

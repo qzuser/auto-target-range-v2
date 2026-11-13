@@ -12,6 +12,7 @@ import contextlib
 import copy
 import hashlib
 import json
+import logging
 import os
 import time
 from collections.abc import Awaitable, Callable
@@ -91,6 +92,8 @@ _FOREGROUND_DEPTH = 0
 _BACKGROUND_ACTIVE = 0
 _BACKGROUND_COOLDOWN_UNTIL = 0.0
 _BACKGROUND_COOLDOWN_SECONDS = 2.0
+
+logger = logging.getLogger(__name__)
 
 
 def _foreground_started() -> None:
@@ -1430,6 +1433,20 @@ async def _background_distill(infra: _Infra, experience: Any,
             _update_distill_snapshot(
                 snapshot, status="failed" if failed else "done",
                 completed_at=datetime.now(UTC).isoformat(), result=result)
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:  # noqa: BLE001 —— 后台任务无人接管，兜住不冒泡
+        # 现场：会话被停/删之后提炼才收尾，会话目录已经不在，写审计直接
+        # FileNotFoundError，事件循环把它报成「Task exception was never
+        # retrieved」，控制台看着像服务出错。这里兜住并留一行警告。
+        logger.warning("后台经验提炼失败（已忽略）：%s: %s",
+                       type(exc).__name__, exc)
+        with contextlib.suppress(Exception):
+            _update_distill_snapshot(
+                snapshot, status="failed",
+                completed_at=datetime.now(UTC).isoformat(),
+                result={"result": "error",
+                        "error": f"{type(exc).__name__}: {exc}"[:200]})
     finally:
         if close_store:
             with contextlib.suppress(Exception):

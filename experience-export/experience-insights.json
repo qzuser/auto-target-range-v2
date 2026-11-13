@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "kind": "spiritscout-experience-insights",
-  "generated_at": "2026-11-10T10:46:26+00:00",
+  "generated_at": "2026-11-13T00:53:12+00:00",
   "source": "SpiritScout/.spiritscout/experience.db -> table insights",
   "redaction": [
     "http/https 链接",
@@ -10,23 +10,29 @@
     "sk- / ghp_ / xox 形态密钥",
     "靶场主机名归一为 local-range"
   ],
-  "total": 342,
+  "total": 496,
   "tag_frequency": {
-    "ctf": 255,
-    "web": 56,
-    "misc": 46,
-    "flag": 37,
+    "ctf": 346,
+    "crypto": 79,
+    "web": 57,
+    "flag": 51,
+    "misc": 48,
+    "base64": 45,
+    "复盘": 34,
     "判读": 33,
-    "复盘": 33,
-    "reverse": 28,
-    "crypto": 21,
-    "验证": 20,
-    "流程": 17,
+    "reverse": 30,
+    "encoding": 26,
+    "逆向工程": 26,
+    "验证": 24,
+    "流程": 18,
+    "编码": 15,
+    "CTF": 13,
     "reporting": 13,
     "validation": 13,
     "sqli": 12,
+    "workflow": 12,
     "recon": 10,
-    "workflow": 10,
+    "重攻": 10,
     "php": 9,
     "度量": 9,
     "战报": 8,
@@ -34,24 +40,30 @@
     "forensics": 7,
     "lfi": 7,
     "process": 7,
+    "verification": 7,
     "战报判读": 7,
     "方法论": 7,
     "reversing": 6,
-    "verification": 6,
+    "signal": 6,
     "中断": 6,
     "判读信号": 6,
     "证据链": 6,
     "音频": 6,
     "pwn": 5,
     "session": 5,
-    "signal": 5,
     "stego": 5,
     "telemetry": 5,
     "侦察": 5,
     "信号判读": 5,
     "取证": 5,
+    "固件": 5,
+    "固件分析": 5,
     "指标": 5,
+    "目标完成": 5,
+    "解码": 5,
+    "难度评估": 5,
     "靶场": 5,
+    "analysis": 4,
     "auth": 4,
     "automation": 4,
     "findings": 4,
@@ -60,113 +72,155 @@
     "metrics": 4,
     "rce": 4,
     "信息收集": 4,
+    "信息泄露": 4,
     "命令注入": 4,
+    "提交": 4,
+    "策略": 4,
     "结果判读": 4,
+    "解密": 4,
     "记录": 4,
     "证据": 4,
     "逆向": 4,
-    "难度评估": 4,
     "验收": 4,
     "bypass": 3,
+    "decoding": 3,
     "evidence": 3,
+    "flag 提交": 3,
     "flag格式": 3,
     "lfsr": 3,
     "morse": 3,
     "offline": 3,
     "platform": 3,
+    "replay": 3,
     "rsa": 3,
     "source-review": 3,
     "triage": 3,
     "vm": 3,
+    "二进制文件": 3,
     "信号": 3,
     "信号分析": 3,
-    "信息泄露": 3,
     "元数据": 3,
     "决策": 3,
+    "决策收敛": 3,
+    "安全": 3,
+    "执行": 3,
     "收敛": 3,
     "枚举": 3,
+    "混淆": 3,
+    "状态判读": 3,
     "登录": 3,
     "盲注": 3,
-    "编码": 3,
+    "自定义字母表": 3,
+    "规划": 3,
     "过滤绕过": 3,
+    "附件": 3,
     "附件题": 3,
     "隐写": 3,
+    "AVR固件": 2,
     "attachment": 2,
     "audio": 2,
     "blind": 2,
     "bruteforce": 2,
-    "encoding": 2,
     "environment": 2,
     "ephemeral": 2,
     "filter": 2,
     "flag-format": 2,
     "flag校验": 2,
+    "format": 2,
     "format-string": 2,
     "hint": 2,
     "image": 2,
     "jwt": 2,
     "keystream": 2,
+    "litellm": 2,
+    "llm": 2,
     "log-poisoning": 2,
+    "logic": 2,
     "login": 2,
     "methodology": 2,
     "obfuscation": 2,
     "oracle": 2,
     "pitfall": 2,
     "planning": 2,
+    "resource_allocation": 2,
     "retrospective": 2,
     "rev": 2,
     "review": 2,
     "sage": 2,
     "scoping": 2,
     "static-analysis": 2,
+    "status": 2,
+    "submission": 2,
+    "time_limit": 2,
     "unicode": 2,
     "waf": 2,
+    "二进制分析": 2,
     "任务记录": 2,
     "假阳性": 2,
     "可复现性": 2,
+    "平台特性": 2,
     "提示": 2,
     "摩尔斯": 2,
+    "效率": 2,
     "文件包含": 2,
+    "标志提取": 2,
+    "校验": 2,
     "样本偏差": 2,
-    "混淆": 2,
+    "格式检查": 2,
+    "格式错误": 2,
+    "注入": 2,
+    "源码": 2,
     "源码审计": 2,
     "环境": 2,
     "目标达成": 2,
     "离线分析": 2,
-    "规划": 2,
-    "解码": 2,
+    "自动化": 2,
     "认证": 2,
     "误报": 2,
     "越权": 2,
     "轮次": 2,
-    "附件": 2,
     "题面": 2,
+    "AVR 固件": 1,
+    "C/C++": 1,
+    "CTF 任务": 1,
+    "GDB": 1,
     "access-control": 1,
     "agent": 1,
     "algebra": 1,
+    "alternative": 1,
     "anti-debug": 1,
     "attack-surface": 1,
     "audit": 1,
     "auth-bypass": 1,
     "availability": 1,
+    "base64 解码": 1,
+    "base64_decoding": 1,
+    "base64编码": 1,
     "berlekamp-massey": 1,
     "bfs": 1,
     "binary": 1,
     "blackbox": 1,
     "blacklist": 1,
+    "challenge": 1,
     "checker": 1,
     "classification": 1,
+    "clues": 1,
     "command-injection": 1,
+    "completion": 1,
     "constraint": 1,
     "constraints": 1,
     "control-flow": 1,
     "convergence": 1,
     "correlation-attack": 1,
     "coverage": 1,
+    "data_analysis": 1,
     "debugger": 1,
+    "directionality": 1,
+    "discovery_record": 1,
     "dns": 1,
     "docker": 1,
     "dynamic-analysis": 1,
+    "efficiency": 1,
     "enumeration": 1,
     "error-based": 1,
     "exploit": 1,
@@ -174,65 +228,102 @@
     "file-read": 1,
     "fingerprint": 1,
     "flag-validation": 1,
+    "heuristics": 1,
     "infra": 1,
+    "intermediate": 1,
     "io": 1,
+    "key-function": 1,
+    "keyword": 1,
+    "knowledge-sharing": 1,
     "known-plaintext": 1,
+    "layered": 1,
     "leak": 1,
+    "length": 1,
     "libc": 1,
     "linear-complexity": 1,
     "logging": 1,
     "math": 1,
     "maze": 1,
+    "melting": 1,
     "memory-write": 1,
     "meta": 1,
+    "model": 1,
     "modeling": 1,
     "modulus": 1,
+    "multi-attack": 1,
     "mysql": 1,
+    "nested": 1,
+    "network": 1,
     "numeric": 1,
     "offset": 1,
     "orchestration": 1,
+    "participation": 1,
     "pathfinding": 1,
     "payload": 1,
     "pe": 1,
     "post": 1,
+    "post-mortem": 1,
+    "recorded_tasks": 1,
     "reproducibility": 1,
+    "resources": 1,
     "resume": 1,
     "ret2libc": 1,
+    "retry": 1,
     "roi": 1,
+    "rounds": 1,
     "rust": 1,
     "scoring": 1,
     "secret": 1,
+    "service_provider": 1,
     "spectrogram": 1,
     "stacked-query": 1,
     "state": 1,
     "state-size": 1,
     "state-space": 1,
     "stream-cipher": 1,
+    "structure": 1,
     "symbolic-execution": 1,
     "symbols": 1,
+    "task-recording": 1,
+    "task_completion": 1,
+    "task_logging": 1,
+    "task_record": 1,
+    "task_tracking": 1,
+    "team-building": 1,
+    "template": 1,
     "text": 1,
+    "timeout": 1,
     "timing": 1,
     "token": 1,
+    "unavailable": 1,
+    "unclear_objectives": 1,
     "union": 1,
     "waf-bypass": 1,
     "walsh": 1,
     "windows": 1,
     "wrapper": 1,
     "xor": 1,
+    "上下文窗口": 1,
     "上传": 1,
     "下载": 1,
     "不变量": 1,
+    "代码执行": 1,
+    "任务": 1,
+    "任务检查": 1,
+    "任务状态": 1,
     "任务管理": 1,
     "任务编排": 1,
     "优先级": 1,
     "会话隔离": 1,
     "信号处理": 1,
     "信号解码": 1,
+    "信息": 1,
     "信息筛选": 1,
     "停止条件": 1,
     "元信息": 1,
     "共模攻击": 1,
     "内存": 1,
+    "函数拆分": 1,
     "分诊": 1,
     "判分": 1,
     "判别信号": 1,
@@ -243,31 +334,50 @@
     "动态实例": 1,
     "动态容器": 1,
     "动态调试": 1,
+    "十六进制编辑器": 1,
     "单轮": 1,
     "参数估计": 1,
     "参数复用": 1,
+    "反复尝试": 1,
     "反调试": 1,
     "发现管理": 1,
+    "变量定位": 1,
     "可迁移性": 1,
     "基础设施": 1,
+    "复杂题目": 1,
     "多agent": 1,
+    "多层嵌套": 1,
+    "多文件分析": 1,
+    "多次尝试": 1,
     "字典": 1,
+    "安全策略": 1,
     "完成判据": 1,
+    "密文": 1,
+    "密文解密": 1,
     "密钥恢复": 1,
     "工作量": 1,
+    "工具": 1,
+    "工具使用": 1,
     "差异响应": 1,
     "已知明文": 1,
     "带外": 1,
-    "平台特性": 1,
+    "异常处理": 1,
     "弱口令": 1,
     "归因": 1,
+    "总结经验": 1,
     "情报判读": 1,
+    "成功解密": 1,
     "战报分析": 1,
     "战绩判读": 1,
+    "技术": 1,
     "报告质量": 1,
     "报表": 1,
     "报错泄露": 1,
     "指标判读": 1,
+    "探测": 1,
+    "接受": 1,
+    "推断": 1,
+    "提交策略": 1,
     "提示判读": 1,
     "收尾": 1,
     "收手": 1,
@@ -279,48 +389,79 @@
     "收敛判断": 1,
     "攻击面": 1,
     "故障归因": 1,
-    "效率": 1,
+    "教训": 1,
+    "数据一致性": 1,
+    "数据丢失": 1,
     "数据保真": 1,
+    "数据覆盖": 1,
+    "文件扩展名": 1,
+    "文件格式": 1,
     "文件读取": 1,
+    "方法": 1,
+    "无新线索": 1,
+    "无标志": 1,
     "无线电": 1,
+    "无进展": 1,
     "日志": 1,
     "未授权": 1,
+    "未探索路径": 1,
+    "本地环境": 1,
+    "标志": 1,
+    "标志提交": 1,
+    "标志管理": 1,
     "标签": 1,
-    "校验": 1,
     "样本质量": 1,
+    "格式要求": 1,
+    "模型端点": 1,
+    "模式": 1,
+    "模式识别": 1,
     "正则": 1,
+    "正常收尾": 1,
     "汇报": 1,
-    "注入": 1,
     "流程完整性": 1,
+    "源代码": 1,
     "源码泄露": 1,
+    "熔断机制": 1,
     "爆破": 1,
     "状态": 1,
     "状态机": 1,
     "环境约束": 1,
+    "用户决策": 1,
+    "用户反馈": 1,
     "白名单": 1,
     "目标定义": 1,
     "目标建模": 1,
     "目标画像": 1,
     "目标粒度": 1,
+    "目标问题": 1,
     "盲执行": 1,
     "知识沉淀": 1,
     "研判": 1,
+    "硬件平台": 1,
     "离线": 1,
-    "策略": 1,
+    "等待时间": 1,
+    "策略调整": 1,
     "线索": 1,
     "线索复用": 1,
+    "细节决定成败": 1,
     "终止判据": 1,
     "终止条件": 1,
     "经验迁移": 1,
     "结果校验": 1,
     "结果核验": 1,
     "统计": 1,
+    "编码异常": 1,
+    "编码问题": 1,
+    "耐心": 1,
     "脚本审计": 1,
-    "自动化": 1,
     "节奏": 1,
     "节奏判断": 1,
     "范围": 1,
     "范围界定": 1,
+    "解密步骤": 1,
+    "解题状态": 1,
+    "解题策略": 1,
+    "解题能力": 1,
     "计分": 1,
     "计划": 1,
     "计划偏差": 1,
@@ -331,6 +472,7 @@
     "证据验证": 1,
     "误判": 1,
     "误码纠错": 1,
+    "调试": 1,
     "资产复用": 1,
     "资源提取": 1,
     "跨方向": 1,
@@ -340,17 +482,25 @@
     "过程信号": 1,
     "过程留痕": 1,
     "进度判读": 1,
+    "连续失败": 1,
     "连通性": 1,
+    "逻辑检查": 1,
     "遥测": 1,
     "配置": 1,
+    "重复任务": 1,
+    "重复攻击": 1,
+    "错误处理": 1,
     "长度约束": 1,
+    "问题解决": 1,
+    "难度": 1,
     "难度升级": 1,
     "静态分析": 1,
     "静态附件": 1,
     "频谱": 1,
     "题干分析": 1,
     "题面线索": 1,
-    "题面解读": 1
+    "题面解读": 1,
+    "黑板态势": 1
   },
   "insights": [
     {
@@ -4631,6 +4781,1915 @@
       ],
       "source_model": "master",
       "captured_at": "2026-11-10T10:35:14+00:00"
+    },
+    {
+      "id": "exp-cc0b8859e76f",
+      "insight": "在 CTF 挑战中，如果所有节点已完成且未发现新线索或高价值证据，可能意味着当前策略已穷尽，需要重新评估或尝试其他方法。",
+      "context": "CTF",
+      "tags": [
+        "ctf",
+        "决策收敛",
+        "无新线索"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T17:37:47+00:00"
+    },
+    {
+      "id": "exp-63420e93006a",
+      "insight": "在逆向工程任务中，多次尝试不同的攻击路径（如重攻）后未能取得进展，可能表明目标的保护机制较为严密，需要更深入的分析或使用不同的工具和技术。",
+      "context": "CTF",
+      "tags": [
+        "逆向工程",
+        "多次尝试",
+        "无进展"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T17:37:47+00:00"
+    },
+    {
+      "id": "exp-89615a85621e",
+      "insight": "在 CTF 挑战中，如果未提取任何标志（flag），可能意味着当前的攻击路径或技术不适用，需要调整策略或尝试其他方法。",
+      "context": "CTF",
+      "tags": [
+        "CTF",
+        "标志提取",
+        "无标志"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T17:37:47+00:00"
+    },
+    {
+      "id": "exp-94ebe0cfa3a0",
+      "insight": "在 CTF 挑战中，一旦成功解出 Flag，应立即停止操作以避免不必要的风险。",
+      "context": "CTF",
+      "tags": [
+        "ctf",
+        "flag",
+        "安全"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T17:59:04+00:00"
+    },
+    {
+      "id": "exp-29ae16313b8a",
+      "insight": "在处理固件源码时，应注意固件的加密和保护措施，防止未经授权的访问。",
+      "context": "固件",
+      "tags": [
+        "固件",
+        "安全",
+        "逆向工程"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T17:59:04+00:00"
+    },
+    {
+      "id": "exp-66b8d45d7d4d",
+      "insight": "在解密固件时，应使用正确的工具和方法，确保解密过程的安全性。",
+      "context": "固件",
+      "tags": [
+        "固件",
+        "解密",
+        "安全"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T17:59:04+00:00"
+    },
+    {
+      "id": "exp-4d4e19048f3f",
+      "insight": "在解密过程中，注意检查固件源码中的自定义字母表和密文变量。",
+      "context": "CTF逆向",
+      "tags": [
+        "逆向工程",
+        "自定义字母表",
+        "密文解密"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T18:07:13+00:00"
+    },
+    {
+      "id": "exp-023197b8649d",
+      "insight": "使用本地工具进行固件分析时，确保所有必要的工具都已安装并且配置正确。",
+      "context": "CTF逆向",
+      "tags": [
+        "工具使用",
+        "本地环境",
+        "固件分析"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T18:07:14+00:00"
+    },
+    {
+      "id": "exp-a2684582d86a",
+      "insight": "在处理二进制文件时，注意文件的格式和编码，避免因格式错误导致解密失败。",
+      "context": "CTF逆向",
+      "tags": [
+        "二进制文件",
+        "格式错误",
+        "编码问题"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T18:07:14+00:00"
+    },
+    {
+      "id": "exp-c4d21c865c2e",
+      "insight": "在解密过程中，仔细检查每一步的逻辑，确保没有遗漏或错误。",
+      "context": "CTF逆向",
+      "tags": [
+        "逻辑检查",
+        "解密步骤",
+        "细节决定成败"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T18:07:14+00:00"
+    },
+    {
+      "id": "exp-89c2728849c9",
+      "insight": "在处理固件和源码时，需要仔细检查目标文件的格式和内容。",
+      "context": "IoT 逆向",
+      "tags": [
+        "固件",
+        "源码",
+        "格式检查"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T18:32:14+00:00"
+    },
+    {
+      "id": "exp-f08e0f1840fb",
+      "insight": "自定义字母表的 base64 实现可能需要特定的解码方法。",
+      "context": "IoT 逆向",
+      "tags": [
+        "base64",
+        "自定义字母表"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T18:32:14+00:00"
+    },
+    {
+      "id": "exp-e6ee43a8efdb",
+      "insight": "在解密过程中，注意密文变量的命名和存储位置。",
+      "context": "IoT 逆向",
+      "tags": [
+        "密文",
+        "变量定位"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T18:32:14+00:00"
+    },
+    {
+      "id": "exp-ed74696434ee",
+      "insight": "提交 flag 时，确保格式正确且符合要求。",
+      "context": "IoT 逆向",
+      "tags": [
+        "flag 提交",
+        "格式要求"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T18:32:14+00:00"
+    },
+    {
+      "id": "exp-930df43b05f6",
+      "insight": "在 CTF 挑战中，逆向工程题通常需要对二进制文件或源代码进行深入分析。",
+      "context": "CTF, 逆向工程",
+      "tags": [
+        "逆向工程",
+        "二进制分析",
+        "CTF"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T19:59:04+00:00"
+    },
+    {
+      "id": "exp-1e9d6dbff9e1",
+      "insight": "当遇到复杂的函数（如 `your_base64()`）时，可以尝试将其拆分为更小的部分进行分析，以理解其功能。",
+      "context": "CTF, 逆向工程",
+      "tags": [
+        "逆向工程",
+        "函数拆分",
+        "CTF"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T19:59:04+00:00"
+    },
+    {
+      "id": "exp-f30b5f6d2cb0",
+      "insight": "在 CTF 挑战中，提交的 flag 可能需要多次尝试和验证，才能最终被接受。",
+      "context": "CTF, 提交 flag",
+      "tags": [
+        "CTF",
+        "flag 提交",
+        "验证"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T19:59:04+00:00"
+    },
+    {
+      "id": "exp-8e4ba9bef354",
+      "insight": "逆向工程题可能包含多个层次的加密或混淆，需要逐步解密和还原原始数据。",
+      "context": "CTF, 逆向工程",
+      "tags": [
+        "逆向工程",
+        "解密",
+        "混淆"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T19:59:04+00:00"
+    },
+    {
+      "id": "exp-f2961ac19139",
+      "insight": "在 CTF 挑战中，面对复杂的逆向工程任务时，可以采用多轮攻击策略，每轮针对不同的方面进行深入分析。",
+      "context": "CTF, reverse engineering",
+      "tags": [
+        "reverse",
+        "CTF",
+        "multi-attack"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T19:59:12+00:00"
+    },
+    {
+      "id": "exp-18fa8db43ede",
+      "insight": "在逆向工程中，识别和理解目标代码中的关键函数（如 `your_base64()`）是解决问题的关键步骤。",
+      "context": "CTF, reverse engineering",
+      "tags": [
+        "reverse",
+        "CTF",
+        "key-function"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T19:59:12+00:00"
+    },
+    {
+      "id": "exp-00a65b1396ca",
+      "insight": "在 CTF 挑战中，即使任务完成，也应该记录所有尝试和发现，以便后续分析和学习。",
+      "context": "CTF, task recording",
+      "tags": [
+        "CTF",
+        "task-recording",
+        "post-mortem"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T19:59:12+00:00"
+    },
+    {
+      "id": "exp-94b67c5a894a",
+      "insight": "在 CTF 挑战中，面对多个相似的任务时，可以采用模板化的方法来提高效率。",
+      "context": "CTF, template-based approach",
+      "tags": [
+        "CTF",
+        "template",
+        "efficiency"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T19:59:12+00:00"
+    },
+    {
+      "id": "exp-b6fe71b72ec9",
+      "insight": "在 CTF 挑战中，及时总结和分享经验教训，可以帮助团队成员快速成长和提高整体水平。",
+      "context": "CTF, knowledge sharing",
+      "tags": [
+        "CTF",
+        "knowledge-sharing",
+        "team-building"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T19:59:12+00:00"
+    },
+    {
+      "id": "exp-7a0c03baa28f",
+      "insight": "在 CTF 挑战中，逆向工程题目通常涉及对二进制文件或源代码的分析。",
+      "context": "CTF",
+      "tags": [
+        "逆向工程",
+        "二进制文件",
+        "源代码"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T20:09:30+00:00"
+    },
+    {
+      "id": "exp-be380f965351",
+      "insight": "遇到复杂且重复的任务时，可以考虑使用自动化工具或脚本来提高效率。",
+      "context": "CTF",
+      "tags": [
+        "自动化",
+        "效率",
+        "重复任务"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T20:09:30+00:00"
+    },
+    {
+      "id": "exp-448fd8d1a342",
+      "insight": "在逆向工程中，理解目标平台的特性（如 AVR 固件）对于分析和破解至关重要。",
+      "context": "CTF",
+      "tags": [
+        "AVR固件",
+        "平台特性",
+        "逆向工程"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T20:09:30+00:00"
+    },
+    {
+      "id": "exp-820d39a65536",
+      "insight": "完成任务后，及时总结经验和教训，有助于提高未来的解题能力。",
+      "context": "CTF",
+      "tags": [
+        "总结经验",
+        "教训",
+        "解题能力"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T20:09:30+00:00"
+    },
+    {
+      "id": "exp-865c0802b21e",
+      "insight": "在处理自定义字母表的 base64 编码时，需要特别注意字母表的顺序和长度。",
+      "context": "IoT 逆向题",
+      "tags": [
+        "ctf",
+        "base64",
+        "逆向工程",
+        "自定义字母表"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T21:23:07+00:00"
+    },
+    {
+      "id": "exp-5a52f0fde049",
+      "insight": "在解码过程中，如果遇到格式不正确的 flag，应检查编码是否正确或是否存在额外的字符。",
+      "context": "IoT 逆向题",
+      "tags": [
+        "ctf",
+        "base64",
+        "逆向工程",
+        "格式检查"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T21:23:07+00:00"
+    },
+    {
+      "id": "exp-a62011abe70b",
+      "insight": "在调试过程中，使用调试器（如 GDB）可以帮助理解程序的执行流程和变量的状态。",
+      "context": "IoT 逆向题",
+      "tags": [
+        "ctf",
+        "调试",
+        "逆向工程",
+        "GDB"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T21:23:07+00:00"
+    },
+    {
+      "id": "exp-4c0e0b62aab3",
+      "insight": "在解密过程中，如果遇到无法直接解码的情况，可以尝试使用已知的部分进行推断。",
+      "context": "IoT 逆向题",
+      "tags": [
+        "ctf",
+        "base64",
+        "逆向工程",
+        "推断"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T21:23:07+00:00"
+    },
+    {
+      "id": "exp-aa6574351177",
+      "insight": "在处理二进制文件时，使用十六进制编辑器（如 HxD）可以帮助查看和修改文件内容。",
+      "context": "IoT 逆向题",
+      "tags": [
+        "ctf",
+        "二进制文件",
+        "逆向工程",
+        "十六进制编辑器"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T21:23:07+00:00"
+    },
+    {
+      "id": "exp-9dd129cf0d79",
+      "insight": "在 CTF 挑战中，一旦成功解出 Flag，应立即停止攻击，以避免不必要的资源消耗。",
+      "context": "CTF",
+      "tags": [
+        "ctf",
+        "flag",
+        "安全策略"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T21:23:14+00:00"
+    },
+    {
+      "id": "exp-2d1131752235",
+      "insight": "对于逆向工程题目，深入分析固件源码和二进制文件是解决问题的关键步骤。",
+      "context": "CTF",
+      "tags": [
+        "ctf",
+        "逆向工程",
+        "固件分析"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T21:23:14+00:00"
+    },
+    {
+      "id": "exp-0755ec63c1a6",
+      "insight": "在 CTF 挑战中，及时提交解出的 Flag 是确保得分的关键。",
+      "context": "CTF",
+      "tags": [
+        "ctf",
+        "flag",
+        "提交策略"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T21:23:14+00:00"
+    },
+    {
+      "id": "exp-25560407d078",
+      "insight": "多次尝试不同的攻击策略（重攻）可能有助于解决复杂的 CTF 题目。",
+      "context": "CTF",
+      "tags": [
+        "重攻",
+        "策略",
+        "复杂题目"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T21:48:08+00:00"
+    },
+    {
+      "id": "exp-d10c1f2e15a6",
+      "insight": "在 CTF 挑战中，完成目标后，用户未要求重试或停止，说明当前策略有效。",
+      "context": "CTF",
+      "tags": [
+        "决策收敛",
+        "目标完成",
+        "用户反馈"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T21:48:08+00:00"
+    },
+    {
+      "id": "exp-3fcd4e237f89",
+      "insight": "在 CTF 挑战中，逆向工程题目可能需要对多个文件进行分析，包括源代码和固件文件。",
+      "context": "CTF",
+      "tags": [
+        "多文件分析",
+        "逆向工程",
+        "固件"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T21:48:08+00:00"
+    },
+    {
+      "id": "exp-7044a4ba77fa",
+      "insight": "在 CTF 挑战中，多次尝试不同的攻击策略（重攻）可能有助于解决复杂的逆向工程题目。",
+      "context": "CTF",
+      "tags": [
+        "重攻",
+        "策略",
+        "逆向工程"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T21:48:08+00:00"
+    },
+    {
+      "id": "exp-c2b88c9dc235",
+      "insight": "多次尝试（重攻）可能有助于解决复杂的逆向工程问题。",
+      "context": "CTF",
+      "tags": [
+        "逆向工程",
+        "重攻",
+        "解题策略"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T21:58:48+00:00"
+    },
+    {
+      "id": "exp-902387cf0b91",
+      "insight": "在 CTF 挑战中，附件（如固件源码、二进制文件）通常是解题的关键。",
+      "context": "CTF",
+      "tags": [
+        "附件",
+        "固件",
+        "源码"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T21:58:48+00:00"
+    },
+    {
+      "id": "exp-278fcfe8df6e",
+      "insight": "完成 CTF 目标后，用户未要求重试或停止，表示任务已成功完成。",
+      "context": "CTF",
+      "tags": [
+        "目标完成",
+        "用户决策",
+        "任务状态"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T21:58:48+00:00"
+    },
+    {
+      "id": "exp-f67c9578b3e2",
+      "insight": "对于 AVR 固件源码和固件文件，使用 base64 编码是一种常见的处理方式。",
+      "context": "CTF",
+      "tags": [
+        "AVR固件",
+        "base64编码"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T22:07:24+00:00"
+    },
+    {
+      "id": "exp-4465b6991855",
+      "insight": "在 CTF 挑战中，重复攻击（重攻）可能是因为多次尝试不同的方法来解决问题。",
+      "context": "CTF",
+      "tags": [
+        "重复攻击",
+        "问题解决"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T22:07:24+00:00"
+    },
+    {
+      "id": "exp-9ad448bf4ebf",
+      "insight": "完成 CTF 目标后，如果没有进一步的任务或用户要求，测试可以正常结束。",
+      "context": "CTF",
+      "tags": [
+        "目标完成",
+        "正常收尾"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T22:07:24+00:00"
+    },
+    {
+      "id": "exp-7cfb5543c497",
+      "insight": "在 CTF 挑战中，没有提取、提交或接受任何标志（flag）表明当前阶段没有成功解题。",
+      "context": "CTF",
+      "tags": [
+        "标志管理",
+        "解题状态"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T22:07:24+00:00"
+    },
+    {
+      "id": "exp-04b8e70edd4c",
+      "insight": "对于逆向工程题目，使用 base64 编码的文件需要解码后才能进一步分析。",
+      "context": "CTF",
+      "tags": [
+        "base64",
+        "解码",
+        "逆向工程"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T22:15:10+00:00"
+    },
+    {
+      "id": "exp-a2ae2722c5ca",
+      "insight": "在 CTF 挑战中，多次尝试（如重攻）可能是因为题目难度较高或者需要不同的方法来解决。",
+      "context": "CTF",
+      "tags": [
+        "重攻",
+        "难度",
+        "方法"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T22:15:10+00:00"
+    },
+    {
+      "id": "exp-579dd729ed6a",
+      "insight": "完成 CTF 任务后，如果没有提交或接受任何标志，可能意味着需要检查是否有遗漏的步骤或分析。",
+      "context": "CTF",
+      "tags": [
+        "标志",
+        "提交",
+        "接受"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T22:15:10+00:00"
+    },
+    {
+      "id": "exp-4dfab2454051",
+      "insight": "在 CTF 挑战中，逆向工程题目可能需要结合多种工具和技术（如反汇编、调试器等）来解决。",
+      "context": "CTF",
+      "tags": [
+        "工具",
+        "技术",
+        "逆向工程"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T22:15:10+00:00"
+    },
+    {
+      "id": "exp-5985fdc534c8",
+      "insight": "在 CTF 挑战中，当所有重攻节点完成后，如果没有发现新线索或高价值证据，目标可以认为已完成。",
+      "context": "CTF",
+      "tags": [
+        "ctf",
+        "重攻",
+        "目标完成"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T22:23:08+00:00"
+    },
+    {
+      "id": "exp-2cfa63b2e83d",
+      "insight": "在逆向工程任务中，分析固件源码和二进制文件时，需要耐心和细致，确保没有遗漏任何关键信息。",
+      "context": "逆向工程",
+      "tags": [
+        "逆向工程",
+        "固件分析",
+        "耐心"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T22:23:08+00:00"
+    },
+    {
+      "id": "exp-d8d27194973b",
+      "insight": "在 CTF 挑战中，提交的标志（flag）如果被拒绝，可能是因为格式不正确或未完全解密。",
+      "context": "CTF",
+      "tags": [
+        "CTF",
+        "标志提交",
+        "格式错误"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T22:23:08+00:00"
+    },
+    {
+      "id": "exp-75f7ebda15dd",
+      "insight": "在 CTF 挑战中，如果重攻节点未能发现新线索，可能需要重新评估攻击策略或尝试不同的方法。",
+      "context": "CTF",
+      "tags": [
+        "CTF",
+        "重攻",
+        "策略调整"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T22:23:08+00:00"
+    },
+    {
+      "id": "exp-bcc5a7047d72",
+      "insight": "在 CTF 挑战中，如果所有重攻节点都已完成且未发现新线索，可能需要考虑是否有其他未探索的路径或节点。",
+      "context": "CTF",
+      "tags": [
+        "CTF",
+        "重攻",
+        "未探索路径"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T22:23:08+00:00"
+    },
+    {
+      "id": "exp-b71016119bfc",
+      "insight": "在 CTF 挑战中，逆向工程题目通常需要对二进制文件进行分析和解密。",
+      "context": "CTF",
+      "tags": [
+        "逆向工程",
+        "二进制分析",
+        "解密"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T22:31:22+00:00"
+    },
+    {
+      "id": "exp-af0777e22687",
+      "insight": "多次尝试不同的攻击方法（重攻）可能有助于解决复杂的逆向工程问题。",
+      "context": "CTF",
+      "tags": [
+        "逆向工程",
+        "重攻",
+        "解密"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T22:31:22+00:00"
+    },
+    {
+      "id": "exp-2ba6933f9465",
+      "insight": "在 CTF 挑战中，成功提交解密后的 flag 是完成任务的关键。",
+      "context": "CTF",
+      "tags": [
+        "flag 提交",
+        "成功解密",
+        "CTF 任务"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T22:31:22+00:00"
+    },
+    {
+      "id": "exp-6421431dbfa8",
+      "insight": "在 CTF 挑战中，如果任务被取消，可能是因为资源不足或时间限制。",
+      "context": "CTF",
+      "tags": [
+        "ctf",
+        "time_limit",
+        "resource_allocation"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T22:59:00+00:00"
+    },
+    {
+      "id": "exp-0ab8d4b4cfe6",
+      "insight": "在没有明确目标或任务的情况下，CTF 挑战的难度和方向可能会变得模糊。",
+      "context": "CTF",
+      "tags": [
+        "ctf",
+        "unclear_objectives",
+        "directionality"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T22:59:00+00:00"
+    },
+    {
+      "id": "exp-dd40dcd1143b",
+      "insight": "CTF 挑战中，即使没有成功提取或提交任何标志，记录的任务数量仍然可以反映参与程度。",
+      "context": "CTF",
+      "tags": [
+        "ctf",
+        "task_tracking",
+        "participation"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T22:59:00+00:00"
+    },
+    {
+      "id": "exp-1d9c3d9468a3",
+      "insight": "在 CTF 挑战中，如果目标已经完成，用户未要求重试或停止，主Agent会自动决策收敛。",
+      "context": "CTF",
+      "tags": [
+        "ctf",
+        "决策收敛",
+        "目标完成"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T23:02:18+00:00"
+    },
+    {
+      "id": "exp-8c8ab6da768b",
+      "insight": "在处理逆向工程任务时，需要仔细检查固件文件的扩展名和内容，以确定正确的处理方法。",
+      "context": "逆向工程",
+      "tags": [
+        "逆向工程",
+        "固件分析",
+        "文件扩展名"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T23:02:18+00:00"
+    },
+    {
+      "id": "exp-4aa61d1b621d",
+      "insight": "在 CTF 挑战中，如果未提取任何标志（flag），可能需要重新检查任务步骤或代码逻辑。",
+      "context": "CTF",
+      "tags": [
+        "CTF",
+        "标志提取",
+        "任务检查"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T23:02:18+00:00"
+    },
+    {
+      "id": "exp-9ac45b0e9439",
+      "insight": "多次尝试（重攻）可能表明题目难度较高，需要反复分析和尝试才能解决。",
+      "context": "CTF",
+      "tags": [
+        "重攻",
+        "难度评估",
+        "反复尝试"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T23:15:02+00:00"
+    },
+    {
+      "id": "exp-d302eb266a7f",
+      "insight": "在 CTF 挑战中，逆向工程题目可能涉及对特定编程语言（如 C/C++）的固件源码进行分析。",
+      "context": "CTF",
+      "tags": [
+        "固件分析",
+        "C/C++",
+        "逆向工程"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T23:15:02+00:00"
+    },
+    {
+      "id": "exp-3b272e8af116",
+      "insight": "在 CTF 挑战中，逆向工程题目可能涉及对特定格式的文件（如 base64 编码）进行解码。",
+      "context": "CTF",
+      "tags": [
+        "base64 解码",
+        "逆向工程",
+        "文件格式"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T23:15:02+00:00"
+    },
+    {
+      "id": "exp-32d5ed800de7",
+      "insight": "在 CTF 挑战中，逆向工程题目可能涉及对特定硬件平台（如 AVR）的固件进行分析。",
+      "context": "CTF",
+      "tags": [
+        "AVR 固件",
+        "逆向工程",
+        "硬件平台"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T23:15:02+00:00"
+    },
+    {
+      "id": "exp-917d33684f3a",
+      "insight": "在 CTF 挑战中，如果任务被取消，可能是因为时间限制或资源不足。",
+      "context": "CTF",
+      "tags": [
+        "time_limit",
+        "resource_allocation"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T23:37:18+00:00"
+    },
+    {
+      "id": "exp-5afd2e132efe",
+      "insight": "CTF 挑战中，即使没有提取任何标志，记录所有任务和发现仍然是有价值的。",
+      "context": "CTF",
+      "tags": [
+        "task_logging",
+        "discovery_record"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-11T23:37:18+00:00"
+    },
+    {
+      "id": "exp-62ff5d382fc8",
+      "insight": "未成功提取任何标志（flag）可能是由于未能正确解码或分析目标数据。",
+      "context": "CTF",
+      "tags": [
+        "ctf",
+        "base64_decoding",
+        "data_analysis"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T03:35:43+00:00"
+    },
+    {
+      "id": "exp-56acc5f3d147",
+      "insight": "在 CTF 挑战中，任务记录显示只有两个任务被记录，可能意味着其他任务未开始或未完成。",
+      "context": "CTF",
+      "tags": [
+        "ctf",
+        "task_completion",
+        "recorded_tasks"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T03:35:43+00:00"
+    },
+    {
+      "id": "exp-a1a1df838031",
+      "insight": "模型端点连续不可用时，会触发熔断机制，并且在熔断期间不再重试。",
+      "context": "ctf",
+      "tags": [
+        "litellm",
+        "熔断机制",
+        "模型端点"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T11:59:15+00:00"
+    },
+    {
+      "id": "exp-ada7c4e5dec2",
+      "insight": "ContextWindowExceededError 和 BadRequestError 是常见的错误类型，提示请求超出了上下文窗口或存在其他请求问题。",
+      "context": "ctf",
+      "tags": [
+        "litellm",
+        "错误处理",
+        "上下文窗口"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T11:59:15+00:00"
+    },
+    {
+      "id": "exp-b9cd20d7686c",
+      "insight": "连续多次尝试解决任务时，如果每次都失败且错误信息相同，可能是目标系统存在问题或者需要更长时间的等待。",
+      "context": "ctf",
+      "tags": [
+        "连续失败",
+        "目标问题",
+        "等待时间"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T11:59:15+00:00"
+    },
+    {
+      "id": "exp-b3834a9b1c86",
+      "insight": "即使没有成功提取 flag，记录所有任务和发现的习惯有助于后续分析。",
+      "context": "CTF",
+      "tags": [
+        "ctf",
+        "task_record",
+        "analysis"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T12:11:19+00:00"
+    },
+    {
+      "id": "exp-1dcd6645c0de",
+      "insight": "模型端点连续不可用，熔断机制导致无法继续解题。",
+      "context": "ctf",
+      "tags": [
+        "model",
+        "melting",
+        "unavailable"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T12:11:26+00:00"
+    },
+    {
+      "id": "exp-c067952e1c61",
+      "insight": "在逆向工程和解题过程中，遇到模型端点不可用时，应检查网络连接或联系服务提供商。",
+      "context": "ctf",
+      "tags": [
+        "network",
+        "service_provider"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T12:11:26+00:00"
+    },
+    {
+      "id": "exp-ffc64496b335",
+      "insight": "连续多次请求失败后，熔断机制会生效，导致后续请求无法进行。需要等待一段时间后再尝试。",
+      "context": "ctf",
+      "tags": [
+        "retry",
+        "timeout"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T12:11:26+00:00"
+    },
+    {
+      "id": "exp-8292b5e88cfb",
+      "insight": "在逆向工程和解题过程中，遇到模型端点不可用时，应检查是否有其他可用的替代方案或资源。",
+      "context": "ctf",
+      "tags": [
+        "alternative",
+        "resources"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T12:11:26+00:00"
+    },
+    {
+      "id": "exp-8701de6440a5",
+      "insight": "多层编码挑战通常表现为对同一字符串进行多次可逆编码操作，直至解码结果呈现可读文本为止。",
+      "context": "CTF 密码学方向 / 编码混淆场景",
+      "tags": [
+        "crypto",
+        "encoding",
+        "ctf"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T17:55:34+00:00"
+    },
+    {
+      "id": "exp-1d3ae66b44ad",
+      "insight": "在多层编码场景中，解码结果的字符集分布变化可作为判断是否仍需继续解密的信号依据。",
+      "context": "CTF 密码学方向 / 编码混淆场景",
+      "tags": [
+        "crypto",
+        "encoding",
+        "signal"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T17:55:34+00:00"
+    },
+    {
+      "id": "exp-7025b1eecf1a",
+      "insight": "标准可逆编码协议常被用作增加难度的手段，其底层数据结构在多层嵌套中通常保持未变。",
+      "context": "CTF 密码学方向 / 编码混淆场景",
+      "tags": [
+        "crypto",
+        "encoding",
+        "ctf"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T17:55:34+00:00"
+    },
+    {
+      "id": "exp-f05d20362104",
+      "insight": "在加密类挑战中，Base64 编码层常作为混淆手段存在，解码后通常能直接暴露明文特征。",
+      "context": "CTF 加密挑战、载荷处理",
+      "tags": [
+        "ctf",
+        "crypto",
+        "encoding"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T18:07:53+00:00"
+    },
+    {
+      "id": "exp-d2c597cff305",
+      "insight": "Flag 提取成功但未提交的状态表明内部载荷处理与外部评分机制是分离的。",
+      "context": "CTF 工作流分析、状态判读",
+      "tags": [
+        "ctf",
+        "workflow",
+        "status"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T18:07:53+00:00"
+    },
+    {
+      "id": "exp-433e59e834e4",
+      "insight": "单轮次完成模式暗示挑战逻辑通常包含在单一执行上下文中，无需多阶段推进。",
+      "context": "CTF 挑战结构、任务设计",
+      "tags": [
+        "ctf",
+        "structure",
+        "rounds"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T18:07:53+00:00"
+    },
+    {
+      "id": "exp-5958eab7c966",
+      "insight": "多层 Base64 编码的密文在解码过程中，每一层解码后的结果若仍包含可被 Base64 解码的字符集，则需逐层剥离直至得到明文",
+      "context": "CTF 密码学挑战中涉及多层编码的字符串处理场景",
+      "tags": [
+        "crypto",
+        "base64",
+        "ctf",
+        "encoding"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:08:24+00:00"
+    },
+    {
+      "id": "exp-5a6676bd4804",
+      "insight": "当密文长度较短且无明显加密算法特征时，应优先尝试逐层解码而非直接进行密码分析",
+      "context": "CTF 密码学挑战中面对短字符串且无明显加密特征的密文",
+      "tags": [
+        "crypto",
+        "ctf",
+        "analysis",
+        "heuristics"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:08:24+00:00"
+    },
+    {
+      "id": "exp-83c2f6c7ba92",
+      "insight": "解码过程中若出现非 Base64 字符集字符，则表明当前层解码已完成，需停止并检查输出是否为明文",
+      "context": "CTF 密码学挑战中处理多层编码字符串的解码过程",
+      "tags": [
+        "crypto",
+        "base64",
+        "ctf",
+        "decoding"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:08:24+00:00"
+    },
+    {
+      "id": "exp-0b763778899e",
+      "insight": "当目标明确为 CTF 平台且任务标记为 crypto 方向时，需警惕 Base64 编码嵌套多层或结合其他编码（如 URL、Hex）的复合混淆场景，此类任务通常不依赖传统漏洞利用，而是考察对编码规则与解码顺序的逆向思维。",
+      "context": "CTF 平台、密码学方向、编码混淆",
+      "tags": [
+        "crypto",
+        "base64",
+        "ctf",
+        "编码"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:08:33+00:00"
+    },
+    {
+      "id": "exp-2242ebadf316",
+      "insight": "在 CTF 环境中，若任务标题或描述中出现“重攻”字样，往往意味着首次尝试因解法不完整或参数遗漏导致失败，需重新审视输入构造与解码逻辑的完整性。",
+      "context": "CTF 平台、任务重攻、失败复盘",
+      "tags": [
+        "ctf",
+        "复盘",
+        "crypto",
+        "策略"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:08:33+00:00"
+    },
+    {
+      "id": "exp-62fd5cf360e6",
+      "insight": "CTF 平台中 Flag 已解出但提交为 0 的情况，可能源于 Flag 格式不符合平台校验规则（如缺少特定前缀、大小写敏感、多余字符），而非解法错误。",
+      "context": "CTF 平台、Flag 提交、格式校验",
+      "tags": [
+        "ctf",
+        "flag",
+        "提交",
+        "校验"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:08:33+00:00"
+    },
+    {
+      "id": "exp-f9f8ee6893fd",
+      "insight": "多层编码的密文通常表现为嵌套的 Base64 或 URL 编码，解密密文时若直接解码一次得到非可读字符，应继续尝试解码直至出现明文特征。",
+      "context": "CTF 密码学挑战中多层编码的密文处理",
+      "tags": [
+        "crypto",
+        "base64",
+        "ctf",
+        "encoding"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:08:42+00:00"
+    },
+    {
+      "id": "exp-20755c13a053",
+      "insight": "当解码后的字符串包含非标准 Base64 字符或长度异常时，需考虑编码过程中可能混入了 URL 编码或自定义编码规则。",
+      "context": "CTF 密码学挑战中多层编码的密文处理",
+      "tags": [
+        "crypto",
+        "base64",
+        "ctf",
+        "encoding"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:08:42+00:00"
+    },
+    {
+      "id": "exp-2be914a97291",
+      "insight": "多层编码的密文在解码过程中，若中间层出现不可读字符，应检查是否使用了非标准 Base64 字符集或混合了其他编码方式。",
+      "context": "CTF 密码学挑战中多层编码的密文处理",
+      "tags": [
+        "crypto",
+        "base64",
+        "ctf",
+        "encoding"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:08:42+00:00"
+    },
+    {
+      "id": "exp-33ab96f6e50d",
+      "insight": "Base64 编码层通常作为加密逻辑的第一道屏障，需警惕其嵌套多层编码或混合编码（如 Base64+Hex）的情况，解码后若出现非标准字符或长度异常，往往暗示存在二次编码或填充陷阱。",
+      "context": "CTF 密码学挑战中常见的编码混淆场景",
+      "tags": [
+        "crypto",
+        "base64",
+        "编码",
+        "ctf"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:08:51+00:00"
+    },
+    {
+      "id": "exp-725c35a2bd3c",
+      "insight": "当解码后的明文包含可执行代码片段或特定关键词（如 flag、eval、exec）时，需立即检查是否存在命令注入或代码执行漏洞，而非仅视为普通文本。",
+      "context": "CTF 密码学挑战中解码后内容分析",
+      "tags": [
+        "crypto",
+        "注入",
+        "代码执行",
+        "ctf"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:08:51+00:00"
+    },
+    {
+      "id": "exp-8337641d90bd",
+      "insight": "若解码结果中包含 URL 编码或十六进制字符串，需进一步判断其是否为多层编码嵌套，避免直接解码导致信息丢失或误判。",
+      "context": "CTF 密码学挑战中多层编码处理",
+      "tags": [
+        "crypto",
+        "编码",
+        "多层嵌套",
+        "ctf"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:08:51+00:00"
+    },
+    {
+      "id": "exp-dba9376f90c3",
+      "insight": "在 Base64 解码过程中，若发现解码结果中包含非标准字符（如换行符、空格或特殊符号），需警惕其是否为编码陷阱或填充干扰。",
+      "context": "CTF 密码学挑战中 Base64 解码异常处理",
+      "tags": [
+        "crypto",
+        "base64",
+        "异常处理",
+        "ctf"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:08:51+00:00"
+    },
+    {
+      "id": "exp-5699b1810b82",
+      "insight": "多层编码的密文通常表现为字符串长度显著增加，且解码过程中需逐层剥离外层编码格式以还原内层内容。",
+      "context": "CTF 密码学挑战中，当密文呈现为无意义字符且长度远超预期时，应警惕多层编码嵌套的可能性。",
+      "tags": [
+        "crypto",
+        "base64",
+        "ctf",
+        "encoding"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:09:04+00:00"
+    },
+    {
+      "id": "exp-dc85049e607a",
+      "insight": "Base64 编码后的字符串通常以特定字符集（A-Z、a-z、0-9、+/=）组成，且长度多为 4 的倍数，解码失败时往往因缺少填充字符 '=' 导致。",
+      "context": "处理 Base64 编码数据时，若直接解码报错，应检查字符串末尾是否缺少填充字符 '='，并尝试手动补全后再解码。",
+      "tags": [
+        "base64",
+        "crypto",
+        "ctf",
+        "encoding"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:09:04+00:00"
+    },
+    {
+      "id": "exp-3ae5e39b6508",
+      "insight": "多层编码的密文在解码过程中，每一层解码后的结果可能仍是编码格式，需持续判断当前层是否仍为编码数据。",
+      "context": "CTF 密码学挑战中，若解码后的字符串仍符合编码特征（如 Base64 字符集），应继续尝试下一层解码。",
+      "tags": [
+        "crypto",
+        "base64",
+        "ctf",
+        "encoding"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:09:04+00:00"
+    },
+    {
+      "id": "exp-251f77d342b5",
+      "insight": "Base64 编码层数较深时，逐层解码需警惕中间层包含非标准字符或填充符导致解码中断。",
+      "context": "CTF 密码学挑战中多层编码嵌套场景",
+      "tags": [
+        "crypto",
+        "base64",
+        "编码",
+        "ctf"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:09:12+00:00"
+    },
+    {
+      "id": "exp-0af548d12aae",
+      "insight": "Flag 提取成功后若未提交至验证接口，仅凭本地提取结果无法确认挑战完成状态。",
+      "context": "CTF 挑战流程收尾阶段",
+      "tags": [
+        "ctf",
+        "流程",
+        "验证",
+        "flag"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:09:12+00:00"
+    },
+    {
+      "id": "exp-d44fd4191575",
+      "insight": "单一编码类型挑战中，若解码后内容仍含可读文本，应优先检查是否为隐藏信息而非继续解码。",
+      "context": "CTF 密码学基础层挑战",
+      "tags": [
+        "crypto",
+        "base64",
+        "编码",
+        "ctf"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:09:12+00:00"
+    },
+    {
+      "id": "exp-67a803218e66",
+      "insight": "多层编码的密文通常表现为嵌套的编码格式，逐层解码是处理此类挑战的基本思路。",
+      "context": "CTF 密码学方向，涉及多层编码的密文",
+      "tags": [
+        "crypto",
+        "ctf",
+        "base64",
+        "编码"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:09:28+00:00"
+    },
+    {
+      "id": "exp-e9038edcb906",
+      "insight": "当密文长度较短且无明显编码特征时，尝试常见的编码格式如 Base64 进行解码是有效的初步尝试。",
+      "context": "CTF 密码学方向，涉及短密文解码",
+      "tags": [
+        "crypto",
+        "ctf",
+        "base64",
+        "解码"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:09:28+00:00"
+    },
+    {
+      "id": "exp-cc71c8856a86",
+      "insight": "解码过程中若出现非法字符或解码失败，可能是编码格式错误或中间层存在特殊处理。",
+      "context": "CTF 密码学方向，涉及解码失败分析",
+      "tags": [
+        "crypto",
+        "ctf",
+        "base64",
+        "解码"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:09:28+00:00"
+    },
+    {
+      "id": "exp-bb039209bdf9",
+      "insight": "当目标明确为 CTF 平台且任务标记为 crypto 类型时，若存在 base64 编码层，通常表现为字符串长度是原始内容长度的倍数且字符集仅包含 A-Z、a-z、0-9、+/=，解码后若出现非打印字符或特定分隔符（如 flag 格式）可作为有效信号。",
+      "context": "CTF 平台中的加密/编码挑战场景，目标为 base64 编码的 flag 或密文",
+      "tags": [
+        "crypto",
+        "base64",
+        "ctf",
+        "编码"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:09:38+00:00"
+    },
+    {
+      "id": "exp-90ceaffefa72",
+      "insight": "在 base64 解码后的内容中，若发现类似 [flag值已脱敏] 或 [flag值已脱敏] 的固定前缀模式，即使后续字符被混淆或截断，该模式本身可作为识别有效 flag 的强信号，无需完整还原即可确认存在性。",
+      "context": "CTF 平台中 base64 编码的 flag 提取场景",
+      "tags": [
+        "crypto",
+        "flag",
+        "ctf",
+        "模式识别"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:09:38+00:00"
+    },
+    {
+      "id": "exp-ba40e51d4895",
+      "insight": "当 base64 字符串末尾包含非标准填充字符（如多个=号）或长度不符合 4 的倍数时，可能暗示编码过程存在截断或自定义填充规则，需结合上下文判断是否需手动补全或采用变体解码方式。",
+      "context": "CTF 平台中非标准 base64 编码的密文处理场景",
+      "tags": [
+        "crypto",
+        "base64",
+        "ctf",
+        "编码异常"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:09:38+00:00"
+    },
+    {
+      "id": "exp-195d55eea4cc",
+      "insight": "多层编码的密文通常表现为嵌套的 Base64 或其他编码格式，逐层解码是核心思路。",
+      "context": "CTF 密码学题目，涉及多层编码的密文",
+      "tags": [
+        "crypto",
+        "base64",
+        "ctf",
+        "encoding"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:12:11+00:00"
+    },
+    {
+      "id": "exp-5c1201452d9e",
+      "insight": "Base64 编码后的字符串长度通常是 4 的倍数，解码后若长度不符合预期，可能存在填充问题。",
+      "context": "CTF 密码学题目，涉及 Base64 编码",
+      "tags": [
+        "crypto",
+        "base64",
+        "ctf",
+        "encoding"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:12:11+00:00"
+    },
+    {
+      "id": "exp-b05d06e071f9",
+      "insight": "多层编码的密文在解码过程中，每一层解码后的结果可能是下一层的输入，需逐层验证。",
+      "context": "CTF 密码学题目，涉及多层编码的密文",
+      "tags": [
+        "crypto",
+        "base64",
+        "ctf",
+        "encoding"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:12:11+00:00"
+    },
+    {
+      "id": "exp-c42808502d3a",
+      "insight": "Base64 编码后的字符串通常仅包含字母、数字及特定符号（如 +、/、=），若出现其他字符则可能涉及其他编码或混合编码。",
+      "context": "加密类 CTF 题目中，判断编码类型时可依据字符集特征快速排除或确认是否为 Base64。",
+      "tags": [
+        "crypto",
+        "base64",
+        "ctf",
+        "encoding"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:14:27+00:00"
+    },
+    {
+      "id": "exp-ec9f94353a37",
+      "insight": "多层编码的密文在解码过程中，每一层解码后的内容可能本身又是某种编码格式，需结合上下文判断是否需要继续解码。",
+      "context": "加密类 CTF 题目中，解码后若发现内容仍具有编码特征（如 Base64 特征），则需继续解码直至获得明文。",
+      "tags": [
+        "crypto",
+        "base64",
+        "ctf",
+        "encoding"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:14:27+00:00"
+    },
+    {
+      "id": "exp-e91db7c880ef",
+      "insight": "Base64 编码层通常作为加密逻辑的表层伪装，若解码后内容仍为可读文本或标准格式（如 JSON、Python 字典），则表明该层仅为数据序列化而非实质加密，可直接跳过进行语义分析。",
+      "context": "CTF 密码学题目中多层编码嵌套场景",
+      "tags": [
+        "crypto",
+        "base64",
+        "ctf",
+        "编码"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:14:36+00:00"
+    },
+    {
+      "id": "exp-b08404e815a4",
+      "insight": "当题目明确标注为'probe'或'探测'类任务时，往往暗示目标系统存在信息泄露或弱验证机制，需优先关注响应头、状态码变化及异常返回内容。",
+      "context": "CTF 安全探测与信息收集场景",
+      "tags": [
+        "web",
+        "探测",
+        "信息泄露",
+        "ctf"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:14:36+00:00"
+    },
+    {
+      "id": "exp-fed8083574d0",
+      "insight": "Flag 已解出但提交失败（submitted: 0, accepted: 0）通常意味着 flag 格式不符合平台规范，需检查是否包含多余字符、大小写错误或缺少特定前缀后缀。",
+      "context": "CTF 挑战完成后的 flag 提交验证环节",
+      "tags": [
+        "ctf",
+        "flag",
+        "提交",
+        "验证"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:14:36+00:00"
+    },
+    {
+      "id": "exp-1d0f4fa9562b",
+      "insight": "多层编码的密文通常表现为嵌套的 Base64 或 Hex 结构，逐层解码时若出现非标准字符或长度突变，往往提示存在填充或编码层数判断错误。",
+      "context": "CTF 密码学挑战中多层编码场景",
+      "tags": [
+        "crypto",
+        "base64",
+        "ctf",
+        "encoding"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:17:12+00:00"
+    },
+    {
+      "id": "exp-332aabae0553",
+      "insight": "当密文长度不符合标准 Base64 编码规则（如末尾缺少填充字符）时，需考虑是否存在自定义编码逻辑或混合编码方式。",
+      "context": "CTF 密码学挑战中编码异常场景",
+      "tags": [
+        "crypto",
+        "base64",
+        "ctf",
+        "encoding"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:17:12+00:00"
+    },
+    {
+      "id": "exp-100bcc3c65df",
+      "insight": "解码过程中若出现乱码或不可读字符，应优先检查是否误判了编码层数或编码类型，而非直接尝试暴力破解。",
+      "context": "CTF 密码学挑战中解码失败场景",
+      "tags": [
+        "crypto",
+        "base64",
+        "ctf",
+        "decoding"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:17:12+00:00"
+    },
+    {
+      "id": "exp-675d9e6f90d6",
+      "insight": "当题目明确标记为 crypto 且包含 base64 特征时，需警惕多层编码嵌套或编码与编码逻辑混合的场景，单纯解码往往无法直接获取 flag。",
+      "context": "ctf 平台、加密类题目、base64 编码",
+      "tags": [
+        "crypto",
+        "base64",
+        "ctf",
+        "编码"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:17:21+00:00"
+    },
+    {
+      "id": "exp-fdea18ec88af",
+      "insight": "若题目仅涉及基础编码转换而无额外逻辑，通常意味着解题关键在于识别编码层级而非寻找特殊漏洞或后门。",
+      "context": "ctf 平台、基础编码、简单题目",
+      "tags": [
+        "crypto",
+        "base64",
+        "ctf",
+        "编码"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:17:21+00:00"
+    },
+    {
+      "id": "exp-e159f6d33c80",
+      "insight": "在加密类题目中，若 flag 提交被拒，应优先检查是否因编码格式错误导致解析失败，而非怀疑题目本身存在逻辑漏洞。",
+      "context": "ctf 平台、加密类题目、flag 提交",
+      "tags": [
+        "crypto",
+        "base64",
+        "ctf",
+        "flag"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:17:21+00:00"
+    },
+    {
+      "id": "exp-1305bfcf80bc",
+      "insight": "当目标平台明确标记为 CTF 挑战且任务状态为已完成时，若未提交 Flag 即结束，说明解题路径与 Flag 提取逻辑已闭环，无需额外验证环节。",
+      "context": "CTF 挑战场景，目标为已解出的加密或编码类题目",
+      "tags": [
+        "ctf",
+        "crypto",
+        "flag",
+        "challenge"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:17:29+00:00"
+    },
+    {
+      "id": "exp-8f88110be627",
+      "insight": "Base64 编码类题目在 CTF 中通常表现为多层嵌套或混合编码，需警惕解码后内容仍包含可执行指令或二次编码特征。",
+      "context": "CTF 挑战场景，目标为 Base64 编码类题目",
+      "tags": [
+        "ctf",
+        "crypto",
+        "base64",
+        "encoding"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:17:29+00:00"
+    },
+    {
+      "id": "exp-f9ccbf3534ec",
+      "insight": "Flag 已解出但提交数为零，表明解题过程仅完成提取，未进入验证或提交阶段，需确认是否存在自动提交机制或手动提交入口。",
+      "context": "CTF 挑战场景，目标为 Flag 提取类任务",
+      "tags": [
+        "ctf",
+        "flag",
+        "submission",
+        "verification"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:17:29+00:00"
+    },
+    {
+      "id": "exp-f3c64fd51a7d",
+      "insight": "多层编码的密文通常表现为连续嵌套的编码格式，需逐层解码直至得到可读文本或符合 flag 格式的字符串。",
+      "context": "CTF 密码学挑战中，当密文呈现为 Base64 等编码且无明显加密算法标识时，应优先考虑逐层解码策略。",
+      "tags": [
+        "crypto",
+        "base64",
+        "ctf",
+        "encoding"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:17:38+00:00"
+    },
+    {
+      "id": "exp-6e3ee74bff3b",
+      "insight": "Base64 解码后的中间结果若仍为可打印字符且长度适中，可能仍为编码层而非加密层，需继续解码。",
+      "context": "CTF 密码学挑战中，当解码结果仍为 Base64 格式或类似编码特征时，应继续解码而非尝试解密。",
+      "tags": [
+        "crypto",
+        "base64",
+        "ctf",
+        "encoding"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:17:38+00:00"
+    },
+    {
+      "id": "exp-5160adef9d6a",
+      "insight": "flag 格式通常包含特定前缀和后缀，解码后的最终结果若符合该格式，可确认为正确解。",
+      "context": "CTF 密码学挑战中，当解码结果符合 flag 格式时，可确认为正确解。",
+      "tags": [
+        "crypto",
+        "flag",
+        "ctf",
+        "format"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:17:38+00:00"
+    },
+    {
+      "id": "exp-07d7067033f4",
+      "insight": "当目标明确为 CTF 平台且任务状态标记为 completed 时，若 flags 统计中 submitted 与 accepted 均为 0，说明解题过程仅停留在本地提取阶段，未触发远程提交验证机制。",
+      "context": "CTF 平台挑战任务、本地解题验证、提交流程缺失",
+      "tags": [
+        "ctf",
+        "crypto",
+        "flag",
+        "submission"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:17:47+00:00"
+    },
+    {
+      "id": "exp-9d952ead84e5",
+      "insight": "在 CTF 挑战中，若计划列表仅包含单一任务且状态为 done，但 findings 总数为 0，表明当前阶段仅完成基础探测或解密，尚未进入后续利用或验证环节。",
+      "context": "CTF 挑战流程、任务状态监控、阶段性成果评估",
+      "tags": [
+        "ctf",
+        "workflow",
+        "crypto",
+        "analysis"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:17:47+00:00"
+    },
+    {
+      "id": "exp-0340fc8eab2f",
+      "insight": "当任务记录数大于 0 但 findings 总数为 0 时，提示当前任务可能仅完成初步分析，未生成可复用的中间产物或有效线索。",
+      "context": "CTF 任务执行、中间产物生成、线索提取",
+      "tags": [
+        "ctf",
+        "analysis",
+        "intermediate",
+        "clues"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:17:47+00:00"
+    },
+    {
+      "id": "exp-7376b18b769f",
+      "insight": "多层编码的密文通常表现为嵌套的 Base64 或 URL 编码，逐层解码时需验证每层输出是否为合法编码格式，非法字符或长度异常往往暗示中间层被篡改或存在填充陷阱。",
+      "context": "CTF 密码学挑战、多层编码密文分析",
+      "tags": [
+        "crypto",
+        "base64",
+        "ctf",
+        "encoding"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:17:56+00:00"
+    },
+    {
+      "id": "exp-1a84db06ec7b",
+      "insight": "解码过程中若出现非标准 Base64 字符（如 '+'、'/' 被替换为 '-'、'_'）或填充字符数量异常，需警惕编码变体或自定义填充规则，直接按标准解码可能失败。",
+      "context": "非标准 Base64 编码、编码变体识别",
+      "tags": [
+        "base64",
+        "crypto",
+        "encoding",
+        "ctf"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:17:56+00:00"
+    },
+    {
+      "id": "exp-8c078a250ad7",
+      "insight": "密文长度与解码后明文长度的比例关系可辅助判断编码层数，例如 Base64 每层约增加 33% 长度，多层嵌套时总长度增长显著，可作为初步分层依据。",
+      "context": "多层编码密文长度分析、编码层数推断",
+      "tags": [
+        "crypto",
+        "base64",
+        "length",
+        "ctf"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:17:56+00:00"
+    },
+    {
+      "id": "exp-9387ff43034d",
+      "insight": "Base64 编码层通常作为多层混淆的第一层，需警惕解码后内容仍包含可执行逻辑或二次编码结构",
+      "context": "CTF 密码学挑战中涉及 Base64 解码的场景",
+      "tags": [
+        "crypto",
+        "base64",
+        "ctf",
+        "编码"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:18:05+00:00"
+    },
+    {
+      "id": "exp-abe827fe605f",
+      "insight": "当解码后的内容呈现为可执行脚本或包含特定函数调用时，需结合上下文判断是否存在逻辑漏洞或执行权限",
+      "context": "CTF 密码学挑战中解码后内容可执行的场景",
+      "tags": [
+        "crypto",
+        "logic",
+        "ctf",
+        "执行"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:18:05+00:00"
+    },
+    {
+      "id": "exp-ab0c60c38501",
+      "insight": "多层编码嵌套时，中间层的解码结果可能直接暴露关键信息，无需完全解码至最终层",
+      "context": "CTF 密码学挑战中多层编码嵌套的场景",
+      "tags": [
+        "crypto",
+        "nested",
+        "ctf",
+        "信息"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:18:05+00:00"
+    },
+    {
+      "id": "exp-134f82c0c952",
+      "insight": "Base64 解码后的内容若包含特定关键词或模式，可能暗示后续处理方向或隐藏信息",
+      "context": "CTF 密码学挑战中 Base64 解码后内容含关键词的场景",
+      "tags": [
+        "crypto",
+        "keyword",
+        "ctf",
+        "模式"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:18:05+00:00"
+    },
+    {
+      "id": "exp-df0fad7d1b1e",
+      "insight": "解码后的内容若为可执行代码或脚本，需警惕是否存在逻辑漏洞或执行权限",
+      "context": "CTF 密码学挑战中解码后内容可执行的场景",
+      "tags": [
+        "crypto",
+        "logic",
+        "ctf",
+        "执行"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:18:05+00:00"
+    },
+    {
+      "id": "exp-eb84f7aa433f",
+      "insight": "多层编码的密文通常存在编码顺序依赖，需从最外层编码格式入手逐层剥离，直至还原明文。",
+      "context": "CTF 密码学挑战中多层编码（如 Base64 嵌套）场景",
+      "tags": [
+        "crypto",
+        "base64",
+        "ctf",
+        "encoding"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:18:14+00:00"
+    },
+    {
+      "id": "exp-abd9f40002d9",
+      "insight": "Base64 编码后的字符串长度通常是 4 的倍数，若末尾字符缺失或长度不符，可能提示存在截断或需补全。",
+      "context": "处理 Base64 编码字符串时的格式校验场景",
+      "tags": [
+        "base64",
+        "crypto",
+        "ctf",
+        "format"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:18:14+00:00"
+    },
+    {
+      "id": "exp-2b38fc267214",
+      "insight": "解码后的中间层若仍为可编码格式（如 Base64），应继续解码而非直接视为明文，避免过早终止分析。",
+      "context": "多层编码解密过程中的中间状态判断场景",
+      "tags": [
+        "crypto",
+        "decoding",
+        "ctf",
+        "layered"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:18:14+00:00"
+    },
+    {
+      "id": "exp-4c62da78d6cb",
+      "insight": "当目标明确为 CTF 挑战且任务标记为 crypto 类型时，若输入数据呈现 Base64 编码特征，通常意味着后续解密环节需关注编码格式本身是否包含隐藏信息或需进行二次编码转换。",
+      "context": "CTF 竞赛中的密码学挑战场景，特别是涉及编码与解码的初级题目。",
+      "tags": [
+        "crypto",
+        "base64",
+        "ctf",
+        "编码"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:18:24+00:00"
+    },
+    {
+      "id": "exp-559ded91b1b2",
+      "insight": "在 CTF 挑战中，若任务状态显示为已完成且 Flag 已解出，说明当前解题路径有效，但需注意不同 CTF 平台对 Flag 格式的要求可能存在差异，需确认是否需去除特定前缀或后缀。",
+      "context": "CTF 竞赛中的 Flag 提交与验证环节。",
+      "tags": [
+        "ctf",
+        "flag",
+        "提交",
+        "验证"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:18:24+00:00"
+    },
+    {
+      "id": "exp-952b59cc9208",
+      "insight": "在 CTF 挑战中，若任务计划仅包含单一任务且状态为 done，通常意味着该任务为独立模块，无需依赖其他任务结果，但需注意任务之间可能存在隐含的依赖关系或数据传递。",
+      "context": "CTF 竞赛中的任务规划与执行环节。",
+      "tags": [
+        "ctf",
+        "任务",
+        "规划",
+        "执行"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-12T19:18:24+00:00"
+    },
+    {
+      "id": "exp-f5dfdde21e5d",
+      "insight": "在 CTF 杂项（MISC）挑战中，若目标为二维码/条形码类（adv-barcode），需警惕 LLM 调用失败导致的回合中断，此类中断不影响最终挑战完成状态，但会消耗额外回合数。",
+      "context": "CTF 平台、MISC 类型挑战、LLM 辅助决策场景",
+      "tags": [
+        "ctf",
+        "misc",
+        "llm",
+        "replay"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-13T00:07:22+00:00"
+    },
+    {
+      "id": "exp-1d28564b77bf",
+      "insight": "当挑战标记为 done 但 flags.extracted 为 0 时，需结合黑板态势判断是否因重攻节点覆盖导致提取信号被掩盖，而非实际未提取。",
+      "context": "CTF 挑战完成状态、flags 提取统计、重攻节点覆盖",
+      "tags": [
+        "ctf",
+        "flag",
+        "status",
+        "replay"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-13T00:07:22+00:00"
+    },
+    {
+      "id": "exp-47c1676ada7d",
+      "insight": "在 CTF 挑战中，即使 LLM 调用失败导致回合终止，只要所有重攻节点标记为 done，仍可视为挑战完成，无需强制重试或回滚。",
+      "context": "CTF 挑战流程、LLM 调用失败、重攻节点状态",
+      "tags": [
+        "ctf",
+        "llm",
+        "replay",
+        "completion"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-13T00:07:22+00:00"
+    },
+    {
+      "id": "exp-c309ed53e1a1",
+      "insight": "CTF 挑战状态标记为 done 但 flags 提取统计为 0 时，需结合黑板态势判断是否因重攻节点覆盖导致数据丢失。",
+      "context": "CTF 挑战完成但无有效 flag 提取",
+      "tags": [
+        "ctf",
+        "misc",
+        "状态判读",
+        "数据丢失"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-13T00:12:16+00:00"
+    },
+    {
+      "id": "exp-8b668677930a",
+      "insight": "多次重攻同一挑战节点可能导致中间提取数据被覆盖，需关注黑板中 flags 统计与任务实际完成状态的差异。",
+      "context": "CTF 重攻场景下的数据覆盖风险",
+      "tags": [
+        "ctf",
+        "重攻",
+        "数据覆盖",
+        "状态判读"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-13T00:12:16+00:00"
+    },
+    {
+      "id": "exp-13d4a14d2eaf",
+      "insight": "挑战完成状态与 flag 提取统计不一致时，应优先核查黑板态势中是否存在节点覆写或数据重置信号。",
+      "context": "CTF 挑战完成但无 flag 提取",
+      "tags": [
+        "ctf",
+        "状态判读",
+        "黑板态势",
+        "数据一致性"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-13T00:12:16+00:00"
     }
   ]
 }

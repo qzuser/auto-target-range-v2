@@ -429,12 +429,16 @@ async def file_analyze(
     allowed_dirs: list[str] | None = None,
     max_strings: int = 80,
     max_read_bytes: int = 4 * 1024 * 1024,
+    text_excerpt_chars: int = 0,
     **_: Any,
 ) -> ToolResult:
     """本地文件分析（CTF 附件：魔数识别 + 可打印字符串提取，4.4.5）。
 
     安全边界：仅允许读取 allowed_dirs 内的文件（默认工作区 attachments），
     不触网、不执行文件内容。
+
+    文本类文件（源码/配置/脚本）额外给一段正文节选：解题要看的就是源码本身，
+    只给 magic 和零散字符串等于让模型自己去猜——它拿不到正文就只能瞎试。
     """
     started = time.perf_counter()
     p = Path(path).resolve()
@@ -452,6 +456,7 @@ async def file_analyze(
                   if data.startswith(sig)), "unknown")
     strings = [m.group(0).decode("ascii", errors="replace")
                for m in _PRINTABLE_RUN.finditer(data)][:max_strings]
+    excerpt, text_like = _text_excerpt(data, text_excerpt_chars)
     return ToolResult(
         tool="file_analyze", ok=True, returncode=0,
         stdout="\n".join(strings),
@@ -459,10 +464,43 @@ async def file_analyze(
             "path": str(p), "size": p.stat().st_size, "magic": magic,
             "strings": strings,
             "is_elf": magic == "elf",
+            "text_like": text_like,
+            "text_excerpt": excerpt,
+            "line_count": (data.count(b"\n") + (0 if data.endswith(b"\n") else 1))
+            if text_like else None,
             "elf_class": {1: "32bit", 2: "64bit"}.get(data[4]) if magic == "elf" and len(data) > 5 else None,
         },
         duration_ms=(time.perf_counter() - started) * 1000,
     )
+
+
+def _text_excerpt(data: bytes, want_chars: int, *, default_chars: int = 8000,
+                  max_bytes: int = 1024 * 1024) -> tuple[str, bool]:
+    """文本类文件给正文节选；二进制返回空串。
+
+    判据：没有 NUL 字节、控制字符占比极低，且要么是合法 UTF-8（中文源码也算），
+    要么 ASCII 可打印率够高。二进制样本过不了这道门，不会把乱码灌进上下文。
+    """
+    if not data or len(data) > max_bytes or b"\x00" in data:
+        return "", False
+    sample = data[: default_chars * 4]
+    control = sum(1 for byte in sample
+                  if byte < 9 or 13 < byte < 32 or byte == 127)
+    if control > len(sample) * 0.02:
+        return "", False
+    try:
+        sample.decode("utf-8")
+    except UnicodeDecodeError:
+        printable = sum(1 for byte in sample if 32 <= byte <= 126 or byte in (9, 10, 13))
+        if printable < len(sample) * 0.95:
+            return "", False
+    limit = want_chars or default_chars
+    text = data[: limit * 4].decode("utf-8", errors="replace")
+    if len(text) > limit:
+        cut = text[:limit]
+        # 尽量在整行处断开，不留半行
+        text = cut.rsplit("\n", 1)[0] + "\n…（此处截断）" if "\n" in cut else cut
+    return text, True
 
 
 # ---------------------------------------------------------------- 注册表

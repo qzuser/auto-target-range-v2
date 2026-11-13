@@ -24,6 +24,44 @@ def estimate_input_tokens(messages: list[dict[str, Any]],
     return math.ceil(ascii_chars / 3 + non_ascii_bytes / 2) + len(messages) * 8 + 32
 
 
+OUTPUT_FLOOR_TOKENS = 512
+"""输出上限的保底值。
+
+128 只够写一两句话：本机实测模型想写一段 base64 表生成脚本时，输出被顶在
+128 token，每次都在 `for ...:` 的缩进块开头断掉，落成 IndentationError，
+模型据此判断「算法写错了」，回头重读源码——一整轮就这么耗掉了。工具调用
+本身（含 arguments）通常就要 200~600 token，512 才是一个可用的下限。
+"""
+
+# 估算偏低的兜底比例：离线估算（ASCII 三字符一 token、中文按字节的一半）对
+# 中文工具调用和代码块会少算 10%~15%，本机实测「估 8.1k、真 8.57k」直接把
+# 请求撞成 400。留两成余量比反复失败划算——实测只超 41 token 就把整条路线报废。
+TOKEN_SAFETY_RATIO = 0.18
+TOKEN_SAFETY_MIN = 512
+"""估算余量的绝对下限：小窗口里一成不够，至少留这么多。"""
+
+
+def clamp_output_tokens(messages: list[dict[str, Any]],
+                        tools: list[dict[str, Any]] | None,
+                        context_window: int,
+                        want: int | None) -> int | None:
+    """把输出上限收进模型窗口：窗口 − 估算输入 − 余量。
+
+    小窗口模型（本地部署 4k/8k 很常见）一旦「输入 + 输出」超过窗口，端点直接
+    400（litellm.ContextWindowExceededError），上层只看到「主备均不可用」，
+    排查时完全看不出是额度撞墙。这里按估算输入把输出余量收到窗口内：宁可少写
+    一点，也要让这一次调用能返回可解析的正文。want 为空或窗口未知时原样返回。
+    """
+    if want is None or context_window <= 0:
+        return want
+    used = estimate_input_tokens(messages, tools)
+    safety = max(TOKEN_SAFETY_MIN, int(used * TOKEN_SAFETY_RATIO))
+    room = context_window - used - safety - OUTPUT_FLOOR_TOKENS
+    if room <= OUTPUT_FLOOR_TOKENS:
+        return OUTPUT_FLOOR_TOKENS
+    return min(want, room)
+
+
 def input_window_budget(context_window: int, reserved_output: int = 0) -> int | None:
     """按声明容量留出输出和整理空间；未知容量不伪装成某模型的真实窗口。"""
     if context_window <= 0:
@@ -216,6 +254,15 @@ def compact_history(messages: list[dict[str, Any]], max_chars: int = 48000) -> N
         message["content"] = content[:400] + "\n[早期观察已节选；需要细节时查对应执行记录]\n" + content[-250:]
 
 
+_COMPACTION_PASSES = ((400, 250, 800), (120, 80, 200), (60, 0, 0))
+"""整理强度阶梯：(保留头部, 保留尾部, 只处理多长的正文)。
+
+一轮温和节选常常压不进小窗口：工具声明、系统契约和几十条短观察加起来仍会超。
+本机实测 16k 窗口跑到第 44 回合时，第一遍节选后输入依然超过窗口，请求直接 400，
+整条路线以「主备均不可用」收尾。逐级加强才压得下来。
+"""
+
+
 def compact_history_tokens(messages: list[dict[str, Any]], max_tokens: int, *,
                            tools: list[dict[str, Any]] | None = None) -> bool:
     """真正有窗口压力才整理旧观察，工具声明/参数/思考也计入输入。
@@ -227,22 +274,74 @@ def compact_history_tokens(messages: list[dict[str, Any]], max_tokens: int, *,
         return False
     # 高水位触发后整理到低水位，避免每新增一条结果就再次破坏缓存前缀。
     target_tokens = max(1, int(max_tokens * 0.6))
-    last_assistant = next((i for i in range(len(messages) - 1, -1, -1)
-                           if messages[i].get("role") == "assistant"), len(messages))
     changed = False
-    for index, message in enumerate(messages):
-        if index < 2 or index >= last_assistant or message.get("_context_contract"):
-            continue
-        content = message.get("content")
-        if (message.get("role") not in {"assistant", "tool"}
-                or not isinstance(content, str) or len(content) <= 800):
-            continue
-        message["content"] = (content[:400]
-                              + "\n[早期观察已节选；完整内容见执行记录]\n" + content[-250:])
-        changed = True
+    for pass_index, (head, tail, minimum) in enumerate(_COMPACTION_PASSES):
+        last_assistant = next((i for i in range(len(messages) - 1, -1, -1)
+                               if messages[i].get("role") == "assistant"), len(messages))
+        for index, message in enumerate(messages):
+            if estimate_input_tokens(messages, tools) <= target_tokens:
+                break
+            if index < 2 or index >= last_assistant or message.get("_context_contract"):
+                continue
+            if pass_index == len(_COMPACTION_PASSES) - 1 and message.get("tool_calls"):
+                # 最后一档连旧工具参数一起折叠：观察正文已经截断，保留完整参数
+                # 只是占着上下文；工具调用本身与配对关系照旧。
+                for call in message["tool_calls"]:
+                    function = call.get("function")
+                    if isinstance(function, dict) and function.get("arguments") not in (None, "{}"):
+                        function["arguments"] = "{}"
+                        changed = True
+                message["content"] = "[早期工具参数已折叠]\n" + str(message.get("content") or "")
+                continue
+            content = message.get("content")
+            if (message.get("role") not in {"assistant", "tool"}
+                    or not isinstance(content, str) or len(content) <= minimum):
+                continue
+            marker = "\n[早期观察已节选；完整内容见执行记录]\n"
+            message["content"] = content[:head] + (marker + content[-tail:] if tail
+                                                  else marker.rstrip("\n"))
+            changed = True
         if estimate_input_tokens(messages, tools) <= target_tokens:
             break
     return changed
+
+
+def shrink_history_to_window(messages: list[dict[str, Any]], context_window: int, *,
+                             tools: list[dict[str, Any]] | None = None,
+                             reserve: int | None = None) -> int:
+    """节选压不进窗口时，整组丢掉最旧的工具往返（成对删，不留孤儿 tool 消息）。
+
+    返回丢弃的消息条数。只在小窗口模型上才会走到：16k 窗口跑到第 44 回合，
+    输入估算仍超过窗口，端点直接 400，整条路线以「主备均不可用」收尾——与其
+    让整轮对话报废，不如丢掉最早的几组观察，保住最近的现场与全部指令。
+    """
+    if context_window <= 0:
+        return 0
+    # 预留量不能超过窗口一半：档案里 max_output_tokens 可能比窗口还大（128K 输出
+    # 配 100K 窗口），直接拿它当预留会把 limit 算成负数，历史被削光。
+    head_room = min(max(OUTPUT_FLOOR_TOKENS, reserve if reserve is not None else 0),
+                    max(OUTPUT_FLOOR_TOKENS, context_window // 2))
+    # 继续留一点估算余量：离线估算对中文与代码会少算。
+    limit = int((context_window - head_room) * (1 - TOKEN_SAFETY_RATIO))
+    dropped = 0
+    # 至少保留开头两条（系统契约 + 首条现场）和最后四条（最近的往返）
+    keep_head, keep_tail = 2, 4
+    while estimate_input_tokens(messages, tools) > limit and len(messages) > keep_head + keep_tail:
+        index = keep_head
+        message = messages[index]
+        span = 1
+        # assistant 带工具调用时，把紧随其后的 tool 结果一起删掉，保持配对完整
+        if message.get("role") == "assistant" and message.get("tool_calls"):
+            while (index + span < len(messages) and len(messages) - (index + span) > keep_tail
+                   and messages[index + span].get("role") == "tool"):
+                span += 1
+        elif message.get("role") == "tool":
+            # 孤儿 tool 消息不能单独留：往前找它的 assistant
+            index = max(keep_head, index - 1)
+            span = 2
+        del messages[index:index + span]
+        dropped += span
+    return dropped
 
 
 def decision_messages(system: str, payload: dict[str, Any], max_chars: int = 8000) -> list[dict[str, Any]]:

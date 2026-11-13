@@ -196,7 +196,7 @@ class PageChromeTests(unittest.TestCase):
 
     def test_asset_version_is_bumped(self) -> None:
         html = read(STATIC / "index.html")
-        self.assertIn("polish.css?v=20261111-mobile", html)
+        self.assertIn("polish.css?v=20261112-pageless", html)
 
 
 if __name__ == "__main__":

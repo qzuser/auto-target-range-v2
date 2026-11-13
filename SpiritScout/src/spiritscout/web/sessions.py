@@ -161,7 +161,7 @@ async def _llm_route_mode(cfg: SystemConfig, models: list[ModelEntry],
              }, ensure_ascii=False)}],
             task_type="classification", response_format="json",
             reasoning_effort="low", model=_bound_model(cfg, models),
-            timeout_seconds=min(45, cfg.gateway.request_timeout_seconds))
+            timeout_seconds=_small_call_timeout(cfg), max_tokens=256)
     except Exception as exc:
         audit.log("system.lifecycle", "mode_router", {
             "action": "model_preflight_failed", "error": str(exc)[:300]})
@@ -280,7 +280,7 @@ async def _llm_route_intent(cfg: SystemConfig, models: list[ModelEntry],
                          "content": str(e.get("content"))[:1000]}
                         for e in (history or [])[-8:]],
     }, ensure_ascii=False)
-    timeout = min(45, cfg.gateway.request_timeout_seconds)
+    timeout = _small_call_timeout(cfg)
     resp = await gateway.chat([
         {"role": "system", "content": (
             "用户已选定任务模式，你只判断本条消息的意图，只输出 JSON。"
@@ -324,6 +324,33 @@ def _routed_competition_rules_yaml(contest_type: str, mission: str) -> str:
     return yaml.safe_dump(data, allow_unicode=True, sort_keys=False)
 
 
+def _small_call_timeout(cfg: SystemConfig) -> int:
+    """小调用（模式路由 / 意图 / 平台抽取 / 命名 / 追问句）的单次超时上限。
+
+    以前这些地方写死 30/45/60/90 秒，是按云端快模型的手感定的。接本地模型
+    （十几 B 的量化模型，一次分类也要几十上百秒）时，每一次小调用都被这个
+    硬顶掐死，会话停在第 0 步反复重试——看起来像「智能体坏了」，其实是秒数
+    拍得太小。现在统一跟 `gateway.request_timeout_seconds` 走（默认 300，
+    可配到分钟级），耗时靠调用方的 `max_tokens` 收，而不是靠一个凭感觉定的秒数。
+    """
+    try:
+        value = int(cfg.gateway.request_timeout_seconds or 300)
+    except (TypeError, ValueError):
+        value = 300
+    return max(30, value)
+
+
+# 平台 API 文档的特征词：命中才值得花一次模型调用去「机械转录平台档案」。
+_PLATFORM_DOC_HINTS = ("http://", "https://", "接口", "api", "endpoint", "bearer",
+                       "token", "headers", "提交", "判题", "限额", "并发", "platform")
+
+
+def _mentions_platform_doc(mission: str) -> bool:
+    """任务文本像不像在贴平台使用说明 / API 文档（决定要不要问模型）。"""
+    text = (mission or "").lower()
+    return any(hint in text for hint in _PLATFORM_DOC_HINTS)
+
+
 async def _llm_extract_platform(cfg: SystemConfig, models: list[ModelEntry],
                                 mission: str, audit: AuditLogger
                                 ) -> dict[str, Any] | None:
@@ -337,6 +364,13 @@ async def _llm_extract_platform(cfg: SystemConfig, models: list[ModelEntry],
     from spiritscout.ctf.platform import parse_platform_profile
     from spiritscout.gateway.backends import extract_json
 
+    if not _mentions_platform_doc(mission):
+        # 普通题目描述 / 附件题 / 单站授权测试：让模型判「这不是平台文档」要花
+        # 几十秒（本地模型更久），而这层判据用关键词就能定，直接跳过。
+        audit.log("decision.change", "platform_extractor", {
+            "action": "platform_extract_skipped",
+            "rationale": "任务文本里没有平台 API 文档特征（URL/接口/提交约定/限额）"})
+        return None
     gateway = _conversation_gateway(cfg, models, audit)
     try:
         resp = await gateway.chat(
@@ -387,7 +421,7 @@ async def _llm_extract_platform(cfg: SystemConfig, models: list[ModelEntry],
              }, ensure_ascii=False)}],
             task_type="classification", response_format="json",
             reasoning_effort="low", model=_bound_model(cfg, models),
-            timeout_seconds=min(90, cfg.gateway.request_timeout_seconds))
+            timeout_seconds=_small_call_timeout(cfg), max_tokens=1024)
     except Exception as exc:  # noqa: BLE001 —— 抽取失败不阻断开工
         audit.log("system.lifecycle", "platform_extractor", {
             "action": "platform_extract_failed", "error": str(exc)[:200]})
@@ -481,7 +515,7 @@ async def _llm_name(cfg: SystemConfig, models: list[ModelEntry], audit: AuditLog
                 task_type="classification", response_format="json",
                 reasoning_effort="low", model=candidate,
                 max_tokens=_NAMING_MAX_TOKENS,
-                timeout_seconds=min(30, cfg.gateway.request_timeout_seconds))
+                timeout_seconds=_small_call_timeout(cfg))
             if output_lost(resp):
                 # 思考型模型可能把输出额度全耗在思考上、正文为空或被端点
                 # 掐断：加大余量对同一候选原样重试一次（与决策通道
@@ -497,7 +531,7 @@ async def _llm_name(cfg: SystemConfig, models: list[ModelEntry], audit: AuditLog
                     task_type="classification", response_format="json",
                     reasoning_effort="low", model=candidate,
                     max_tokens=_NAMING_MAX_TOKENS * 4,
-                    timeout_seconds=min(30, cfg.gateway.request_timeout_seconds))
+                    timeout_seconds=_small_call_timeout(cfg))
         except Exception as exc:  # noqa: BLE001 —— 该模型调不动：换链上用户排的下一个
             audit.log("session.naming", "namer", {
                 "action": "model_unavailable", "mode": mode,
@@ -600,7 +634,7 @@ async def _master_reply(cfg: SystemConfig, models: list[ModelEntry],
             messages,
             task_type="meta_planning", max_tokens=1024,
             model=str(model or "").strip() or _bound_model(cfg, models),
-            timeout_seconds=min(60, cfg.gateway.request_timeout_seconds))
+            timeout_seconds=_small_call_timeout(cfg))
         text = (resp.content or "").strip()
         if text:
             return text[:2500]
@@ -650,7 +684,7 @@ async def _llm_scope_question(cfg: SystemConfig, models: list[ModelEntry],
              }, ensure_ascii=False)}],
             task_type="meta_planning", response_format="json",
             reasoning_effort="low", model=_bound_model(cfg, models),
-            timeout_seconds=min(45, cfg.gateway.request_timeout_seconds))
+            timeout_seconds=_small_call_timeout(cfg), max_tokens=512)
     except Exception as exc:  # noqa: BLE001 —— 问句失败走兜底，不阻断
         audit.log("master.scope_question_failed", "master",
                   {"error": str(exc)[:200]})

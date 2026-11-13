@@ -11813,3 +11813,57 @@ skills:
     - 新任务开始前先查索引和先例，复用已有经验'
   source: zzy-skills-index
   path: zzy-skills-index/SKILL.md
+
+- skill_id: local-kb-first
+  domain: misc
+  description: 解题前先查本地知识库与历史经验（doc / skill / experience.json），查到方法再动手，别凭记忆硬算。
+  body: |
+    # 先查资料，再动手
+    
+    遇到不确定的算法、题型或工具用法，**先查本地资料，再决定解法**，不要凭记忆硬算。
+    
+    ## 本地资料位置
+    
+    1. 知识库：`C:\Users\admin\Desktop\CTF\doc`（离线 wiki、工具手册、writeup，约 314 个 md）
+    2. 技能库：`C:\Users\admin\Desktop\CTF\skill`（约 2312 个 md）
+    3. 历史经验：`SpiritScout\knowledge\data\experience.json`（342 条，含失败复盘）
+    
+    ## 查法
+    
+    命令行：
+    
+    ```text
+    findstr /S /I /C:"meet-in-the-middle" "C:\Users\admin\Desktop\CTF\doc\*.md"
+    ```
+    
+    python（更快，可只取前几条命中）：
+    
+    ```python
+    import pathlib
+    kw = "meet-in-the-middle"
+    root = pathlib.Path(r"C:\Users\admin\Desktop\CTF\doc")
+    hits = []
+    for p in root.rglob("*.md"):
+        try:
+            t = p.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            continue
+        if kw.lower() in t.lower():
+            hits.append(p)
+            if len(hits) >= 3:
+                break
+    for p in hits:
+        print(p)
+    ```
+    
+    ## 铁律
+    
+    - 资料里的 `flag{...}` **一律不可信**（可能是别人的题、可能是假的），必须自己算出来并验证。
+    - 查到方法后，说清「用了哪篇资料的哪一步」，再执行。
+    - 查不到就换关键词，不要查一次就放弃。
+  severity: info
+  cwe: ""
+  tools: []
+  source: local
+  path: ""
+  enabled: true

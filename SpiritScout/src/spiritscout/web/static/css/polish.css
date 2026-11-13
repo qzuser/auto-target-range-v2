@@ -208,7 +208,6 @@ label { color: var(--ink-2); font-size: 12px; font-weight: 500; }
 .card,
 .set-card,
 .home-mode-card,
-.resource-page,
 .session-rail,
 .archive,
 .agent-workbench,
@@ -218,6 +217,9 @@ label { color: var(--ink-2); font-size: 12px; font-weight: 500; }
   border-radius: var(--radius);
   box-shadow: var(--shadow);
 }
+
+/* 整页视图（项目/经验/用量/MCP/技能）不是卡片：它们本来就占满主区，
+   再套一圈边框+阴影会像被框在盒子里。里面的卡片各自有边框，够了。 */
 
 .card:hover,
 .home-mode-card:hover { border-color: var(--line-strong); }

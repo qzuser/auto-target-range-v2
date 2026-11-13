@@ -1,7 +1,171 @@
 # 更新日志
 
-项目采用 `主版本.次版本.修订号`。当前版本为 **0.47.7**，版本唯一来源是
+项目采用 `主版本.次版本.修订号`。当前版本为 **0.48.2**，版本唯一来源是
 `src/spiritscout/__init__.py`；包构建、命令行、控制台及 MCP 握手共用该值。
+
+## [0.48.2] - 2026-11-12
+
+- **报错要点前置**：Qwen-7B 在 `IndexError` 后反复重发同一条命令、不改代码，
+  烧掉 42 万 token 的直接原因找到了——完整 stderr 三千字符，报错类型和出错行
+  埋在中间，7B 模型抓不住重点。新增 `_stderr_digest`：从 traceback 提炼
+  「报错要点：IndexError: ... ← 第 17 行：源码」放在回灌文本最前面，
+  完整 traceback 仍保留在后。覆盖链式异常（取最内层帧）与混合输出
+  （取最后一次 traceback），无 traceback 的 stderr 不动。
+- **模型清单支持动态切换**（本机实测配置）：LM Studio 加载
+  `google/gemma-4-12b-qat`（16384 窗口）进入命名链首位，
+  `qwen2.5-coder-7b-instruct` 退居备胎；LM Studio 的 Qwen3.5 模板对
+  system 位置的强校验由 0.48.1 的网关合并兜住。
+- **启动器退出即关窗**：`run-spiritscout.ps1` 里 python 退出后窗口自动关闭
+  并显示退出码——重启时旧窗口不再残留成「弹出来什么都没干」的空壳。
+
+## [0.48.1] - 2026-11-12
+
+- **第二条 system 在 LM Studio 上全炸**：CTF 求解器把常驻材料块作为第二条
+  system 消息插进消息列表，Qwen3.5 聊天模板（LM Studio 强制）只允许 system
+  出现在开头，直接抛
+  「System message must be at the beginning」——llama-server 对此宽容所以
+  qwen 能跑，换 LM Studio 跑 bonsai 后 16 连败。网关层新增
+  `_merge_stray_system_messages`：发请求前把所有非首位的 system 并进第一条
+  （材料一条不少，只是并进主 system 文本末尾），对所有供应商生效。
+- **停会话后后台提炼炸审计**：会话被停或删除后，经验提炼才收尾，写
+  `experience.distill` 审计时目标目录已经不在，`FileNotFoundError` 从后台
+  任务里冒出来，事件循环报成 `Task exception was never retrieved`，控制台看着
+  像服务出错。`_background_distill` 现在兜住异常（`CancelledError` 仍上抛），
+  把失败写回提炼快照并留一行 warning——文档里写着「只吞掉不冒泡」，代码里
+  其实只有 `try/finally`，这次补上了。
+- **整页视图不再是卡片**：项目、经验、用量、MCP、技能这五页的容器被套进了
+  卡片样式（`background` + `border` + `box-shadow`），整个主区像被框在盒子里。
+  `.resource-page` 已从 `polish.css` 的卡片规则里摘出——它们本来就占满主区，
+  页内卡片各自有边框，外面那一圈是多余的。
+- **浏览器断开不再刷 traceback**：关标签页、切网络或客户端强断时，Windows
+  asyncio 会在 `_call_connection_lost` 回调里抛
+  `ConnectionResetError: [WinError 10054]`，控制台看着像服务崩了。新增
+  `platform_support.quiet_event_loop_errors()`，只对
+  `ConnectionResetError / ConnectionAbortedError / BrokenPipeError` 静默，
+  其余异常照旧走默认处理器。
+- **输出保底 128 → 512**：`OUTPUT_FLOOR_TOKENS` 原来只留 128 token，模型的多行
+  脚本每次都在 `for ...:` 的缩进块开头被切断，落成 `IndentationError`，于是它
+  判断「算法写错了」回头重读源码。工具调用连 arguments 通常就要 200~600
+  token，512 才够用。
+- **重复调用拦截时指向报错**：模型拿到 `IndexError` 之后会把同一条命令原样重发
+  十几次（看起来像死锁）。现在拦截提示会看上一次的退出码：报过错就明说「报错
+  来自代码本身，照原样重发只会得到同样的错，先把报错那行改掉」。
+- 本机实测配置同步：`context_window` 16384 → 32768、`max_output_tokens`
+  3072 → 4096，`llama-server` 用 `-c 32768`；采样改 `--temp 0.45 --top-p 0.9
+  --repeat-penalty 1.15`（原 0.2 / 0.95 / 1.05 更容易在同一个错误上反复生成
+  同样的内容）。启动脚本加 `chcp 65001` + UTF-8 输出编码，控制台不再乱码。
+
+## [0.48.0] - 2026-11-12
+
+本地小模型跑真实赛题的四个现场死因逐个封死：附件看不见、正文调用认不回、
+重复动作空转、差几十 token 撞窗口。Qwen2.5-Coder-7B（本机 llama.cpp，16k 窗口）
+从「10 个任务全部一轮收尾、一步没走」变成「读源码 → 跑脚本 → 打印中间值」。
+
+- **附件发现不再依赖赛题清单**（`ctf/agents.py::_attachments_of`）：用户直接建会话
+  拖附件时 `challenge["attachments"]` 是空的，工具于是回答「本题没有附件」，
+  模型转头反复问用户材料在哪。现在清单为空就扫 `workspace/attachments`，
+  两条来源都不存在才算没有附件。
+- **嵌套 JSON 的工具调用也能认回来**（`agents/inline_calls.py`）：原来的非贪婪
+  `\{.*?\}` 在 `arguments` 里第一个 `}` 处截断（`ask_user` 带 `options` 数组时必现），
+  解析失败 → 判成「没有工具调用」→ 路线收尾。实测 10 个任务全部这样死在同一句
+  `ask_user` 上。现在先整块取 fenced 内容再扫平衡对象，一格里多个调用也认；
+  被输出上限截断的（连 ``` 都没闭上）按括号栈补全，但停在 `command`/`code`/`flag`
+  这类内容值上就放弃——半条命令执行比不执行更糟。
+- **同一条调用不再无限重试**（`_repeat_guard`）：`cat attachments/base64.c` 连做 19 遍、
+  每次把同一份源码重新塞进上下文，压掉别的观察，下一轮更觉得没读到。现在同参数
+  第 3 次起不再执行，回灌「已经读过、换动作或给结论」。`steering_feedback` 同样
+  受管（指令 id 过期时实测连发 24 次空回执）。
+- **换措辞重问同一个问题也收敛**（`ask_user` 总次数上限）：按内容去重挡不住
+  「确认解题方向？」的 8 种写法，一条路线最多真正转交 3 次，之后自行决策并在
+  结论里写明不确定点。提示里同时说明：材料齐全时不必为确认思路提问。
+- **同一份输出不回灌第二遍**（`_dedupe_output`）：换个写法读同一份材料（`cat` 之后
+  `head -n 400`）输出逐字相同，指纹相同只留一行提示，原文仍在历史消息里。
+- **题目材料进常驻 system 消息**（`_materials_message`）：工具结果会被上下文压缩折叠，
+  而附件源码是本题常量；折叠之后模型的处境是「以为自己没读过」，于是再 `cat` 一遍，
+  读完又被折叠。现在源码类附件（按后缀白名单，二进制不读）在每回合的 system 消息里
+  常驻，并附上该文件的**循环结构清单**（行号 + 循环头）——7B 面对「已观测事实 1. 附件
+  内容」这种复述式交差时，结构清单是唯一能把它拉回算法本身的东西。材料占用先从压缩
+  预算里扣掉，否则压到刚好塞满再加材料，实测又会撞 8 次 400。
+- **没动手就交总结不算结论**（`no_execution_nudge`）：一次 shell/python 都没跑就写出
+  「已观测事实」，不是调查结束。推回执行（带工具调用格式样例），最多 4 次后按无结论
+  收尾。实测这是本地模型最顽固的一种交差方式：材料一进上下文就写报告。
+- **估算余量收紧到 18%**（`gateway/context.py`）：服务端 tokenizer 对中文和代码比离线
+  估算多算约 13%。本机实测「请求 16425 token、窗口 16384」——只超 41 个就把整条
+  路线判成「模型调用全链失败」。余量 12% → 18%，下限 256 → 512。
+- 新增测试：`tests/test_ctf_attachment_discovery.py`、`tests/test_ctf_repeat_guard.py`；
+  `tests/test_inline_tool_calls.py` 补嵌套/多调用/截断修复四例，
+  `tests/test_gateway_output_clamp.py` 补「低估 13% 仍不超窗」一例。
+
+## [0.47.9] - 2026-11-12
+
+让没经过函数调用微调的本地模型也能真正解题：工具调用接得住、附件读得到、
+上下文不再撞墙。用 Qwen2.5-Coder-7B（本机 llama.cpp，16k 窗口）实测做出
+西湖论剑 2021 IoT 逆向题（自定义字母表 base64），flag 由脚本自己算出。
+
+- **正文里的工具调用照常执行**（`agents/inline_calls.py`）：本地模型常把
+  `{"name": ..., "arguments": {...}}` 当正文写出来（```json / `<tool_call>` / 裸 JSON）。
+  按协议解析只会得到「这一轮没有工具调用」，于是整条路线被判定为调查结束——
+  实测 8 条路线全部死在第 1 回合、一步没走。现在从正文里认回这类片段并当真正
+  的工具调用执行（认不准就不认：必须有 name 字段）。
+- **沙箱路径按 host shell 改写**（`tools/sandbox.py`）：Git Bash 是 MSYS，`C:\x`
+  与 `/C:/x` 都不认，只有 `/c/x` 才算路径。模型看到的 Windows 路径写进命令后
+  一律 No such file；实测一条路线 57 条 shell 调用全栽在这上面。执行前统一改写，
+  Python 侧反过来把 `/c/...` 还原成 `C:/...`；执行结果里同时给出两种写法。
+- **附件在工作目录里直达**：`sandbox/<题>` 下加 `attachments/` 入口（软链，失败退
+  目录联接），`cat attachments/xxx.c` 直接可用；每条执行结果都写明附件真实位置。
+- **文本附件的正文直接给模型**（`tools/builtin.py`）：源码/配置/脚本类附件不再只给
+  magic 和零散字符串，而是附带正文节选（默认 8000 字符、按整行截断）。解题材料
+  就是源码本身，只给字符串样本等于让模型凭空猜算法。
+- **长跑不再撞 16k 窗口**（`gateway/context.py`）：历史整理从「一遍温和节选」改成
+  三档递进（400/250 → 120/80 → 60/0，最后连旧工具参数一起折叠），仍压不进窗口时
+  整组丢弃最旧的工具往返（成对删，不留孤儿 tool 消息），并记 `model.history_trimmed`。
+  实测第 44 回合仍会 `ContextWindowExceededError` 把整条路线报废。
+- **CTF/竞赛模式可省略 `action`**：这两个模式所有工具操作本来就预授权，漏报行为类别
+  不该让执行整条卡死——缺省按 analysis 执行并在结果里标明；SRC 模式仍然强制要求
+  （那里 action 是审批链的输入）。
+- **解题提示补上逆向方法论**：把关键算法逐行翻成脚本、先单独跑「生成常量/查表」那
+  一段并打印核对、空步进循环（`for (i = 0; i < 20;)`）必须用 while、源码函数是加密
+  方向所以解密要做逆运算。小模型一次写「翻译 + 求解」必错，分段就对了。
+- 新增测试：`tests/test_inline_tool_calls.py`、`tests/test_sandbox_path_normalization.py`、
+  `tests/test_file_analyze_text.py`、`tests/test_context_window_trim.py`、
+  `tests/test_ctf_ask_user_dedupe.py`。
+
+## [0.47.8] - 2026-11-12
+
+模型端点挂掉时不再「装作还在干活」：会话会明确失败，而不是无限空转堆任务。
+
+- **修第 2 回合必挂的 `UnboundLocalError`**：决策通道带 `preserve_context=True` 时会跳过
+  条件导入，`clamp_output_tokens` 变成未定义局部变量，于是每一轮都报「模型调用全链失败
+  （主备均不可用）: cannot access local variable 'clamp_output_tokens'」——用户看到的
+  是会话永远停在第 2 回合。现在它在函数顶部无条件导入。
+- **输出上限按窗口收口**（`gateway/context.py`）：调用前按 `窗口 - 输入估算 - 安全余量 - 输出地板`
+  压一次 `max_tokens`，本地 4k/8k 窗口不再因为「输入 + 想要的输出」超窗直接抛
+  `ContextWindowExceededError`；窗口不够时先保证有输出地板（128 token），让这一轮能说话。
+  安全余量取估算输入的 12%（下限 256）：本机实测「估 8.1k、真 8.57k」一样会撞 400。
+- **工具参数被截断时先回灌、再放大预算**：模型把工具参数写得比额度长时，llama.cpp 直接
+  500（`Failed to parse tool call arguments as JSON`）。协议层先回灌「截断、未执行」重发
+  一次；仍失败则由网关把输出预算翻倍重发一次，不再把整轮判死。
+- **同一个问题不再重复打搅用户**（`ASK_USER_REPEAT_LIMIT`）：同一条路线里重复问同一句时
+  回放上次答复并提示「用工具推进」，到这个次数后拒绝继续提问。本机实测一条路线能
+  「问一句 → 得到答复 → 再问同一句」空转十几圈、烧掉几十万 token 而一步没走。
+- **端点健康熔断**：连续 3 次全链失败后熔断 30 秒，期间调用立刻抛
+  `ModelUnavailableError`（不再排队等 300 秒硬超时）；解题 Agent 拿到这条异常直接上抛，
+  不再「下一回合重试」。以前模型挂掉后规划层把每一轮都记成「调查了一次」，任务越堆越多、
+  会话永远到不了终态（本机实测 4 任务 / 19 分钟空转）。熔断只针对端点不可用，预算仍然
+  只计量不熔断，也没有恢复回合顶。
+- **小通道超时跟着配置走**（`web/sessions.py`）：模式路由、平台档案抽取、范围提问这些小
+  调用不再写死 30/45/60/90 秒，统一取 `gateway.request_timeout_seconds`（下限 30 秒），
+  同时给它们各自的 `max_tokens`。本机慢模型（实测 34 tok/s 的 27B）不再因为 90 秒硬顶
+  把会话卡在 `platform_profile` 阶段、token 一直是 0。
+- **不再白跑一次平台档案抽取**：任务描述里没有平台/接口文档线索（`ctf`、`flag`、`附件`
+  这类纯题目文本）时跳过这次 LLM 抽取，只留一条
+  `decision.change/platform_extract_skipped` 审计，省掉一次注定失败的大调用。
+- **LiteLLM 不再出网抓价格表**：导入网关时设 `LITELLM_LOCAL_MODEL_COST_MAP=True`。
+  以前每次进程启动都要访问 `raw.githubusercontent.com` 三次，离线/内网环境白等十几秒
+  还往日志里写一堆 SSL 报错。
+- 新增测试：`tests/test_gateway_output_clamp.py`（含真实本地 HTTP 端点校验实际下发的
+  `max_tokens` 与截断后的预算放大）、`tests/test_gateway_breaker.py`（熔断触发、熔断期
+  快速失败、成功清零）、`tests/test_ctf_ask_user_dedupe.py`（重复提问折叠与上限）。
 
 ## [0.47.7] - 2026-11-11
 

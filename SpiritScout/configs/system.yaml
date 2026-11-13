@@ -26,13 +26,13 @@ gateway:                       # 多模型网关（模型在 models.yaml 注册�
   degrade_at_ratio: 0.8        # 兼容旧配置；当前不按消耗自动降级
   cascade_confidence_threshold: 0.8
   vote_min_models: 2
-  request_timeout_seconds: 300  # 重推理模型单次调用可达数分钟，过短会中途掐死解题环
-  max_retries: 2
+  request_timeout_seconds: 900  # 重推理模型单次调用可达数分钟，过短会中途掐死解题环
+  max_retries: 3
 
 executor:                      # 工具执行器（CLI/Docker/MCP 三态）
   backend: local               # local / docker
   docker_image: kalilinux/kali-rolling:latest
-  default_timeout_seconds: 300
+  default_timeout_seconds: 900
   max_output_chars: 20000      # 输出窗口截断（防上下文污染）
   ctf_network_isolation: true  # CTF 模式网络隔离（硬约束；仅 executor.backend=docker 生效）
   # shell/python 执行后端：auto=有 bwrap 用 bwrap，Windows/macOS 退 host；
@@ -64,7 +64,7 @@ knowledge:                     # 五库 + 两经验库
 
 experience:                    # 经验库（跨会话自我进化）：收尾提炼 + 开工召回
   root: ""                     # 空=跟随工作区；Web 控制台自动指向共享目录
-  distill_timeout_seconds: 45  # 收尾提炼单次 LLM 硬顶（秒），仅终态路径使用
+  distill_timeout_seconds: 120  # 收尾提炼单次 LLM 硬顶（秒），仅终态路径使用
   recall_limit: 6              # 会话开工注入的经验条数上限
 
 report:
@@ -90,6 +90,7 @@ default_routes_per_agent: 3    # 默认 3 条差异化路线（硬约束 C2）
 # HTTP 单端点）/ sse（旧版 SSE 长连接）。前两项随项目封装、开箱即用：
 mcp_servers:
   - name: ida                     # 逆向：反编译 / 交叉引用 / 函数与类型检索（无头 idalib）
+    enabled: false
     transport: stdio
     command: .venv/bin/idalib-mcp # 相对路径按项目根解析；绝对路径或 PATH 命令原样使用
     args: ["--stdio"]
@@ -97,6 +98,7 @@ mcp_servers:
     default_risk: readonly        # 只读分析；可能修改环境的提示按侵入性能力处理（调用时声明行为）
     scope_enforcement: none       # 仅分析会话附件，不触网
   - name: yakit                   # Web 渗透：编解码 / HTTP 流量重放与模糊测试 / 指纹 / 端口 / 反序列化 / MITM / DNSLog 带外接收
+    enabled: false
     transport: stdio
     command: .tools/yak/yak       # 项目自带 Yakit 引擎（无头运行，不依赖图形端）
     args: ["mcp"]                 # 需要全部工具集时加 "--enable-all"
