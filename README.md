@@ -15,6 +15,7 @@
 `_work/build_release.py` | 组装「解压即用」便携包：内嵌 CPython 3.11 + site-packages + app + configs + data，再打 zip
 `_work/validate_release.py` | 打包前的冒烟：包内解释器导入、沙箱解释器探测、配置数据落点、控制台真起停；跑完清掉它在 `data\` 留下的运行数据，好让下一步打出一个没被人点开过的包
 `_work/run-spiritscout.ps1` | 本机一键启动：`chcp 65001` + UTF-8 输出（中文不糊）→ 前台起 `8010` 控制台并把日志 tee 到 `_work\agent-server.log`。python 退出后窗口自动关闭，不留「弹出来什么都没干」的空壳。**保留 UTF-8 BOM**——PowerShell 5.1 按 BOM 判断编码，丢了中文注释会被当 GBK 读崩
+`_work/stop-spiritscout.ps1` | 本机一键停止：结束 `8010` 的服务进程，**并关掉承载它的 PowerShell 窗口**。别直接 `Stop-Process` 那个 python——脚本窗口会因为启动时的 `-NoExit` 留成空壳，攒几次满屏都是。脚本会顺着父链只认命令行里带本项目脚本的 shell，不碰你自己开的终端
 `experience-export/` | 运行期经验沉淀的**脱敏快照**（`experience-insights.json`，条数见文件里的 `total`）：`export_experience.py` 从 `SpiritScout/.spiritscout/experience.db` 导出，pre-commit 钩子保证每次提交都把它一起带上。装钩子：`python experience-export/install_hook.py`。细节见该目录 README
 `packages/`（未提交） | 构建产物落点：wheel / sdist / portable zip，通过 GitHub Release 分发
 [`PUSH-POLICY.md`](PUSH-POLICY.md) | **什么进仓库、什么只留本机**：源码/测试/文档/配置模板推，运行数据/密钥/构建产物/本机私用脚本不推。含推送前三十秒自检清单
