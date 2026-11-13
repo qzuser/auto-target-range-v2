@@ -14,6 +14,7 @@
 `deploy-spiritscout.ps1` | Docker Desktop 一键部署（CTF 的 shell/python 工具硬依赖 bubblewrap，Windows 原生沙箱不可用时需要它）
 `_work/build_release.py` | 组装「解压即用」便携包：内嵌 CPython 3.11 + site-packages + app + configs + data，再打 zip
 `_work/validate_release.py` | 打包前的冒烟：包内解释器导入、沙箱解释器探测、配置数据落点、控制台真起停；跑完清掉它在 `data\` 留下的运行数据，好让下一步打出一个没被人点开过的包
+[`赛场使用教程.md`](赛场使用教程.md) | **赛场上从零开到出题**：赛前 5 分钟自检、双击起跑、建会话怎么填、赛中盯什么、五类故障速查（含「转圈不涨 token」的确诊命令）、收尾。附三条硬约束与命令速查
 `启动灵枢.cmd` | **双击即用**：调 `start-all.ps1`，依次自检环境 → 拉推理服务（LM Studio 优先，起不来自动用 llama-server 兜底）→ 加载模型 → 起控制台 → 打开浏览器。每步失败都会说清卡在哪。配 `-SkipBrowser` / `-Reload` / `-Port`
 `停止灵枢.cmd` | 双击停止：结束控制台与推理服务，**连 PowerShell 窗口一起收掉**，并打印显存释放情况
 `run-spiritscout.ps1` | 本机一键启动：`chcp 65001` + UTF-8 输出（中文不糊）→ 前台起 `8010` 控制台并把日志 tee 到 `_work\agent-server.log`。python 退出后窗口自动关闭，不留「弹出来什么都没干」的空壳。**保留 UTF-8 BOM**——PowerShell 5.1 按 BOM 判断编码，丢了中文注释会被当 GBK 读崩
