@@ -26,13 +26,13 @@ gateway:                       # 多模型网关（模型在 models.yaml 注册�
   degrade_at_ratio: 0.8        # 兼容旧配置；当前不按消耗自动降级
   cascade_confidence_threshold: 0.8
   vote_min_models: 2
-  request_timeout_seconds: 900  # 重推理模型单次调用可达数分钟，过短会中途掐死解题环
+  request_timeout_seconds: 240  # 本地单槽端点：正常一次 20~60s；端点假死时别让整轮干等 15 分钟
   max_retries: 3
 
 executor:                      # 工具执行器（CLI/Docker/MCP 三态）
   backend: local               # local / docker
   docker_image: kalilinux/kali-rolling:latest
-  default_timeout_seconds: 900
+  default_timeout_seconds: 240
   max_output_chars: 20000      # 输出窗口截断（防上下文污染）
   ctf_network_isolation: true  # CTF 模式网络隔离（硬约束；仅 executor.backend=docker 生效）
   # shell/python 执行后端：auto=有 bwrap 用 bwrap，Windows/macOS 退 host；
