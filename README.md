@@ -106,6 +106,31 @@ CUDA 运行时在 `vendor\win-llama-cuda12-vendor-v2`，不加进 PATH 也是同
 同题对照过的模型：`bonsai-27b` Q1_0 正文全空、`gemma-4-12b` 16k 上下文直接 OOM、
 `qwen2.5-coder-7b` 报错后重发同一命令打转——不是参数量问题，是量化与管线问题。
 
+### 断网能不能用
+
+能，整条链路不需要外网。实测：把 `HTTP(S)_PROXY` 指向 `127.0.0.1:9`（没有服务监听的端口）
+模拟断网，控制台跑 16 分钟、会话正常执行工具调用，**外网相关报错 0 条**。
+
+前提是这三样在**联网时**已经备好（都是一次性的）：
+
+1. 模型权重下到 LM Studio（`lms load` 能加载即可）
+2. `SpiritScout\.venv` 依赖装全（`start-local.ps1` 首次会自动装）
+3. 要用浏览器工具时，playwright 的 chromium 已下载（`%LOCALAPPDATA%\ms-playwright\`）
+
+断网后按正常流程起就行：
+
+```powershell
+# 1. 推理服务（LM Studio 起来即可，或 llama-server 兜底）
+lms server start; lms load qwen3.5-9b --context-length 16384 --parallel 1
+
+# 2. 控制台
+.\启动服务.cmd
+```
+
+断网时用不了的只有三样，都不影响解题：**Exa 联网搜索**（配置里本就是 `enabled: false`）、
+**云端模型**（本来就不用）、**需要访问外部目标的 Web 题**（那是题目本身要网，不是系统要网）。
+知识库的 embedding 默认是 `hash`（零依赖），不会在检索时偷偷联网。
+
 ### 常见问题
 
 - **提交后一直转圈、token 不涨**：多半有两个模型实例在抢显存。卸掉重载一个。

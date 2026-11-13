@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "kind": "spiritscout-experience-insights",
-  "generated_at": "2026-11-13T00:53:12+00:00",
+  "generated_at": "2026-11-13T02:20:44+00:00",
   "source": "SpiritScout/.spiritscout/experience.db -> table insights",
   "redaction": [
     "http/https 链接",
@@ -10,25 +10,25 @@
     "sk- / ghp_ / xox 形态密钥",
     "靶场主机名归一为 local-range"
   ],
-  "total": 496,
+  "total": 505,
   "tag_frequency": {
-    "ctf": 346,
-    "crypto": 79,
+    "ctf": 355,
+    "crypto": 83,
     "web": 57,
-    "flag": 51,
-    "misc": 48,
-    "base64": 45,
+    "flag": 53,
+    "misc": 51,
+    "base64": 48,
     "复盘": 34,
     "判读": 33,
     "reverse": 30,
-    "encoding": 26,
+    "encoding": 28,
     "逆向工程": 26,
-    "验证": 24,
+    "验证": 25,
     "流程": 18,
-    "编码": 15,
+    "编码": 16,
+    "validation": 14,
     "CTF": 13,
     "reporting": 13,
-    "validation": 13,
     "sqli": 12,
     "workflow": 12,
     "recon": 10,
@@ -59,7 +59,9 @@
     "固件": 5,
     "固件分析": 5,
     "指标": 5,
+    "提交": 5,
     "目标完成": 5,
+    "策略": 5,
     "解码": 5,
     "难度评估": 5,
     "靶场": 5,
@@ -74,20 +76,20 @@
     "信息收集": 4,
     "信息泄露": 4,
     "命令注入": 4,
-    "提交": 4,
-    "策略": 4,
     "结果判读": 4,
     "解密": 4,
     "记录": 4,
     "证据": 4,
     "逆向": 4,
     "验收": 4,
+    "barcode": 3,
     "bypass": 3,
     "decoding": 3,
     "evidence": 3,
     "flag 提交": 3,
     "flag格式": 3,
     "lfsr": 3,
+    "llm": 3,
     "morse": 3,
     "offline": 3,
     "platform": 3,
@@ -133,7 +135,6 @@
     "jwt": 2,
     "keystream": 2,
     "litellm": 2,
-    "llm": 2,
     "log-poisoning": 2,
     "logic": 2,
     "login": 2,
@@ -215,6 +216,7 @@
     "coverage": 1,
     "data_analysis": 1,
     "debugger": 1,
+    "debugging": 1,
     "directionality": 1,
     "discovery_record": 1,
     "dns": 1,
@@ -229,6 +231,7 @@
     "fingerprint": 1,
     "flag-validation": 1,
     "heuristics": 1,
+    "hidden": 1,
     "infra": 1,
     "intermediate": 1,
     "io": 1,
@@ -242,6 +245,7 @@
     "libc": 1,
     "linear-complexity": 1,
     "logging": 1,
+    "low-complexity": 1,
     "math": 1,
     "maze": 1,
     "melting": 1,
@@ -335,6 +339,7 @@
     "动态容器": 1,
     "动态调试": 1,
     "十六进制编辑器": 1,
+    "单点突破": 1,
     "单轮": 1,
     "参数估计": 1,
     "参数复用": 1,
@@ -6690,6 +6695,123 @@
       ],
       "source_model": "master",
       "captured_at": "2026-11-13T00:12:16+00:00"
+    },
+    {
+      "id": "exp-c1476ead54e0",
+      "insight": "多层编码的密文通常表现为嵌套的 Base64 或类似编码，逐层解码直至输出可读字符即可获取 flag。",
+      "context": "CTF 密码学题目中，当密文描述为‘反复编码’或‘多层加密’时，需考虑连续解码的可能性。",
+      "tags": [
+        "crypto",
+        "base64",
+        "ctf",
+        "encoding"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-13T01:29:16+00:00"
+    },
+    {
+      "id": "exp-bf81575987a9",
+      "insight": "解码过程中若出现非 Base64 字符或解码后无意义，需检查是否误判了编码类型或存在混合编码。",
+      "context": "CTF 密码学题目中，当标准解码路径无法得到可读内容时，需考虑编码组合或特殊处理。",
+      "tags": [
+        "crypto",
+        "base64",
+        "ctf",
+        "debugging"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-13T01:29:16+00:00"
+    },
+    {
+      "id": "exp-fbb14574aece",
+      "insight": "解码后的 flag 通常遵循特定格式（如 [flag值已脱敏]），解码结果若不符合格式需重新审视解码路径。",
+      "context": "CTF 密码学题目中，解码结果需符合题目要求的 flag 格式，否则需调整解码策略。",
+      "tags": [
+        "crypto",
+        "flag",
+        "ctf",
+        "validation"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-13T01:29:16+00:00"
+    },
+    {
+      "id": "exp-7fa4bfba9de1",
+      "insight": "当目标明确标注为 CTF 基础题型（如 base64 编码）时，可直接利用标准解码工具验证输入输出，无需额外探测入口路径。",
+      "context": "CTF 基础题型、编码解码类挑战",
+      "tags": [
+        "ctf",
+        "crypto",
+        "base64",
+        "编码"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-13T01:29:25+00:00"
+    },
+    {
+      "id": "exp-b46fba79a1a2",
+      "insight": "Flag 已解出但提交状态为空时，通常意味着解题逻辑正确但提交渠道或格式未匹配，需检查提交接口要求。",
+      "context": "CTF 挑战完成阶段、Flag 提交环节",
+      "tags": [
+        "ctf",
+        "flag",
+        "提交",
+        "验证"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-13T01:29:25+00:00"
+    },
+    {
+      "id": "exp-bdda273f7199",
+      "insight": "单轮次任务记录数较少（如 2 条）且无额外发现时，表明当前挑战属于低复杂度或单点突破型，无需复杂扫描策略。",
+      "context": "CTF 低复杂度挑战、单点突破场景",
+      "tags": [
+        "ctf",
+        "low-complexity",
+        "单点突破",
+        "策略"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-13T01:29:26+00:00"
+    },
+    {
+      "id": "exp-34bf4ba2360c",
+      "insight": "在条码类 CTF 挑战中，若多次重攻后 LLM 调用失败且无新产出，需警惕模型生成幻觉导致的无效路径探索，而非单纯依赖工具自动化。",
+      "context": "CTF-MISC 条码解码场景",
+      "tags": [
+        "ctf",
+        "misc",
+        "llm",
+        "barcode"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-13T01:37:17+00:00"
+    },
+    {
+      "id": "exp-3a80934998d7",
+      "insight": "条码类挑战的解题收敛往往依赖对编码规则（如 Base64、QR 码、ASCII）的精准识别，而非盲目尝试通用解码工具。",
+      "context": "CTF-MISC 条码解码场景",
+      "tags": [
+        "ctf",
+        "misc",
+        "barcode",
+        "encoding"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-13T01:37:17+00:00"
+    },
+    {
+      "id": "exp-afc7dc698e6d",
+      "insight": "当挑战目标为条码且多次重攻无新发现时，应优先检查条码本身是否包含隐藏信息（如多层编码、水印、二维码嵌套）。",
+      "context": "CTF-MISC 条码解码场景",
+      "tags": [
+        "ctf",
+        "misc",
+        "barcode",
+        "hidden"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-13T01:37:17+00:00"
     }
   ]
 }
