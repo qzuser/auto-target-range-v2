@@ -1558,3 +1558,18 @@ dialog.panel { width: min(880px, 94vw); padding: 0; overflow: hidden; max-height
 .lt-table td code { font-size: 12px; overflow-wrap: anywhere; }
 .lt-table td small { display: block; font-size: 11px; color: var(--ink-3); }
 .lt-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* 经验页「自动提炼」开关：跟操作按钮并排，勾选框与文字基线对齐 */
+.exp-auto {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  font-size: 13px;
+  color: var(--ink-2);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.exp-auto input { accent-color: var(--accent); cursor: pointer; margin: 0; }
+.exp-auto:hover { color: var(--ink); }

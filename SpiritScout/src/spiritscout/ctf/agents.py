@@ -81,6 +81,7 @@ _REPEAT_GUARDED = frozenset({"shell", "python", "analyze_attachments", "analyze_
 # 回灌文本长到这个量级才做「逐字相同」去重；短回执重复无所谓
 _DEDUPE_MIN_CHARS = 600
 # 「一次命令都没跑就交总结」最多推回去几次；超过就按无结论收尾（对话已留档）
+_EVIDENCE_POOL_CHARS = 24000
 _NO_EXEC_NUDGE_LIMIT = 4
 # 当作「题目材料」直读正文的附件后缀：源码/脚本/配置/题面文本
 _TEXT_ATTACHMENT_SUFFIXES = frozenset({
@@ -1773,6 +1774,36 @@ class CTFBaseAgent(SubAgent):
                             note=f"敏感路径探测命中 {len(hits)}/{len(paths)}",
                             text=body[:_TOOL_RESULT_CAP])
 
+    @staticmethod
+    def _record_evidence(state: dict[str, Any], text: str) -> None:
+        """把工具输出的原文攒进证据池，供 submit_flag 逐字核对。
+
+        只留最近 24KB：flag 出现的位置通常在最近几次输出里，攒太多反而
+        把真正拿到的响应挤出窗口。
+        """
+        if not text:
+            return
+        pool = state.setdefault("evidence_pool", "")
+        pool = (pool + "\n" + text)[-_EVIDENCE_POOL_CHARS:]
+        state["evidence_pool"] = pool
+
+    def _flag_seen_in_evidence(self, state: dict[str, Any], value: str) -> bool:
+        """Flag 是否真的在某个工具输出里出现过（逐字）。
+
+        挡住的是实测幻觉：模型读到 hint「flag in ffffllllaaaagggg」，直接把
+        那个**文件名**拼成 flag{ffffllllaaaagggg} 登记，而靶机从没吐过这个值。
+        证据池里找不到就不收——宁可让模型继续挖，也不能把编的答案写进 flag 库。
+        """
+        if not value:
+            return False
+        pool = str(state.get("evidence_pool") or "")
+        if not pool:
+            return False
+        # 只认完整值。曾试过「去掉花括号再比一次」来兼容分段打印，结果把
+        # hint 里的文件名（flag in ffffllllaaaagggg）判成了通过——正是要挡的幻觉。
+        # 真分段的情况下，模型把两段拼起来 print 一遍，完整值自然进池。
+        return value in pool
+
     async def _tool_submit_flag(self, task: Task, route, state: dict[str, Any],
                                 args: dict[str, Any]) -> _ToolOutcome:
         """模型判定的 Flag 提交：登记（去重）→ 赛方接口 → 应答回灌。
@@ -1783,6 +1814,16 @@ class CTFBaseAgent(SubAgent):
         value = str(args.get("flag", "") or "").strip()
         if not value:
             return _ToolOutcome(ok=False, text="submit_flag 需要 flag 参数（Flag 原文）。")
+        # 只在「确实跑过工具」时核对出处：一次没执行就提交，可能是纯推理题
+        # （模型心算得出），也可能是测试桩——这两种都没有证据池可查。
+        # 真正的幻觉发生在"读了 hint 却把文件名当答案"，那时 executions>0。
+        if state.get("executions") and not self._flag_seen_in_evidence(state, value):
+            return _ToolOutcome(ok=False, note=f"拒收：{value[:40]} 无出处", text=(
+                f"这个值没有在任何工具输出里出现过，不能登记：{value}\n"
+                "常见原因：把提示里的**文件名/变量名**直接拼成了 flag，或者凭推测构造。\n"
+                "下一步：回到命令/HTTP 的原始输出，找到真正含 flag 的那一行；"
+                "如果只看到『flag in <某文件>』这类提示，那说明还要去读那个文件，"
+                "而不是把文件名当答案。"))
         if self.flag_manager is None:
             return _ToolOutcome(ok=False, text="本题未装配 Flag 管理器，无法提交。")
         cand = self.flag_manager.register(
@@ -2348,11 +2389,14 @@ class CTFBaseAgent(SubAgent):
                 akey, agent_id=self._ring_actor(route),
                 agent_name=self._ring_name(route), action="http_request",
                 outcome=value, note=f"{status}")
+        body_text = _obs_text(obs)
+        # 响应原文进证据池：submit_flag 要求 flag 逐字出现过，靠这里兜底
+        self._record_evidence(state, body_text)
         return _ToolOutcome(
             ok=True, value=value, observation=obs,
             findings=[],
             note=f"{desc} → {status}",
-            text=_obs_text(obs))
+            text=body_text)
 
     async def _tool_local_tool(self, task: Task, route, state: dict[str, Any],
                                args: dict[str, Any]) -> _ToolOutcome:
@@ -2496,6 +2540,7 @@ class CTFBaseAgent(SubAgent):
                          "交互式脚本请改为非交互（预置输入/设置超时）。")
         state["executions"] = int(state.get("executions") or 0) + 1
         state["last_exit_failed"] = bool(res.parsed.get("exit_code"))
+        self._record_evidence(state, (res.stdout or "") + ("\n" + res.stderr if res.stderr else ""))
         # 打印出来的中间量是下一阶段的输入；历史会被压缩折叠，这里留一份。
         if (res.stdout or "").strip():
             state["last_stdout"] = res.stdout.strip()[:1200]

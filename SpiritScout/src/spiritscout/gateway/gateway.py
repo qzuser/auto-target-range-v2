@@ -617,7 +617,8 @@ class ModelGateway:
                 "task_type": task_type, "task_id": scope.task_id, "route_id": scope.route_id, "cache_scope": role or task_type, **prefix}
         self.audit.log("model.started", actor, call)
         stream = None
-        if on_delta is None and scope.agent_id:
+        if (on_delta is None and scope.agent_id
+                and getattr(entry, "streaming", True)):
             from spiritscout.gateway.streaming import AuditStream
 
             stream = AuditStream(self.audit, actor, call)

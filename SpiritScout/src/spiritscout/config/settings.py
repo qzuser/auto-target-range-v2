@@ -246,6 +246,11 @@ class ExperienceConfig(ValidatedConfig):
     distill_timeout_seconds: int = Field(
         default=45, gt=0, description="收尾提炼单次 LLM 调用硬顶（秒），仅终态路径使用")
     recall_limit: int = Field(default=6, gt=0, le=20, description="会话开工注入的经验条数上限")
+
+    distill_enabled: bool = Field(
+        default=True,
+        description="解出 Flag / 会话收尾时是否提炼经验；关掉后只记录不提炼，"
+                    "经验库保持不变（已入库的经验照常召回）")
     duplicate_threshold: float = Field(
         default=0.95, ge=0.5, le=1.0,
         description="入库判重阈值：与库里任一有效经验相似度达到该比例就不再存一条新的"
@@ -370,6 +375,11 @@ class ModelEntry(ValidatedConfig):
     # 拼出半截 JSON 直接报错）。关掉后不再下发 tools，模型把 JSON 写进正文，
     # 由 inline call 恢复机制接手——那条路径本来就是为 Qwen 准备的。
     native_tool_calls: bool = True
+
+    # 端点的流式 tool_calls 拼接不可靠时关掉流式（llama.cpp 实测：非流式
+    # 1183 字符的合法 JSON，流式拼成 1858 字符就断了）。关掉后拿不到逐字
+    # 增量，审计里只剩起止记录——正确性优先于实时观感。
+    streaming: bool = True
     cost_cached_input_per_mtok: float | None = Field(default=None, ge=0)
     cost_cache_write_per_mtok: float | None = Field(default=None, ge=0)
     cost_input_per_mtok: float = Field(default=0.0, ge=0)

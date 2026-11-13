@@ -14,6 +14,8 @@
 `deploy-spiritscout.ps1` | Docker Desktop 一键部署（CTF 的 shell/python 工具硬依赖 bubblewrap，Windows 原生沙箱不可用时需要它）
 `_work/build_release.py` | 组装「解压即用」便携包：内嵌 CPython 3.11 + site-packages + app + configs + data，再打 zip
 `_work/validate_release.py` | 打包前的冒烟：包内解释器导入、沙箱解释器探测、配置数据落点、控制台真起停；跑完清掉它在 `data\` 留下的运行数据，好让下一步打出一个没被人点开过的包
+`启动灵枢.cmd` | **双击即用**：调 `start-all.ps1`，依次自检环境 → 拉推理服务（LM Studio 优先，起不来自动用 llama-server 兜底）→ 加载模型 → 起控制台 → 打开浏览器。每步失败都会说清卡在哪。配 `-SkipBrowser` / `-Reload` / `-Port`
+`停止灵枢.cmd` | 双击停止：结束控制台与推理服务，**连 PowerShell 窗口一起收掉**，并打印显存释放情况
 `run-spiritscout.ps1` | 本机一键启动：`chcp 65001` + UTF-8 输出（中文不糊）→ 前台起 `8010` 控制台并把日志 tee 到 `_work\agent-server.log`。python 退出后窗口自动关闭，不留「弹出来什么都没干」的空壳。**保留 UTF-8 BOM**——PowerShell 5.1 按 BOM 判断编码，丢了中文注释会被当 GBK 读崩
 `stop-spiritscout.ps1` | 本机一键停止：结束 `8010` 的服务进程，**并关掉承载它的 PowerShell 窗口**。别直接 `Stop-Process` 那个 python——脚本窗口会因为启动时的 `-NoExit` 留成空壳，攒几次满屏都是。脚本会顺着父链只认命令行里带本项目脚本的 shell，不碰你自己开的终端
 `experience-export/` | 运行期经验沉淀的**脱敏快照**（`experience-insights.json`，条数见文件里的 `total`）：`export_experience.py` 从 `SpiritScout/.spiritscout/experience.db` 导出，pre-commit 钩子保证每次提交都把它一起带上。装钩子：`python experience-export/install_hook.py`。细节见该目录 README

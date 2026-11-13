@@ -651,6 +651,37 @@ const SessionExperience = (() => {
   const stamp = t => t ? new Date(t * 1000).toLocaleString("zh-CN", {hour12: false}) : "未记录";
   const root = () => $("#tab-experience");
 
+  // 自动提炼开关：关掉后解出 Flag 与会话收尾都不提炼，经验库原样不动。
+  // 手动提炼不受影响——那是你自己点的。
+  async function loadAutoDistill() {
+    const box = root()?.querySelector("[data-auto-distill]");
+    if (!box) return;
+    try {
+      const data = await api("/api/experience/settings");
+      box.checked = !!data.distill_enabled;
+    } catch {
+      box.checked = true;              // 读不到就按默认开，别让开关显示成关
+      box.disabled = true;
+    }
+  }
+
+  async function saveAutoDistill(box) {
+    const want = !!box.checked;
+    box.disabled = true;
+    try {
+      const data = await api("/api/experience/settings", {
+        method: "PUT", body: JSON.stringify({distill_enabled: want}),
+      });
+      box.checked = !!data.distill_enabled;
+      toast(data.distill_enabled ? "已开启自动提炼" : "已关闭自动提炼，解出题不再提炼");
+    } catch (err) {
+      box.checked = !want;             // 回滚显示，别让人以为改成功了
+      toast("改不了：" + (err?.message || err), true);
+    } finally {
+      box.disabled = false;
+    }
+  }
+
   function shell() {
     const el = root();
     if (!el || el.dataset.ready) return el;
@@ -662,6 +693,10 @@ const SessionExperience = (() => {
           <p data-state role="status">正在读取…</p>
         </div>
         <div class="exp-head-ops">
+          <label class="exp-auto" title="关掉后：解出 Flag 与会话收尾都不再自动提炼，已入库的经验照常召回">
+            <input type="checkbox" data-auto-distill>
+            <span>自动提炼</span>
+          </label>
           <button class="btn primary" type="button" data-distill>手动提炼</button>
           <button class="btn sm" type="button" data-refresh>刷新</button>
         </div>
@@ -678,6 +713,9 @@ const SessionExperience = (() => {
       </div>`;
     el.querySelector("[data-refresh]").onclick = () => load(S.cur, true);
     el.querySelector("[data-distill]").onclick = () => distill();
+    const auto = el.querySelector("[data-auto-distill]");
+    auto.onchange = () => saveAutoDistill(auto);
+    loadAutoDistill();
     return el;
   }
 

@@ -1103,6 +1103,17 @@ def _flag_digest(infra: _Infra, cand: Any,
     return digest
 
 
+def _distill_allowed(infra: _Infra) -> bool:
+    """经验提炼总开关（``experience.distill_enabled``，默认开）。
+
+    关掉后：解出 Flag 不提炼、会话收尾不提炼，经验库原样不动（已入库的照常
+    召回）。运行时改配置只影响之后排队的提炼——已经在跑的后台任务不打断。
+    """
+    cfg = getattr(infra, "cfg", None)
+    exp = getattr(cfg, "experience", None) if cfg is not None else None
+    return bool(getattr(exp, "distill_enabled", True))
+
+
 def _schedule_flag_distill(infra: _Infra, experience: Any, enabled: bool,
                            cand: Any,
                            challenge: dict[str, Any] | None = None,
@@ -1113,6 +1124,8 @@ def _schedule_flag_distill(infra: _Infra, experience: Any, enabled: bool,
     不关闭经验库（会话还在跑）、审计 trigger 记 ``flag``。
     """
     if not enabled or experience is None:
+        return None
+    if not _distill_allowed(infra):
         return None
     if getattr(infra, "flag_distill_closed", False):
         return None          # 收尾批量提交阶段：交给整场提炼，不再逐题排
@@ -1415,6 +1428,16 @@ async def _background_distill(infra: _Infra, experience: Any,
     要继续被主 Agent 召回，不能在这里关掉。
     任何失败只吞掉不冒泡——后台任务无人接管异常，会话终态早已落定。
     """
+    if not _distill_allowed(infra):
+        with contextlib.suppress(Exception):
+            _update_distill_snapshot(
+                snapshot, status="skipped",
+                completed_at=datetime.now(UTC).isoformat(),
+                result={"result": "skipped", "reason": "经验提炼已在配置中关闭"})
+        if close_store:
+            with contextlib.suppress(Exception):
+                experience.close()
+        return
     try:
         async with _background_slot():
             prior = 0

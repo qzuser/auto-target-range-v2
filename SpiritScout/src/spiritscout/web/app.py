@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
@@ -62,6 +63,60 @@ class AbsorbPlanPayload(BaseModel):
     """合并（交给模型）：勾选的条数没有上限，模型自己决定有没有可并入的分组。"""
 
     ids: list[str] = Field(min_length=1, max_length=2000)
+
+
+def _set_yaml_bool(path: Path, section: str, key: str, value: bool) -> None:
+    """把 YAML 里 ``section.key`` 的布尔值改成 ``value``，保住注释。
+
+    整份 dump 回去会冲掉中文注释与手写顺序，所以逐行扫描：进到目标段后
+    命中键就改值；到段尾还没命中就补一行。不用跨行正则——那份写法在
+    「段头带注释 + 多行缩进」上会回溯到卡死。
+    """
+    text = path.read_text(encoding="utf-8")
+    newline = "\r\n" if "\r\n" in text else "\n"
+    literal = "true" if value else "false"
+    lines = text.splitlines()
+    out: list[str] = []
+    in_section = False
+    done = False
+    section_re = re.compile(r"^" + re.escape(section) + r"\s*:")
+    key_re = re.compile(r"^(\s+)" + re.escape(key) + r"\s*:\s*(true|false)\b(.*)$")
+
+    for line in lines:
+        if not in_section:
+            out.append(line)
+            if section_re.match(line):
+                in_section = True
+            continue
+
+        # 段内：顶格非空行 = 下一个段
+        if line.strip() and not line[:1].isspace():
+            if not done:
+                out.append(f"  {key}: {literal}")
+                done = True
+            in_section = False
+            out.append(line)
+            continue
+
+        m = key_re.match(line)
+        if m and not done:
+            out.append(f"{m.group(1)}{key}: {literal}{m.group(3)}")
+            done = True
+            continue
+        out.append(line)
+
+    if in_section and not done:
+        out.append(f"  {key}: {literal}")
+        done = True
+    if not done:
+        raise ValueError(f"{path} 里没有 {section} 段，无法写入 {key}")
+
+    path.write_text(newline.join(out) + newline, encoding="utf-8")
+
+
+class ExperienceSettingsPayload(BaseModel):
+    """经验提炼开关的写入载荷。"""
+    distill_enabled: bool
 
 
 class AbsorbApplyPayload(BaseModel):
@@ -346,6 +401,39 @@ def create_app(cfg: SystemConfig, models: list[ModelEntry], *,
                 audit=AuditLogger(cfg.audit_log_path))
         except SpiritScoutError as exc:
             raise HTTPException(400, str(exc)) from exc
+
+    @app.get("/api/experience/settings")
+    def experience_settings() -> dict[str, Any]:
+        """经验提炼开关（当前值）。"""
+        exp = getattr(cfg, "experience", None)
+        return {
+            "distill_enabled": bool(getattr(exp, "distill_enabled", True)),
+            "recall_limit": int(getattr(exp, "recall_limit", 6) or 6),
+        }
+
+    @app.put("/api/experience/settings")
+    def update_experience_settings(payload: ExperienceSettingsPayload) -> dict[str, Any]:
+        """改提炼开关：写回 system.yaml 并即时生效（不重启）。
+
+        关掉后：解出 Flag 不提炼、会话收尾不提炼；已入库的经验照常召回，
+        已经在跑的后台提炼不打断（它排进队列时开关还是开的）。
+        """
+        exp = getattr(cfg, "experience", None)
+        if exp is None:
+            raise HTTPException(400, "当前配置没有 experience 段")
+        try:
+            exp.distill_enabled = bool(payload.distill_enabled)
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(409, f"配置是只读的，改不了：{exc}") from exc
+        # 落盘：只替换这一个键，保住同文件里的其它注释与人手写的值
+        path = Path(cfg.models_config_path).parent / "system.yaml"
+        try:
+            _set_yaml_bool(path, "experience", "distill_enabled", bool(payload.distill_enabled))
+        except OSError as exc:
+            raise HTTPException(500, f"写回配置失败：{exc}") from exc
+        AuditLogger(cfg.audit_log_path).log("experience.settings", "user", {
+            "distill_enabled": bool(payload.distill_enabled)})
+        return {"distill_enabled": bool(getattr(exp, "distill_enabled", True))}
 
     @app.get("/api/experience/sync")
     def experience_sync_status() -> dict[str, Any]:
