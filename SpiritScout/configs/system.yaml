@@ -67,7 +67,7 @@ experience:                    # 经验库（跨会话自我进化）：收尾�
   distill_timeout_seconds: 120  # 收尾提炼单次 LLM 硬顶（秒），仅终态路径使用
   recall_limit: 6              # 会话开工注入的经验条数上限
 
-  distill_enabled: true
+  distill_enabled: false
 report:
   template: src_standard       # 报告模板（4.6.2）
   output_format: markdown
