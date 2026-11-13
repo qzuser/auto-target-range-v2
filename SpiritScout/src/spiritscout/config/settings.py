@@ -365,6 +365,11 @@ class ModelEntry(ValidatedConfig):
     # ultra）——不设固定枚举，也不假设各模型档位一致；空 = 该模型不吃思考强度。
     reasoning_effort_levels: list[str] = Field(default_factory=list)
     prompt_caching: Literal["provider_default", "anthropic_ephemeral"] = "provider_default"
+
+    # 端点自己的 tool_calls 解析不可靠时关掉它（如 llama.cpp 在参数较长时
+    # 拼出半截 JSON 直接报错）。关掉后不再下发 tools，模型把 JSON 写进正文，
+    # 由 inline call 恢复机制接手——那条路径本来就是为 Qwen 准备的。
+    native_tool_calls: bool = True
     cost_cached_input_per_mtok: float | None = Field(default=None, ge=0)
     cost_cache_write_per_mtok: float | None = Field(default=None, ge=0)
     cost_input_per_mtok: float = Field(default=0.0, ge=0)

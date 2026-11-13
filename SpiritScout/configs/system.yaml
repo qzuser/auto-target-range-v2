@@ -90,7 +90,7 @@ default_routes_per_agent: 3    # 默认 3 条差异化路线（硬约束 C2）
 # HTTP 单端点）/ sse（旧版 SSE 长连接）。前两项随项目封装、开箱即用：
 mcp_servers:
   - name: ida                     # 逆向：反编译 / 交叉引用 / 函数与类型检索（无头 idalib）
-    enabled: false
+    enabled: true
     transport: stdio
     command: .venv/bin/idalib-mcp # 相对路径按项目根解析；绝对路径或 PATH 命令原样使用
     args: ["--stdio"]
@@ -98,7 +98,7 @@ mcp_servers:
     default_risk: readonly        # 只读分析；可能修改环境的提示按侵入性能力处理（调用时声明行为）
     scope_enforcement: none       # 仅分析会话附件，不触网
   - name: yakit                   # Web 渗透：编解码 / HTTP 流量重放与模糊测试 / 指纹 / 端口 / 反序列化 / MITM / DNSLog 带外接收
-    enabled: false
+    enabled: true
     transport: stdio
     command: .tools/yak/yak       # 项目自带 Yakit 引擎（无头运行，不依赖图形端）
     args: ["mcp"]                 # 需要全部工具集时加 "--enable-all"

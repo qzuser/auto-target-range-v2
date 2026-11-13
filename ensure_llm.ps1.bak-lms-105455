@@ -1,0 +1,51 @@
+﻿# ============================================================
+#  确保本地推理服务在 1234 上可用
+#  优先 LM Studio；起不来就用内置 llama-server 兜底
+#  退出码：0 = 可用，1 = 失败
+# ============================================================
+param([switch]$Quiet)
+
+$ErrorActionPreference = "Continue"
+try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch { }
+
+$LMS    = Join-Path $env:USERPROFILE ".lmstudio\bin\lms.exe"
+$MODEL  = "qwen3.5-9b"
+$CTX    = 16384
+$GGUF   = Join-Path $env:USERPROFILE ".lmstudio\models\lmstudio-community\Qwen3.5-9B-GGUF\Qwen3.5-9B-Q4_K_M.gguf"
+$BK     = Join-Path $env:USERPROFILE ".lmstudio\extensions\backends\llama.cpp-win-x86_64-nvidia-cuda12-avx2-2.64.0"
+$VENDOR = Join-Path $env:USERPROFILE ".lmstudio\extensions\backends\vendor\win-llama-cuda12-vendor-v2"
+
+function Say($m) { if (-not $Quiet) { Write-Host "  $m" } }
+function ApiUp { try { Invoke-RestMethod "http://127.0.0.1:1234/v1/models" -TimeoutSec 4 *> $null; return $true } catch { return $false } }
+
+if (ApiUp) {
+    Say "推理服务已在运行"
+    $ids = (Invoke-RestMethod "http://127.0.0.1:1234/v1/models" -TimeoutSec 5).data | ForEach-Object { $_.id }
+    Say "模型: $($ids -join ', ')"
+    exit 0
+}
+
+Say "尝试 LM Studio ..."
+& $LMS server start *> $null
+for ($i = 0; $i -lt 10; $i++) { Start-Sleep -Seconds 2; if (ApiUp) { break } }
+
+if (-not (ApiUp)) {
+    Say "LM Studio 不可用，改用内置 llama-server 兜底"
+    if (-not (Test-Path "$BK\llama-server.exe")) {
+        Write-Host "  [x] 找不到 llama-server：$BK" -ForegroundColor Red
+        exit 1
+    }
+    $cmd = 'cmd.exe /c cd /d "' + $BK + '" && set "PATH=' + $BK + ';' + $VENDOR + ';%PATH%" && ' +
+           'llama-server.exe -m "' + $GGUF + '" -a ' + $MODEL + ' -c ' + $CTX +
+           ' -ngl 99 --host 127.0.0.1 --port 1234 -np 1 --reasoning-budget 0 > "' +
+           (Join-Path $env:TEMP "llama-srv.log") + '" 2>&1'
+    Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = $cmd } | Out-Null
+    for ($i = 0; $i -lt 30; $i++) { Start-Sleep -Seconds 2; if (ApiUp) { break } }
+    if (-not (ApiUp)) {
+        Write-Host "  [x] 兜底服务也没起来，看 %TEMP%\llama-srv.log" -ForegroundColor Red
+        exit 1
+    }
+    Say "已用 llama-server 启动（$CTX 上下文，关闭思考）"
+}
+
+exit 0

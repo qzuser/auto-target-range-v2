@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "kind": "spiritscout-experience-insights",
-  "generated_at": "2026-11-13T02:20:44+00:00",
+  "generated_at": "2026-11-13T13:19:00+00:00",
   "source": "SpiritScout/.spiritscout/experience.db -> table insights",
   "redaction": [
     "http/https 链接",
@@ -10,27 +10,28 @@
     "sk- / ghp_ / xox 形态密钥",
     "靶场主机名归一为 local-range"
   ],
-  "total": 505,
+  "total": 517,
   "tag_frequency": {
-    "ctf": 355,
-    "crypto": 83,
+    "ctf": 367,
+    "crypto": 94,
     "web": 57,
     "flag": 53,
     "misc": 51,
-    "base64": 48,
+    "base64": 49,
     "复盘": 34,
     "判读": 33,
-    "reverse": 30,
-    "encoding": 28,
+    "reverse": 31,
+    "encoding": 29,
     "逆向工程": 26,
     "验证": 25,
     "流程": 18,
-    "编码": 16,
+    "编码": 18,
     "validation": 14,
     "CTF": 13,
     "reporting": 13,
     "sqli": 12,
     "workflow": 12,
+    "逆向": 11,
     "recon": 10,
     "重攻": 10,
     "php": 9,
@@ -49,6 +50,7 @@
     "判读信号": 6,
     "证据链": 6,
     "音频": 6,
+    "llm": 5,
     "pwn": 5,
     "session": 5,
     "stego": 5,
@@ -80,7 +82,6 @@
     "解密": 4,
     "记录": 4,
     "证据": 4,
-    "逆向": 4,
     "验收": 4,
     "barcode": 3,
     "bypass": 3,
@@ -89,7 +90,6 @@
     "flag 提交": 3,
     "flag格式": 3,
     "lfsr": 3,
-    "llm": 3,
     "morse": 3,
     "offline": 3,
     "platform": 3,
@@ -109,6 +109,8 @@
     "收敛": 3,
     "枚举": 3,
     "混淆": 3,
+    "源码": 3,
+    "源码分析": 3,
     "状态判读": 3,
     "登录": 3,
     "盲注": 3,
@@ -170,7 +172,6 @@
     "格式检查": 2,
     "格式错误": 2,
     "注入": 2,
-    "源码": 2,
     "源码审计": 2,
     "环境": 2,
     "目标达成": 2,
@@ -178,6 +179,7 @@
     "自动化": 2,
     "认证": 2,
     "误报": 2,
+    "调试": 2,
     "越权": 2,
     "轮次": 2,
     "题面": 2,
@@ -214,6 +216,8 @@
     "convergence": 1,
     "correlation-attack": 1,
     "coverage": 1,
+    "custom-encoding": 1,
+    "custom-implementation": 1,
     "data_analysis": 1,
     "debugger": 1,
     "debugging": 1,
@@ -226,6 +230,7 @@
     "enumeration": 1,
     "error-based": 1,
     "exploit": 1,
+    "failure-analysis": 1,
     "false-negative": 1,
     "file-read": 1,
     "fingerprint": 1,
@@ -261,6 +266,7 @@
     "numeric": 1,
     "offset": 1,
     "orchestration": 1,
+    "parsing": 1,
     "participation": 1,
     "pathfinding": 1,
     "payload": 1,
@@ -426,6 +432,7 @@
     "流程完整性": 1,
     "源代码": 1,
     "源码泄露": 1,
+    "漏洞挖掘": 1,
     "熔断机制": 1,
     "爆破": 1,
     "状态": 1,
@@ -457,6 +464,7 @@
     "统计": 1,
     "编码异常": 1,
     "编码问题": 1,
+    "编译产物": 1,
     "耐心": 1,
     "脚本审计": 1,
     "节奏": 1,
@@ -477,7 +485,6 @@
     "证据验证": 1,
     "误判": 1,
     "误码纠错": 1,
-    "调试": 1,
     "资产复用": 1,
     "资源提取": 1,
     "跨方向": 1,
@@ -6812,6 +6819,162 @@
       ],
       "source_model": "master",
       "captured_at": "2026-11-13T01:37:17+00:00"
+    },
+    {
+      "id": "exp-bf378d2df6b2",
+      "insight": "当 CTF 挑战提供自定义编码实现（如 base64.c）与编译产物（如 base64.bin）时，若标准解码工具无法直接处理，需警惕实现细节差异导致解码失败或需逆向分析源码/二进制以还原逻辑。",
+      "context": "CTF 逆向/编码类挑战，目标为 IoT 设备固件或自定义编码实现",
+      "tags": [
+        "crypto",
+        "逆向",
+        "base64",
+        "ctf"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-13T12:19:59+00:00"
+    },
+    {
+      "id": "exp-b46f6a0a9f30",
+      "insight": "在多次重攻同一编码类挑战后，若 LLM 调用持续失败且无新证据产出，应优先检查是否因输入数据格式异常或编码逻辑复杂导致模型无法有效解析。",
+      "context": "CTF 编码/解码类挑战，目标为自定义编码实现或复杂编码逻辑",
+      "tags": [
+        "crypto",
+        "编码",
+        "llm",
+        "ctf"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-13T12:19:59+00:00"
+    },
+    {
+      "id": "exp-68b83ae86d90",
+      "insight": "CTF 挑战中若附件包含源码与编译产物，需同时考虑源码逻辑分析与二进制逆向分析，以应对不同实现细节带来的挑战。",
+      "context": "CTF 逆向/编码类挑战，目标为 IoT 设备固件或自定义编码实现",
+      "tags": [
+        "crypto",
+        "逆向",
+        "源码",
+        "ctf"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-13T12:19:59+00:00"
+    },
+    {
+      "id": "exp-3369932ac3da",
+      "insight": "当目标提供自定义编码实现源码与编译产物时，直接分析源码逻辑比依赖通用解码工具更能发现非标准编码陷阱。",
+      "context": "CTF 逆向/密码学场景，目标为嵌入式设备固件或自定义加密模块",
+      "tags": [
+        "crypto",
+        "逆向",
+        "源码分析",
+        "ctf"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-13T12:39:47+00:00"
+    },
+    {
+      "id": "exp-62404410218d",
+      "insight": "在多次重攻无新证据产出的情况下，应优先检查输入数据格式异常或编码逻辑复杂性是否导致模型解析失效。",
+      "context": "LLM 辅助解题场景，目标为复杂编码逻辑或格式异常数据",
+      "tags": [
+        "llm",
+        "crypto",
+        "调试",
+        "ctf"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-13T12:39:47+00:00"
+    },
+    {
+      "id": "exp-2c503608e3d2",
+      "insight": "自定义编码实现往往存在实现漏洞或边界条件，需结合源码与编译产物交叉验证以发现潜在弱点。",
+      "context": "CTF 逆向/密码学场景，目标为自定义编码或加密模块",
+      "tags": [
+        "crypto",
+        "逆向",
+        "漏洞挖掘",
+        "ctf"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-13T12:39:47+00:00"
+    },
+    {
+      "id": "exp-9c778e6df7c8",
+      "insight": "当目标提供自定义编码实现源码与编译产物时，应优先分析源码逻辑而非直接调用通用解码工具，因为标准库行为可能与自定义实现存在差异。",
+      "context": "CTF 逆向/密码学挑战，目标提供自定义编码库源码与二进制文件",
+      "tags": [
+        "crypto",
+        "reverse",
+        "custom-encoding",
+        "ctf"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-13T12:50:13+00:00"
+    },
+    {
+      "id": "exp-2636086fbb5e",
+      "insight": "在多次重攻同一编码类挑战后，若模型解析持续失败且无新证据产出，需警惕输入数据格式异常或编码逻辑复杂性导致解析失效。",
+      "context": "CTF 密码学挑战，多次尝试同一编码类题目无进展",
+      "tags": [
+        "crypto",
+        "parsing",
+        "failure-analysis",
+        "ctf"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-13T12:50:13+00:00"
+    },
+    {
+      "id": "exp-639848c9fd32",
+      "insight": "自定义编码实现可能引入非标准字符集或特殊填充规则，通用解码工具可能因假设标准格式而失效。",
+      "context": "CTF 密码学挑战，目标使用自定义编码实现",
+      "tags": [
+        "crypto",
+        "encoding",
+        "custom-implementation",
+        "ctf"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-13T12:50:13+00:00"
+    },
+    {
+      "id": "exp-ee7550be9e68",
+      "insight": "当目标提供自定义编码实现源码与编译产物时，需警惕标准库行为与实现逻辑的差异，常规解码工具可能因未适配私有逻辑而失效。",
+      "context": "IoT 设备固件逆向、自定义编码逻辑、源码与二进制对照分析",
+      "tags": [
+        "crypto",
+        "逆向",
+        "源码分析",
+        "ctf"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-13T13:12:17+00:00"
+    },
+    {
+      "id": "exp-28c24f297c45",
+      "insight": "多次重攻同一编码类挑战若仅能观测到密文与源码逻辑而无新证据，需警惕输入数据格式异常或编码逻辑存在隐蔽陷阱。",
+      "context": "编码类 CTF 挑战、多次尝试无进展、源码逻辑分析",
+      "tags": [
+        "crypto",
+        "编码",
+        "逆向",
+        "ctf"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-13T13:12:17+00:00"
+    },
+    {
+      "id": "exp-85f1e9fa6c24",
+      "insight": "在源码与编译产物并存场景下，编译产物可能隐藏源码未体现的运行时行为或数据格式转换细节。",
+      "context": "源码与二进制对照分析、编译产物差异、运行时行为推断",
+      "tags": [
+        "逆向",
+        "编译产物",
+        "源码分析",
+        "ctf"
+      ],
+      "source_model": "master",
+      "captured_at": "2026-11-13T13:12:17+00:00"
     }
   ]
 }

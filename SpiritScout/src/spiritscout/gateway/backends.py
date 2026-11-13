@@ -316,7 +316,7 @@ class LiteLLMBackend(ChatBackend):
         kwargs["model"] = self._routed_model_name(
             entry.model, entry.base_url, anthropic=anthropic)
         self._apply_effort(kwargs, reasoning_effort, anthropic=anthropic)
-        if tools:
+        if tools and getattr(entry, "native_tool_calls", True):
             kwargs["tools"] = tools
             if tool_choice:
                 kwargs["tool_choice"] = tool_choice
@@ -330,9 +330,10 @@ class LiteLLMBackend(ChatBackend):
             # 流式响应可能不含 usage 块，token 计数会归零
             kwargs["stream_options"] = {"include_usage": True}
 
-        for option in ("stream_options", "response_format"):
+        for option in ("stream_options", "response_format", "tools"):
             if option in kwargs and self._capabilities.unsupported(entry, anthropic, option):
                 kwargs.pop(option)
+                kwargs.pop("tool_choice", None)
         rejected: dict[str, Exception] = {}
         requested_at = time.perf_counter()
         try:
@@ -350,6 +351,14 @@ class LiteLLMBackend(ChatBackend):
             if not retried and kwargs.get("response_format") and self._json_mode_unsupported(exc):
                 kwargs.pop("response_format", None)
                 rejected["response_format"] = exc
+                retried = True
+            if (not retried and kwargs.get("tools")
+                    and self._tool_parse_broken(exc)):
+                # 端点解析 tool_calls 时自己崩了：去掉 tools 重发一次，
+                # 让模型把 JSON 写进正文，交给 inline call 恢复。
+                kwargs.pop("tools", None)
+                kwargs.pop("tool_choice", None)
+                rejected["tools"] = exc
                 retried = True
             if not retried and self._tool_args_truncated(exc) and not _retry_truncated:
                 return await self._reissue_truncated_call(
@@ -411,6 +420,18 @@ class LiteLLMBackend(ChatBackend):
     def _tool_args_truncated(exc: Exception) -> bool:
         """litellm 协议层工具参数解析失败的特征串（Anthropic tool invoke）。"""
         return "Failed to parse tool call arguments" in str(exc)
+
+    @staticmethod
+    def _tool_parse_broken(exc: Exception) -> bool:
+        """端点自己的 JSON 解析器就崩了——不是额度不够，加大 max_tokens 也没用。
+
+        现场：llama.cpp 的 llama-server 在工具参数较长时（实测 1100 字符上下）
+        直接报 ``json.exception.parse_error ... invalid string``，参数是它自己
+        拼出来的半截 JSON。这类端点不能再走「原样重发」，必须去掉 ``tools``
+        让它把 JSON 写在正文里，由 inline call 恢复机制接手。
+        """
+        msg = str(exc)
+        return "json.exception.parse_error" in msg or "Failed to parse tool call arguments as JSON:" in msg
 
     # ------------------------------------------------------------ 流式累积
 
@@ -564,7 +585,7 @@ class LiteLLMBackend(ChatBackend):
         key = api_key_for(entry)     # 本机端点用占位密钥，远端没配就是空
         if key:
             kwargs["api_key"] = key
-        if tools:
+        if tools and getattr(entry, "native_tool_calls", True):
             kwargs["tools"] = tools
             if tool_choice:
                 kwargs["tool_choice"] = tool_choice
