@@ -107,3 +107,8 @@ stop_range.ps1
 SpiritScout/configs/*.bak-*
 # 构建中间产物（build_release.py 的落点，只在本机生成）
 _build-out/
+# 第三方技能资料库（Hello-CTF / Des-CTF-Knowledge / ctf-skills 等原始资料）
+# 205 MB、4850 个文件，含大量真实赛题答案与题解。仅本机使用，不入库：
+# 运行时读的是 configs/skills.yaml（已把这些技能内联成 body 字段），
+# 这两个目录只是 import 时的原料，删掉不影响功能。
+SpiritScout/skills/
