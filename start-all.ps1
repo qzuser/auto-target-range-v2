@@ -131,12 +131,23 @@ if ($llmMode -eq 'none') {
     }
 }
 
-# 模型自检
+# 模型自检：先看列表，再真跑一次——端口通但请求不返回（假死）时列表照样读得到
 try {
     $ids = (Invoke-RestMethod "http://127.0.0.1:$LlmPort/v1/models" -TimeoutSec 6).data | ForEach-Object { $_.id }
-    if ($ids -contains $Model) { Say "模型 $Model 可用" Green }
+    if ($ids -contains $Model) { Say "模型 $Model 在列" Green }
     else { Say "服务里是 [$($ids -join ', ')]，没有 $Model —— 改 configs\models.yaml" Yellow }
-} catch { Say '读取模型列表失败（可能还在加载）' Yellow }
+
+    $probe = @{ model = $Model; messages = @(@{ role = 'user'; content = 'ping' }); max_tokens = 4; stream = $false } | ConvertTo-Json -Depth 5
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    $null = Invoke-RestMethod "http://127.0.0.1:$LlmPort/v1/chat/completions" -Method Post `
+        -ContentType 'application/json' -Body $probe -TimeoutSec 45
+    $sw.Stop()
+    Say "推理自检通过（$([math]::Round($sw.Elapsed.TotalSeconds,1))s）" Green
+} catch {
+    Write-Host "  [x] 推理自检失败：模型列表读得到但请求不返回，端点多半假死了" -ForegroundColor Red
+    Write-Host "      处理：先跑 stop-all.ps1，再跑本脚本重载模型" -ForegroundColor Yellow
+    if (-not $Quiet) { Write-Host "      详情：$($_.Exception.Message)" -ForegroundColor DarkGray }
+}
 
 # ── 2. 控制台 ────────────────────────────────────────────────
 Head "[2/4] 控制台（端口 $Port）"
