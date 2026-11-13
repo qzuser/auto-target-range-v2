@@ -8,7 +8,7 @@
 
 | 路径 | 作用 |
 | --- | --- |
-`SpiritScout/` | 产品本体。灵枢 v0.24.3，Python 3.11+，FastAPI Web 控制台 + 多 Agent 编排。详见 [SpiritScout/README.md](SpiritScout/README.md)
+`SpiritScout/` | 产品本体。灵枢 v0.48.2，Python 3.11+，FastAPI Web 控制台 + 多 Agent 编排。详见 [SpiritScout/README.md](SpiritScout/README.md)
 `start-local.ps1` | 本机启动器（不走 Docker）：环境与依赖自检（缺运行依赖自动 `pip install`，缺 venv/pip/解释器版本只给命令不动手）→ 导出执行后端与模型 key 环境变量 → 前台起 Web 控制台。首次启动会先让你设管理员密码（输两遍、不回显，只存 scrypt 哈希进 `admin.db`）。`-NoInstall` 只报告不装；装依赖默认走**清华 PyPI 镜像**，`-PipIndex official` 换官方源
 `启动服务.cmd` | 双击入口，包一层 `start-local.ps1 -Port 8010`
 `deploy-spiritscout.ps1` | Docker Desktop 一键部署（CTF 的 shell/python 工具硬依赖 bubblewrap，Windows 原生沙箱不可用时需要它）
@@ -16,6 +16,7 @@
 `_work/validate_release.py` | 打包前的冒烟：包内解释器导入、沙箱解释器探测、配置数据落点、控制台真起停；跑完清掉它在 `data\` 留下的运行数据，好让下一步打出一个没被人点开过的包
 `experience-export/` | 运行期经验沉淀的**脱敏快照**（`experience-insights.json`，条数见文件里的 `total`）：`export_experience.py` 从 `SpiritScout/.spiritscout/experience.db` 导出，pre-commit 钩子保证每次提交都把它一起带上。装钩子：`python experience-export/install_hook.py`。细节见该目录 README
 `packages/`（未提交） | 构建产物落点：wheel / sdist / portable zip，通过 GitHub Release 分发
+[`PUSH-POLICY.md`](PUSH-POLICY.md) | **什么进仓库、什么只留本机**：源码/测试/文档/配置模板推，运行数据/密钥/构建产物/本机私用脚本不推。含推送前三十秒自检清单
 
 ## 三十秒跑起来
 

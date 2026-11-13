@@ -105,3 +105,5 @@ stop_range.ps1
 打靶系统-使用说明.md
 # 配置快照备份（含端点与模型清单，别跟着入库）
 SpiritScout/configs/*.bak-*
+# 构建中间产物（build_release.py 的落点，只在本机生成）
+_build-out/
