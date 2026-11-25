@@ -136,11 +136,12 @@ async def session_egress(store, session):
         proxy = SessionProxy(session.workspace)
         proxy.task = asyncio.create_task(proxy.serve(address))
         await asyncio.wait_for(asyncio.shield(proxy.ready), 20)
-        from spiritscout.traffic.bridge import EgressBridge
+        if hasattr(asyncio, "start_unix_server"):
+            from spiritscout.traffic.bridge import EgressBridge
 
-        bridge = EgressBridge(proxy.address)
-        await bridge.start()
-        proxy.egress_socket = bridge.path
+            bridge = EgressBridge(proxy.address)
+            await bridge.start()
+            proxy.egress_socket = bridge.path
         exit_ip = await verify_exit(await proxy.environment())
         if snapshot.get('exit_ip') and snapshot['exit_ip'] != exit_ip:
             raise SpiritScoutError('此代理方案的公网出口已改变；原会话未切换出口，请新建会话重新确认')

@@ -44,6 +44,7 @@ class DesktopParityTest {
             WorkspaceTab.TRAFFIC,
             WorkspaceTab.BACKGROUND,
             WorkspaceTab.EVENTS,
+            WorkspaceTab.RECORDS,
             WorkspaceTab.DELIVERABLES,
             WorkspaceTab.REPORT
         )

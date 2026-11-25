@@ -3,7 +3,8 @@
 param(
     [string]$RuntimeDir = '',
     [string]$OutputDir = '',
-    [string]$Wheel = ''
+    [string]$Wheel = '',
+    [string]$TrafficProxy = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -63,6 +64,14 @@ try {
     Pop-Location
 }
 
+if (-not $TrafficProxy) {
+    $trafficScript = Join-Path $packagingDir 'build-traffic-proxy.ps1'
+    & $trafficScript -OutputDir (Join-Path $repoRoot 'build\tools')
+    if ($LASTEXITCODE -ne 0) { throw "流量代理构建失败（退出码 $LASTEXITCODE）" }
+    $TrafficProxy = Join-Path $repoRoot 'build\tools\spiritscout-traffic-proxy.exe'
+}
+$TrafficProxy = (Resolve-Path -LiteralPath $TrafficProxy).Path
+
 $mainJar = Get-ChildItem (Join-Path $projectDir "build\desktop-input") -File -Filter "SpiritScoutDesktop-$version.jar" |
     Select-Object -First 1
 if (-not $mainJar) {
@@ -109,9 +118,10 @@ Copy-Item -LiteralPath (Join-Path $RuntimeDir 'configs') -Destination (Join-Path
 Copy-Item -LiteralPath (Join-Path $repoRoot 'docs\原生桌面端.md') -Destination (Join-Path $appDir 'README-Windows.md') -Force
 New-Item -ItemType Directory -Force -Path (Join-Path $appDir 'tools') | Out-Null
 Copy-Item -LiteralPath (Join-Path $repoRoot 'tools\experience-export') -Destination (Join-Path $appDir 'tools\experience-export') -Recurse -Force
-Get-ChildItem -LiteralPath (Join-Path $appDir 'tools') -Recurse -Directory -Filter '__pycache__' -ErrorAction SilentlyContinue |
+Copy-Item -LiteralPath $TrafficProxy -Destination (Join-Path $appDir 'tools\spiritscout-traffic-proxy.exe') -Force
+Get-ChildItem -LiteralPath $appDir -Recurse -Force -Directory -Filter '__pycache__' -ErrorAction SilentlyContinue |
     Remove-Item -Recurse -Force
-Get-ChildItem -LiteralPath (Join-Path $appDir 'tools') -Recurse -File -Filter '*.pyc' -ErrorAction SilentlyContinue |
+Get-ChildItem -LiteralPath $appDir -Recurse -Force -File -Filter '*.pyc' -ErrorAction SilentlyContinue |
     Remove-Item -Force
 Copy-Item -LiteralPath (Join-Path $repoRoot 'desktop\THIRD_PARTY_NOTICES.md') -Destination (Join-Path $appDir 'THIRD_PARTY_NOTICES.md') -Force
 Copy-Item -LiteralPath (Join-Path $repoRoot 'desktop\THIRD_PARTY\SaltUI-LICENSE.txt') -Destination (Join-Path $appDir 'SaltUI-LICENSE.txt') -Force

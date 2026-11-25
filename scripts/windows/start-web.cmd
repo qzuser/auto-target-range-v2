@@ -1,7 +1,7 @@
 @echo off
 chcp 65001 >nul
 title SpiritScout 灵枢 - 前台服务（关闭本窗口即全部停止）
-cd /d "%~dp0"
+cd /d "%~dp0..\.."
 
 rem -------------------------------------------------------------------
 rem Keep this file as UTF-8 WITHOUT BOM with CRLF line endings.
@@ -22,7 +22,7 @@ if not defined SPIRITSCOUT_REMOTE_LLM_KEY (
     echo.
 )
 
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0start-local.ps1" -Port 8010
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0start-web.ps1" -Port 8010 %*
 
 echo.
 echo [=] 控制台已退出。

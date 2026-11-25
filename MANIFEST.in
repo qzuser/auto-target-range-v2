@@ -1,6 +1,13 @@
-# 运维脚本：文档里直接让人跑 `python scripts/bootstrap.py` / `scripts/probe_deps.py`，
-# 缺了这些路径就成了空指路（之前 sdist 里确实没有）。
-recursive-include scripts *.py
+# 运维脚本：文档里直接让人跑 `python scripts/bootstrap.py` / `scripts/probe_deps.py`。
+# 平台启动器也需要随 sdist 发布，方便从源码包复现 Windows 与 Linux 入口。
+graft scripts
+prune scripts/__pycache__
+include Start-SpiritScout.cmd
+include Dockerfile
+include docker-compose.yml
+include docker-compose.dev.yml
+include deploy.py
+include .env.example
 # 编译缓存不是源码：本机构建时 scripts/__pycache__ 会跟着进去，白占体积
 global-exclude *.pyc *.pyo
 # 原生桌面端：Kotlin Compose 源码、图标与 Windows 打包脚本进 sdist。
@@ -9,30 +16,36 @@ graft desktop
 prune desktop/build
 prune desktop/.gradle
 prune desktop/.kotlin
+prune desktop/SpiritScoutCompose
 include desktop/THIRD_PARTY_NOTICES.md
 include desktop/THIRD_PARTY/SaltUI-LICENSE.txt
+include desktop/src/main/resources/favicon.png
 graft packaging/windows
 prune packaging/windows/.cache
-# 源码分发包的补充清单。
-# setuptools 默认只收测试目录里的 *.py，前端那套 node 测试（tests/test_*.js）
-# 一直没进 sdist——从源码包构建的人因此跑不了 AGENTS 要求的 `node tests/test_*.js`。
-recursive-include tests *.js
+
+# Web 会话阅读器的 TypeScript 源码、构建配置和 Node 测试必须完整随 sdist 发布。
+graft frontend
+prune frontend/node_modules
+
+# 测试夹具与 JavaScript 回归测试也要能从源码包运行。
+graft tests
+prune tests/__pycache__
+
+# 原生流量代理与经验同步工具属于可复现源码的一部分。
+graft traffic-proxy
+graft tools/experience-export
+prune tools/experience-export/__pycache__
 
 # 随包发布的做题经验：docs/workspace/EXPERIENCE.md 是给人看的摘要，knowledge/data/ 下的
 # experience.json / experience.md 是 wheel 里那份机读与摘要素材（由
 # `python -m spiritscout.knowledge.digest` 在打包时生成）。
-include docs/workspace/EXPERIENCE.md
+graft docs
 include src/spiritscout/knowledge/data/experience.json
 include src/spiritscout/knowledge/data/experience.md
 
-# 技能库：skills/ 是技能包的原始素材（多轮实战沉淀的 SKILL.md 与参考文档），
-# 装完想看/想改的人得拿得到，所以整目录进 sdist。
-graft skills
-
-# 但技能包里的插图与演示视频（合计约 126 MB 的 png/gif/mp4）不进 sdist：
-# 它只压缩到 150 MB，纯属白占带宽；文字素材齐了就够用，全量素材在 zip 里。
-# 这些扩展名在 skills/ 以外没有分布（docs 只有 svg），所以整包排除是安全的。
-global-exclude *.png *.jpg *.jpeg *.gif *.mp4 *.webm
+# 自定义技能真源是 configs/skills.yaml；归档技能在
+# src/spiritscout/knowledge/data/archive_skills.json。仓库不再引用不存在的
+# 顶层 skills/ 目录。
 
 # 配置文件只收模板与技能清单——真实 models.yaml / agent_models.yaml / system.yaml
 # 带供应商端点与密钥，绝不能进包（它们本来也在 .gitignore 里，这里显式点名是为了

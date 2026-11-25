@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import io
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -49,6 +51,14 @@ class SkillFilesTests(unittest.TestCase):
                     'expected_version': 1})
                 self.assertEqual(response.status_code, 200, response.text)
                 self.assertIn('# Updated', client.get('/api/resources/skills/sample-skill').json()['body'])
+                exported = client.get('/api/resources/skills/sample-skill/export')
+                self.assertEqual(exported.status_code, 200, exported.text)
+                with zipfile.ZipFile(io.BytesIO(exported.content)) as archive:
+                    self.assertIn('sample-skill/SKILL.md', archive.namelist())
+                    self.assertIn(
+                        '# Updated',
+                        archive.read('sample-skill/references/notes.md').decode(),
+                    )
                 self.assertEqual(client.put('/api/resources/skills/sample-skill', json={
                     'data': {'files': {'SKILL.md': 'root', '../../bad': 'bad'}},
                     'expected_version': 2}).status_code, 422)

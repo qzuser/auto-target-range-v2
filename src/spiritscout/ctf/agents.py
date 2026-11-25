@@ -1620,13 +1620,19 @@ class CTFBaseAgent(SubAgent):
         for sk in skills:
             if not sk.get("enabled", True):
                 continue
-            hay = (sk.get("skill_id", "") + " " + sk.get("description", "")).lower()
+            hay = (
+                str(sk.get("skill_id") or "")
+                + " "
+                + str(sk.get("description") or "")
+            ).lower()
             if any(w in hay for w in q_lower.split() if len(w) >= 2):
                 skill_hits.append(sk)
         if skill_hits:
             body_lines = ["\n=== 技能候选（尚未加载正文）==="]
             for sk in skill_hits[:3]:
-                body_lines.append(f"[{sk['skill_id']}] {sk['description'][:120]}")
+                body_lines.append(
+                    f"[{sk['skill_id']}] {str(sk.get('description') or '')[:120]}"
+                )
                 body_lines.append(f"完整读取请调用 skill_open(skill_id={sk['skill_id']})")
                 body_lines.append("---")
             body = "\n".join(body_lines)[:4000]

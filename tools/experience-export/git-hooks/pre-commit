@@ -25,6 +25,9 @@ fi
 exporter="tools/experience-export/export_experience.py"
 [ -f "$exporter" ] || exit 0
 
+# 从未运行过本机控制台时没有经验库；保留现有快照并静默放行。
+[ -f ".spiritscout/experience.db" ] || exit 0
+
 # 找一个能跑的解释器：优先仓库自带 venv，其次 PATH 里的 python，最后 py 启动器
 PY=""
 for cand in ".venv/Scripts/python.exe" ".venv/bin/python" \

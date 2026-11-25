@@ -17,6 +17,7 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Duration
+import java.io.InputStream
 
 class ApiException(
     val status: Int,
@@ -83,6 +84,81 @@ class SpiritApi(val baseUrl: String) {
             ?: error("上传响应缺少 upload_id")
     }
 
+    suspend fun uploadFolder(root: Path): String {
+        require(Files.isDirectory(root)) { "附件目录不存在：$root" }
+        val staged = post("/api/uploads/folders?name=${enc(root.fileName.toString())}")
+        val uploadId = staged.jsonObject["upload_id"]?.toString()?.trim('"')
+            ?: error("文件夹上传响应缺少 upload_id")
+        try {
+            val paths = withContext(Dispatchers.IO) {
+                Files.walk(root).use { stream -> stream.sorted().toList() }
+            }
+            for (path in paths) {
+                if (path == root) continue
+                val relative = root.relativize(path).joinToString("/") { it.toString() }
+                if (Files.isDirectory(path)) {
+                    putFolderEntry(uploadId, relative, null, directory = true)
+                } else if (Files.isRegularFile(path)) {
+                    putFolderEntry(uploadId, relative, path, directory = false)
+                }
+            }
+            return uploadId
+        } catch (error: Exception) {
+            runCatching { delete("/api/uploads/folders/$uploadId") }
+            throw error
+        }
+    }
+
+    suspend fun importTrafficCapture(sessionId: String, path: Path): JsonElement {
+        val name = path.fileName.toString()
+        return withContext(Dispatchers.IO) {
+            val uri = URI.create(
+                "$baseUrl/api/sessions/${enc(sessionId)}/traffic/capture/import?name=${enc(name)}"
+            )
+            val request = HttpRequest.newBuilder(uri)
+                .timeout(Duration.ofMinutes(3))
+                .header("Content-Type", "application/octet-stream")
+                .header("Accept", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofFile(path))
+                .build()
+            val response = client.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
+            val body = response.body()
+            ensureSuccess(response.statusCode(), body)
+            if (body.isBlank()) json.parseToJsonElement("{}") else json.parseToJsonElement(body)
+        }
+    }
+
+    suspend fun importSkillArchive(path: Path): JsonElement {
+        return withContext(Dispatchers.IO) {
+            val request = HttpRequest.newBuilder(URI.create("$baseUrl/api/resources/skills/import"))
+                .timeout(Duration.ofMinutes(3))
+                .header("Content-Type", "application/zip")
+                .header("Accept", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofFile(path))
+                .build()
+            val response = client.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
+            val body = response.body()
+            ensureSuccess(response.statusCode(), body)
+            if (body.isBlank()) json.parseToJsonElement("{}") else json.parseToJsonElement(body)
+        }
+    }
+
+    suspend fun openEventStream(path: String): InputStream = withContext(Dispatchers.IO) {
+        val request = HttpRequest.newBuilder(
+            URI.create(baseUrl.trimEnd('/') + "/" + path.trimStart('/'))
+        )
+            .timeout(Duration.ofMinutes(30))
+            .header("Accept", "text/event-stream")
+            .GET()
+            .build()
+        val response = client.send(request, HttpResponse.BodyHandlers.ofInputStream())
+        if (response.statusCode() !in 200..299) {
+            val body = response.body().bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
+            ensureSuccess(response.statusCode(), body)
+        }
+        response.body()
+    }
+
     suspend fun postRawAsync(path: String, stream: java.io.InputStream, contentType: String): JsonElement =
         withContext(Dispatchers.IO) {
             val request = HttpRequest.newBuilder(URI.create(baseUrl.trimEnd('/') + "/" + path.trimStart('/')))
@@ -131,6 +207,27 @@ class SpiritApi(val baseUrl: String) {
         val text = response.body()
         ensureSuccess(response.statusCode(), text)
         if (text.isBlank()) json.parseToJsonElement("{}") else json.parseToJsonElement(text)
+    }
+
+    private suspend fun putFolderEntry(
+        uploadId: String,
+        relativePath: String,
+        file: Path?,
+        directory: Boolean
+    ) = withContext(Dispatchers.IO) {
+        val uri = URI.create(
+            "$baseUrl/api/uploads/folders/${enc(uploadId)}" +
+                "?path=${enc(relativePath)}&directory=$directory"
+        )
+        val publisher = file?.let(HttpRequest.BodyPublishers::ofFile)
+            ?: HttpRequest.BodyPublishers.noBody()
+        val request = HttpRequest.newBuilder(uri)
+            .timeout(Duration.ofMinutes(3))
+            .header("Content-Type", "application/octet-stream")
+            .PUT(publisher)
+            .build()
+        val response = client.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
+        ensureSuccess(response.statusCode(), response.body())
     }
 
     private fun ensureSuccess(status: Int, body: String) {

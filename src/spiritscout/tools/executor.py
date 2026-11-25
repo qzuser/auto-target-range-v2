@@ -19,7 +19,12 @@ from typing import Any
 
 from spiritscout.core.audit import AuditLogger, NullAuditLogger
 from spiritscout.core.exceptions import ToolExecutionError
-from spiritscout.platform_support import kill_process_tree, process_options
+from spiritscout.platform_support import (
+    ProcessTreeTracker,
+    WindowsJob,
+    kill_process_tree,
+    process_options,
+)
 from spiritscout.tools.output import command_output
 from spiritscout.tools.spec import ToolKind, ToolResult, ToolSpec
 
@@ -32,9 +37,11 @@ def _kill_process_group(proc: asyncio.subprocess.Process) -> None:
 _READ_CHUNK = 65536
 
 
-async def _wait_parent(proc: asyncio.subprocess.Process) -> None:
+async def _wait_parent(proc: asyncio.subprocess.Process,
+                       tree: ProcessTreeTracker) -> None:
     """只等直接子进程退出；后代持有管道时 proc.wait() 还会继续等待 EOF。"""
     while proc.returncode is None:
+        tree.poll()
         await asyncio.sleep(0.01)
 
 
@@ -111,6 +118,8 @@ class ToolExecutor(abc.ABC):
                               error=f"工具启动失败: {exc}",
                               duration_ms=(time.perf_counter() - started) * 1000)
         rollback.track_process(proc)
+        tree = ProcessTreeTracker(proc.pid)
+        job = WindowsJob.attach(proc)
         # 流式限幅读取：内存只留头尾窗口，超出部分读走即弃——进程得以
         # 自然收尾（不因管道塞满卡死），内存也不随输出体量增长
         out_task = asyncio.create_task(
@@ -119,15 +128,21 @@ class ToolExecutor(abc.ABC):
             _read_capped(proc.stderr, self.max_output_chars, "stderr"))
         try:
             try:
-                await asyncio.wait_for(_wait_parent(proc), timeout=spec.timeout_seconds)
+                await asyncio.wait_for(_wait_parent(proc, tree), timeout=spec.timeout_seconds)
                 timed_out = False
             except TimeoutError:
                 timed_out = True
+                if job:
+                    job.terminate()
+                tree.terminate()
                 _kill_process_group(proc)
                 with contextlib.suppress(BaseException):
                     await asyncio.wait_for(proc.wait(), timeout=5)
         except BaseException:
             # 取消/异常路径同样不留活口：整组清理后原样抛出
+            if job:
+                job.terminate()
+            tree.terminate()
             _kill_process_group(proc)
             with contextlib.suppress(BaseException):
                 await asyncio.wait_for(proc.wait(), timeout=5)
@@ -138,6 +153,9 @@ class ToolExecutor(abc.ABC):
             raise
         # 普通 CLI 调用不拥有跨调用后台服务；直接子进程收尾后立即收口
         # 同组后代，再读完已产生的输出，避免延迟写入和管道永久不关闭。
+        if job:
+            job.terminate()
+        tree.terminate()
         _kill_process_group(proc)
         try:
             (stdout_b, _), (stderr_b, _) = await asyncio.wait_for(
@@ -148,6 +166,9 @@ class ToolExecutor(abc.ABC):
             await asyncio.gather(out_task, err_task, return_exceptions=True)
             stdout_b = stderr_b = b""
         finally:
+            if job:
+                job.terminate()
+            tree.terminate()
             _kill_process_group(proc)
             out_task.cancel()
             err_task.cancel()

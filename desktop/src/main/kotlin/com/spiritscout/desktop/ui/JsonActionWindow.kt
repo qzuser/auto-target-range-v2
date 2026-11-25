@@ -37,7 +37,7 @@ import com.spiritscout.desktop.AppController
 @Composable
 fun JsonActionWindow(controller: AppController) {
     val action = controller.jsonAction ?: return
-    DialogWindow(
+    LocalizedDialogWindow(
         onCloseRequest = controller::closeJsonAction,
         title = action.title,
         state = rememberDialogState(
@@ -63,19 +63,19 @@ private fun JsonActionContent(controller: AppController) {
 
     Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Column {
-            Text(action.title, style = SaltTheme.textStyles.largeTitle)
-            Text(action.description, style = SaltTheme.textStyles.sub, color = SaltTheme.colors.subText)
+            LocalizedText(action.title, style = SaltTheme.textStyles.largeTitle)
+            LocalizedText(action.description, style = SaltTheme.textStyles.sub, color = SaltTheme.colors.subText)
         }
         if (action.requiresId) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(action.idLabel, style = SaltTheme.textStyles.sub, color = SaltTheme.colors.subText)
+                LocalizedText(action.idLabel, style = SaltTheme.textStyles.sub, color = SaltTheme.colors.subText)
                 SpiritTextField(identifier, { identifier = it }, action.idLabel)
             }
         }
         if (action.method.uppercase() != "DELETE") {
             Card(Modifier.weight(1f).fillMaxWidth(), color = SaltTheme.colors.subBackground) {
                 Column(Modifier.fillMaxSize().padding(10.dp)) {
-                    Text(
+                    LocalizedText(
                         "JSON",
                         style = SaltTheme.textStyles.sub,
                         color = SaltTheme.colors.subText,
@@ -89,19 +89,19 @@ private fun JsonActionContent(controller: AppController) {
                 }
             }
         } else {
-            Text("此操作会删除当前条目，确认后不可撤销。", color = SaltTheme.colors.error)
+            LocalizedText("此操作会删除当前条目，确认后不可撤销。", color = SaltTheme.colors.error)
         }
         controller.jsonActionError?.let {
-            Text(it, color = SaltTheme.colors.error, style = SaltTheme.textStyles.sub)
+            LocalizedText(it, color = SaltTheme.colors.error, style = SaltTheme.textStyles.sub)
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            Button(
+            LocalizedButton(
                 onClick = controller::closeJsonAction,
                 text = "取消",
                 appearance = ButtonAppearance.Subtle
             )
             Spacer(Modifier.width(10.dp))
-            Button(
+            LocalizedButton(
                 onClick = { controller.submitJsonAction(identifier, text) },
                 text = if (action.method.equals("DELETE", ignoreCase = true)) "确认删除" else "保存"
             )

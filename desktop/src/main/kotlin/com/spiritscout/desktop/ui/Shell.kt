@@ -1,5 +1,7 @@
 package com.spiritscout.desktop.ui
 
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Image
@@ -71,7 +73,7 @@ fun SpiritScoutRoot(controller: AppController, captionBarHeight: Dp) {
                     .background(SaltTheme.colors.popup)
                     .padding(horizontal = 18.dp, vertical = 10.dp)
             ) {
-                Text(message, style = SaltTheme.textStyles.main)
+                LocalizedText(message, style = SaltTheme.textStyles.main)
             }
         }
     }
@@ -102,7 +104,19 @@ private fun MainSurface(controller: AppController) {
             Box(Modifier.fillMaxWidth().height(1.dp).background(SaltTheme.colors.stroke))
         }
         Box(Modifier.weight(1f).fillMaxWidth()) {
-            PageContent(controller)
+            val duration = when (controller.motionPreference) {
+                "off" -> 0
+                "fast" -> 110
+                "soft" -> 260
+                else -> 180
+            }
+            Crossfade(
+                targetState = controller.section,
+                animationSpec = tween(durationMillis = duration),
+                label = "page"
+            ) { target ->
+                PageContent(controller, target)
+            }
         }
     }
 }
@@ -171,8 +185,8 @@ private fun Brand(controller: AppController) {
             )
         }
         Column(Modifier.weight(1f)) {
-            Text("灵枢", fontWeight = FontWeight.Bold, fontSize = 17.sp)
-            Text(
+            LocalizedText("灵枢", fontWeight = FontWeight.Bold, fontSize = 17.sp)
+            LocalizedText(
                 "SpiritScout",
                 style = SaltTheme.textStyles.sub,
                 color = SaltTheme.colors.subText
@@ -205,7 +219,7 @@ private fun NavigationRow(
         horizontalArrangement = Arrangement.spacedBy(11.dp)
     ) {
         Icon(section.icon, section.title, modifier = Modifier.size(18.dp), tint = foreground)
-        Text(
+        LocalizedText(
             section.title,
             modifier = Modifier.weight(1f),
             color = foreground,
@@ -219,7 +233,7 @@ private fun NavigationRow(
                     .background(SaltTheme.colors.highlight.copy(alpha = if (active) 0.18f else 0.09f))
                     .padding(horizontal = 7.dp, vertical = 2.dp)
             ) {
-                Text(it, style = SaltTheme.textStyles.sub, color = foreground)
+                LocalizedText(it, style = SaltTheme.textStyles.sub, color = foreground)
             }
         }
     }
@@ -241,13 +255,13 @@ private fun SidebarStatus(controller: AppController) {
                     modifier = Modifier.size(16.dp),
                     tint = if (controller.backendUrl.isNotBlank()) SaltTheme.colors.success else SaltTheme.colors.error
                 )
-                Text(
+                LocalizedText(
                     if (controller.backendUrl.isNotBlank()) "本机控制台在线" else "控制台离线",
                     style = SaltTheme.textStyles.sub,
                     color = SaltTheme.colors.subText
                 )
             }
-            Text(
+            LocalizedText(
                 "CPU ${"%.0f".format(system?.cpu ?: 0.0)}% · 内存 ${"%.0f".format(system?.memory ?: 0.0)}%",
                 style = SaltTheme.textStyles.sub,
                 color = SaltTheme.colors.subText

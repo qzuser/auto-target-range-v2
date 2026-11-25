@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """环境自检与一键修复：找解释器 → 建 venv → 装依赖（国内镜像，失败换源重试）。
 
-为什么单独抽一个脚本：`start-local.ps1` 里那套逻辑只有 PowerShell 能跑，
+为什么单独抽一个脚本：`scripts/windows/start-web.ps1` 里那套逻辑只有 PowerShell 能跑，
 新加的桌面 GUI 要用、CI 要用、换到别的机器排障时手动也要用。环境问题在
 别的机器上偶发的根因基本就四类，这里逐条兜住：
 

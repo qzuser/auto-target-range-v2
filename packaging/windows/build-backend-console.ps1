@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
     Build the optional Windows backend console executable.
@@ -13,7 +13,8 @@
 [CmdletBinding()]
 param(
     [string]$PythonVersion = $(if ($env:BUILD_PYTHON) { $env:BUILD_PYTHON } else { '3.11' }),
-    [string]$OutputDir = ''
+    [string]$OutputDir = '',
+    [string]$IndexUrl = $(if ($env:SPIRITSCOUT_PIP_INDEX) { $env:SPIRITSCOUT_PIP_INDEX } else { 'https://pypi.tuna.tsinghua.edu.cn/simple' })
 )
 
 $ErrorActionPreference = 'Stop'
@@ -66,12 +67,25 @@ try {
     }
 
     if ($uv) {
-        & $uv pip install --python $python -e '.[build]'
+        & $uv pip install --python $python --default-index $IndexUrl -e '.[build]'
+        $installExitCode = $LASTEXITCODE
     }
     else {
-        & $python -m pip install --upgrade pip
-        if ($LASTEXITCODE -ne 0) { throw "pip upgrade failed (exit code $LASTEXITCODE)" }
-        & $python -m pip install -e '.[build]'
+        & $python -m pip install --index-url $IndexUrl --upgrade pip
+        $installExitCode = $LASTEXITCODE
+        if ($installExitCode -eq 0) {
+            & $python -m pip install --index-url $IndexUrl -e '.[build]'
+            $installExitCode = $LASTEXITCODE
+        }
+    }
+    if ($installExitCode -ne 0 -and $IndexUrl -notlike 'https://pypi.org*') {
+        Write-Warning "Dependency mirror failed; retrying with official PyPI."
+        if ($uv) {
+            & $uv pip install --python $python --default-index 'https://pypi.org/simple' -e '.[build]'
+        }
+        else {
+            & $python -m pip install --index-url 'https://pypi.org/simple' -e '.[build]'
+        }
     }
     if ($LASTEXITCODE -ne 0) { throw "Build dependency install failed (exit code $LASTEXITCODE)" }
 

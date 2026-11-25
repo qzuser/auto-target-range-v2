@@ -21,8 +21,12 @@ class InstallScriptTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory(prefix="spiritscout install ")
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
-        shutil.copy2(Path(__file__).resolve().parents[1] / "install.sh",
-                     self.root / "install.sh")
+        install_dir = self.root / "scripts/linux"
+        install_dir.mkdir(parents=True)
+        shutil.copy2(
+            Path(__file__).resolve().parents[1] / "scripts/linux/install.sh",
+            install_dir / "install.sh",
+        )
         (self.root / "configs").mkdir()
         (self.root / "configs/system.example.yaml").write_text(
             "workspace:\n  root: .spiritscout\n", encoding="utf-8",
@@ -69,7 +73,7 @@ class InstallScriptTests(unittest.TestCase):
 
     def install(self, *args: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
-            ["bash", str(self.root / "install.sh"), *args],
+            ["bash", str(self.root / "scripts/linux/install.sh"), *args],
             cwd=self.root.parent, env=self.env, capture_output=True, text=True,
             timeout=60, check=False,
         )

@@ -32,7 +32,7 @@ _MAX_N = 2 ** 18
 _SALT_BYTES = 16
 _HASH_BYTES = 32
 MAX_USERNAME_LENGTH = 128
-MAX_PASSWORD_LENGTH = 1024
+MAX_PASSWORD_LENGTH = 4096
 _DEFAULT_USERNAME = "spiritscout"
 _ENV_ADMIN_SYNC = "SPIRITSCOUT_ADMIN_SYNC"
 
@@ -88,9 +88,13 @@ def _validate_credentials(username: str, password: str) -> None:
             f"管理员用户名必须为 1-{MAX_USERNAME_LENGTH} 个字符")
     if any(ord(ch) < 0x20 or ch == ":" for ch in username):
         raise ConfigurationError("管理员用户名不能包含冒号或控制字符")
-    if len(password) > MAX_PASSWORD_LENGTH:
-        raise ConfigurationError(
-            f"管理员密码不能超过 {MAX_PASSWORD_LENGTH} 个字符")
+    if not password:
+        raise ConfigurationError("管理员密码不能为空")
+
+
+def validate_credentials(username: str, password: str) -> None:
+    """Validate admin credentials for CLI and environment import paths."""
+    _validate_credentials(username, password)
 
 
 def _chmod_quiet(path: Path, mode: int = 0o600) -> None:
@@ -161,6 +165,21 @@ class AdminStore:
             finally:
                 conn.close()
         _chmod_quiet(self.db_path)
+
+    def clear(self) -> int:
+        """Delete all admin accounts without removing the session signing key."""
+        if not self.db_path.exists():
+            return 0
+        with self._lock:
+            conn = self._connect()
+            try:
+                with conn:
+                    cursor = conn.execute("DELETE FROM admins")
+                    removed = max(0, cursor.rowcount)
+            finally:
+                conn.close()
+        _chmod_quiet(self.db_path)
+        return removed
 
     def password_fingerprint(self, username: str) -> str:
         stored = self._hash_for(username)

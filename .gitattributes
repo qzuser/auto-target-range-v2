@@ -8,3 +8,5 @@ tools/experience-export/*.py text eol=lf
 deploy/browser/*.sh text eol=lf
 *.sh text eol=lf
 *.ps1 text eol=lf
+*.cmd text eol=crlf
+*.bat text eol=crlf

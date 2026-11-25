@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -408,7 +409,19 @@ func main() {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.Proxy = nil
 	transport.DisableCompression = true
-	transport.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
+	if caFile := os.Getenv("SSL_CERT_FILE"); caFile != "" {
+		pool, err := x509.SystemCertPool()
+		if err != nil || pool == nil {
+			pool = x509.NewCertPool()
+		}
+		data, err := os.ReadFile(caFile)
+		if err != nil || !pool.AppendCertsFromPEM(data) {
+			os.Exit(2)
+		}
+		tlsConfig.RootCAs = pool
+	}
+	transport.TLSClientConfig = tlsConfig
 	transport.ResponseHeaderTimeout = 60 * time.Second
 	if conf.Upstream != "" {
 		parsed, err := url.Parse(conf.Upstream)

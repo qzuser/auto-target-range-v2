@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import sys
 import tempfile
 import unittest
 import zipfile
@@ -20,6 +21,7 @@ from spiritscout.tools.spec import RiskLevel, ToolKind, ToolSpec
 R2_AVAILABLE = bool(shutil.which("r2") or (Path(__file__).resolve().parents[1] / ".venv/bin/r2").exists())
 
 
+@unittest.skipIf(sys.platform == "win32", "Linux binary fixtures and bubblewrap are required")
 class BinaryToolTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()

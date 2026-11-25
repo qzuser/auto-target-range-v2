@@ -61,13 +61,13 @@ fun PageHeader(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(
+            LocalizedText(
                 section.title,
                 style = SaltTheme.textStyles.largeTitle,
                 color = SaltTheme.colors.text
             )
             Spacer(Modifier.height(4.dp))
-            Text(
+            LocalizedText(
                 section.subtitle,
                 style = SaltTheme.textStyles.sub,
                 color = SaltTheme.colors.subText
@@ -87,7 +87,7 @@ fun PageHeader(
             onToggleTheme
         )
         Spacer(Modifier.width(10.dp))
-        Button(
+        LocalizedButton(
             onClick = onNewTask,
             text = "新任务",
             leadingIcon = {
@@ -114,7 +114,7 @@ fun SpiritIconButton(
     ) {
         Icon(
             icon,
-            contentDescription = description,
+            contentDescription = DesktopI18n.translate(description),
             tint = if (enabled) SaltTheme.colors.text else SaltTheme.colors.subText.copy(alpha = 0.45f),
             modifier = Modifier.size(18.dp)
         )
@@ -150,7 +150,7 @@ fun SpiritTextField(
                 contentAlignment = if (singleLine) Alignment.CenterStart else Alignment.TopStart
             ) {
                 if (value.isBlank()) {
-                    Text(
+                    LocalizedText(
                         placeholder,
                         style = SaltTheme.textStyles.main,
                         color = SaltTheme.colors.subText
@@ -188,7 +188,7 @@ fun SpiritPasswordField(
                 contentAlignment = Alignment.CenterStart
             ) {
                 if (value.isBlank()) {
-                    Text(placeholder, style = SaltTheme.textStyles.main, color = SaltTheme.colors.subText)
+                    LocalizedText(placeholder, style = SaltTheme.textStyles.main, color = SaltTheme.colors.subText)
                 }
                 inner()
             }
@@ -237,7 +237,7 @@ fun StatusPill(text: String, color: Color) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(Modifier.size(7.dp).clip(CircleShape).background(color))
-        Text(text, style = SaltTheme.textStyles.sub, color = color, fontWeight = FontWeight.Medium)
+        LocalizedText(text, style = SaltTheme.textStyles.sub, color = color, fontWeight = FontWeight.Medium)
     }
 }
 
@@ -258,8 +258,8 @@ fun MetricCard(metric: MetricItem, modifier: Modifier = Modifier) {
             modifier = Modifier.fillMaxWidth().padding(18.dp),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(metric.label, style = SaltTheme.textStyles.sub, color = SaltTheme.colors.subText)
-            Text(
+            LocalizedText(metric.label, style = SaltTheme.textStyles.sub, color = SaltTheme.colors.subText)
+            LocalizedText(
                 metric.value,
                 fontSize = 28.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -267,7 +267,7 @@ fun MetricCard(metric: MetricItem, modifier: Modifier = Modifier) {
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            Text(
+            LocalizedText(
                 metric.detail,
                 style = SaltTheme.textStyles.sub,
                 color = SaltTheme.colors.subText
@@ -278,7 +278,7 @@ fun MetricCard(metric: MetricItem, modifier: Modifier = Modifier) {
 
 @Composable
 fun SectionCaption(text: String, modifier: Modifier = Modifier) {
-    Text(
+    LocalizedText(
         text.uppercase(),
         modifier = modifier.padding(horizontal = 4.dp),
         fontSize = 11.sp,
@@ -293,9 +293,9 @@ fun EmptyState(title: String, description: String) {
         modifier = Modifier.fillMaxWidth().padding(vertical = 72.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(title, style = SaltTheme.textStyles.main, fontWeight = FontWeight.SemiBold)
+        LocalizedText(title, style = SaltTheme.textStyles.main, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(8.dp))
-        Text(description, style = SaltTheme.textStyles.sub, color = SaltTheme.colors.subText)
+        LocalizedText(description, style = SaltTheme.textStyles.sub, color = SaltTheme.colors.subText)
     }
 }
 
@@ -305,7 +305,7 @@ fun LoadingBlock(text: String = "正在加载…") {
         modifier = Modifier.fillMaxWidth().padding(vertical = 72.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(text, style = SaltTheme.textStyles.main, color = SaltTheme.colors.subText)
+        LocalizedText(text, style = SaltTheme.textStyles.main, color = SaltTheme.colors.subText)
     }
 }
 
@@ -319,9 +319,9 @@ fun ErrorBlock(message: String) {
             .background(SaltTheme.colors.error.copy(alpha = 0.08f))
             .padding(20.dp)
     ) {
-        Text("加载失败", fontWeight = FontWeight.SemiBold, color = SaltTheme.colors.error)
+        LocalizedText("加载失败", fontWeight = FontWeight.SemiBold, color = SaltTheme.colors.error)
         Spacer(Modifier.height(6.dp))
-        Text(message, style = SaltTheme.textStyles.paragraph, color = SaltTheme.colors.text)
+        LocalizedText(message, style = SaltTheme.textStyles.paragraph, color = SaltTheme.colors.text)
     }
 }
 
@@ -332,7 +332,7 @@ fun OutlineAction(
     onClick: () -> Unit,
     icon: ImageVector? = null
 ) {
-    Button(
+    LocalizedButton(
         onClick = onClick,
         text = text,
         appearance = ButtonAppearance.Subtle,

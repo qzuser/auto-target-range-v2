@@ -79,9 +79,8 @@ for f in tests/test_*.js; do node "$f"; done
 
 行为质量以真实任务浏览器实测为准——mock 不等于真实体验。
 
-进程树收口与超时回收那几项（`test_tree_guard`、`test_audit_repairs.AuditProcessTests`、
-`test_platform_support.PlatformProcessTests`）会先量一次裸启动耗时再放大超时预算
-（`tests/process_budget.py`），机器正常时预算一字不变。若仍看到 `执行超时` 或
+进程树收口与超时回收由 `tests/test_audit_repairs.py` 的 `AuditProcessTests` 和
+`tests/test_platform_support.py` 的 `PlatformProcessTests` 覆盖。若仍看到 `执行超时` 或
 `'started' not found in ''`，先确认没有进程在满核空转
 （`Get-Process | Sort CPU -Descending`），再判断是不是回归——这类失败多半是机器忙，
 不是代码坏了。

@@ -21,7 +21,7 @@
 | 文档 | `README.md`、`README_EN.md`、`docs/**`、`CHANGELOG.md` | 含实测经验与能力边界 |
 | 配置**模板** | `configs/models.example.yaml`、`models.mock.yaml`、`system.example.yaml` | 带注释的最小可用模板 |
 | 配置**本体** | `configs/system.yaml`、`configs/skills.yaml` | 已脱敏且跑通过，clone 下来直接能起 |
-| 启动器与打包 | `start-local.ps1`、`启动服务.cmd`、`packaging/windows/build-desktop.ps1`、`build-backend-runtime.ps1` | 别人复现的入口 |
+| 启动器与打包 | `Start-SpiritScout.cmd`、`scripts/windows/start-web.ps1`、`packaging/windows/build-desktop.ps1`、`build-backend-runtime.ps1` | 别人复现的入口 |
 | 知识库种子 | `src/spiritscout/knowledge/data/security_skills.json` | 内置技能，属于产品内容 |
 | 经验导出快照 | `tools/experience-export/experience-insights.json` | 脱敏后的结论文本 |
 | CI | `.github/workflows/**` | |

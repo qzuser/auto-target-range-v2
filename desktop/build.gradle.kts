@@ -27,7 +27,15 @@ dependencies {
     implementation("io.github.moriafly:salt-ui:3.0.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.10.2")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0")
+    implementation("net.java.dev.jna:jna-platform:5.18.1")
     testImplementation(kotlin("test"))
+}
+
+tasks.named<ProcessResources>("processResources") {
+    from("../src/spiritscout/web/static/js/i18n.en.js") {
+        into("i18n")
+        rename { "en.js" }
+    }
 }
 
 val desktopInputDir = layout.buildDirectory.dir("desktop-input")

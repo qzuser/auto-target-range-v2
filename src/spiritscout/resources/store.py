@@ -1003,11 +1003,11 @@ class ResourceStore:
             or any(
                 word
                 in (
-                    row["skill_id"]
+                    str(row.get("skill_id") or "")
                     + " "
-                    + (row.get("description") or "")
+                    + str(row.get("description") or "")
                     + " "
-                    + (row.get("domain") or "")
+                    + str(row.get("domain") or "")
                 ).casefold()
                 for word in words
             )

@@ -56,7 +56,7 @@ Apache-2.0；复制并分发形成的派生代码需要遵循 GPL 相应义务�
 `https://api.ipify.org?format=json` 核实公网出口并保存 IP，续传时出口变化会拒绝开工。
 这不是对供应商 IP 永不变化的保证；页面状态标明的是开工时的验证结果。
 
-原生 Linux 可运行 `.venv/bin/python scripts/setup-mihomo.py`，优先将本机 Mihomo 或
+原生 Linux 可运行 `.venv/bin/python scripts/setup_mihomo.py`，优先将本机 Mihomo 或
 Clash Verge 内核复制到项目 `.tools/mihomo`；没有现有内核时，从 MetaCubeX 官方发布
 下载匹配架构的内核并核对发布资产 SHA-256。也可用 `--version v1.19.33` 指定官方下载
 版本；此脚本仅准备代理运行时，不启动任务或系统代理。

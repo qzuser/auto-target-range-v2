@@ -244,6 +244,8 @@ class HTTPResponseTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse((await http_response_read(workspace_root=str(self.root), body_ref=ref)).ok)
 
     async def test_relative_workspace_returns_absolute_source_path(self):
+        if os.name == "nt" and Path(self.root).drive.lower() != Path.cwd().drive.lower():
+            self.skipTest("Windows cannot express a relative path across drives")
         relative = os.path.relpath(self.root, Path.cwd())
         result = await http_probe(self.base + '/short', guard=ScopeGuard(Scope(local_analysis=True)),
                                   workspace_root=relative)

@@ -12,7 +12,7 @@ Ollama 与 llama.cpp 统一从 `--offline` 启动，共用 `.spiritscout-ollama/
 在仓库根目录执行：
 
 ```bash
-./launch.sh start --offline
+./scripts/linux/launch.sh start --offline
 ```
 
 首次启动在缺少轻量配置时自动调用 `scripts/setup_ollama_light.py`；已有配置直接复用。
@@ -21,7 +21,7 @@ Ollama 与 llama.cpp 统一从 `--offline` 启动，共用 `.spiritscout-ollama/
 
 ```bash
 .venv/bin/python scripts/setup_local_light.py --backend llama_cpp --model qwen35-9b --context 16384
-./launch.sh start --offline
+./scripts/linux/launch.sh start --offline
 ```
 
 模型名、地址与上下文需对应已运行的 llama-server；可用 `--base-url` 指定地址。
@@ -30,17 +30,18 @@ Ollama 与 llama.cpp 统一从 `--offline` 启动，共用 `.spiritscout-ollama/
 也不启停推理服务。可用 `--port 8101` 覆盖控制台监听端口。
 
 ```bash
-./launch.sh stop --offline
-./launch.sh restart --offline
+./scripts/linux/launch.sh stop --offline
+./scripts/linux/launch.sh restart --offline
 ```
 
 停止与重启默认定位轻量端口 8001，检查 `.spiritscout-ollama/` 中的运行中会话；
 有活跃会话时拒绝停止，显式 `--force` 才放弃现场。自定义端口时同步指定，例如
-`./launch.sh stop 8101 --offline`。普通 `./launch.sh` 仍启动正常配置。
+`./scripts/linux/launch.sh stop 8101 --offline`。普通
+`./scripts/linux/launch.sh` 仍启动正常配置。
 
 如需自定义 Ollama 地址或提前初始化，也可单独运行
 `.venv/bin/python scripts/setup_ollama_light.py --base-url <Ollama地址>`；
-启动、停止和重启统一使用 `./launch.sh … --offline`。
+启动、停止和重启统一使用 `./scripts/linux/launch.sh … --offline`。
 
 默认 Ollama 初始化会创建 `spiritscout-qwen35-9b-light:latest` 别名与
 `.spiritscout-ollama/` 下的独立系统、模型和指派配置。已存在的配置不会覆盖。

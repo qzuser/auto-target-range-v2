@@ -36,7 +36,7 @@ import com.spiritscout.desktop.AppController
 @Composable
 fun ApiConsoleWindow(controller: AppController) {
     if (!controller.showApiConsole) return
-    DialogWindow(
+    LocalizedDialogWindow(
         onCloseRequest = controller::closeApiConsole,
         title = "高级 API 控制台",
         state = rememberDialogState(
@@ -60,8 +60,8 @@ private fun ApiConsoleContent(controller: AppController) {
     var body by remember { mutableStateOf("{}") }
 
     Column(Modifier.fillMaxSize().padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("高级 API 控制台", style = SaltTheme.textStyles.largeTitle)
-        Text(
+        LocalizedText("高级 API 控制台", style = SaltTheme.textStyles.largeTitle)
+        LocalizedText(
             "专用页面没有覆盖的接口可在这里直接调用。路径相对本机后端。",
             style = SaltTheme.textStyles.sub,
             color = SaltTheme.colors.subText
@@ -76,7 +76,7 @@ private fun ApiConsoleContent(controller: AppController) {
                         .clickable { method = item }
                         .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
-                    Text(
+                    LocalizedText(
                         item,
                         style = SaltTheme.textStyles.sub,
                         color = if (active) SaltTheme.colors.onHighlight else SaltTheme.colors.subText
@@ -87,12 +87,12 @@ private fun ApiConsoleContent(controller: AppController) {
         SpiritTextField(path, { path = it }, "/api/...")
         Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Column(Modifier.weight(1f)) {
-                Text("请求 JSON", style = SaltTheme.textStyles.sub, color = SaltTheme.colors.subText)
+                LocalizedText("请求 JSON", style = SaltTheme.textStyles.sub, color = SaltTheme.colors.subText)
                 Spacer(Modifier.height(5.dp))
                 SpiritCodeEditor(body, { body = it }, Modifier.fillMaxSize())
             }
             Column(Modifier.weight(1f)) {
-                Text("响应", style = SaltTheme.textStyles.sub, color = SaltTheme.colors.subText)
+                LocalizedText("响应", style = SaltTheme.textStyles.sub, color = SaltTheme.colors.subText)
                 Spacer(Modifier.height(5.dp))
                 Box(
                     Modifier.fillMaxSize()
@@ -101,8 +101,8 @@ private fun ApiConsoleContent(controller: AppController) {
                         .padding(10.dp)
                 ) {
                     when {
-                        controller.apiConsoleLoading -> Text("请求中…")
-                        controller.apiConsoleError != null -> Text(
+                        controller.apiConsoleLoading -> LocalizedText("请求中…")
+                        controller.apiConsoleError != null -> LocalizedText(
                             controller.apiConsoleError!!,
                             color = SaltTheme.colors.error
                         )
@@ -116,13 +116,13 @@ private fun ApiConsoleContent(controller: AppController) {
             }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            Button(
+            LocalizedButton(
                 onClick = controller::closeApiConsole,
                 text = "关闭",
                 appearance = ButtonAppearance.Subtle
             )
             Spacer(Modifier.width(10.dp))
-            Button(
+            LocalizedButton(
                 onClick = { controller.executeApiConsole(method, path, body) },
                 text = "执行请求",
                 enabled = !controller.apiConsoleLoading

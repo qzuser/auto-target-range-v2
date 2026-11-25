@@ -26,7 +26,7 @@ class LocalSetupTests(unittest.TestCase):
                     [sys.executable, spec.origin, '--backend', backend, '--model', 'fixture'],
                     cwd=name, capture_output=True, text=True, check=False, timeout=10)
                 self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertIn('./launch.sh start --offline', result.stdout)
+                self.assertIn('./scripts/linux/launch.sh start --offline', result.stdout)
                 root = Path(name)
                 profile = root / '.spiritscout-ollama'
                 system = json.loads((profile / 'system.yaml').read_text())

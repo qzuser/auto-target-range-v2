@@ -11,6 +11,7 @@ import shutil
 import signal
 import sqlite3
 import ssl
+import sys
 import uuid
 import zlib
 from pathlib import Path
@@ -35,10 +36,43 @@ class EgressUnavailable(ValueError):
     """已选定的目标出口不可用；调用方应返回失败而不能改走直连。"""
 
 
+def _proxy_filename() -> str:
+    return "spiritscout-traffic-proxy.exe" if os.name == "nt" else "spiritscout-traffic-proxy"
+
+
+def _build_hint() -> str:
+    if os.name == "nt":
+        return r"未找到流量录制代理，请运行 packaging\windows\build-traffic-proxy.ps1。"
+    return "未找到流量录制代理，请运行 scripts/linux/build-traffic-proxy.sh。"
+
+
+def _candidate_paths() -> list[Path]:
+    name = _proxy_filename()
+    roots = (
+        Path(__file__).resolve().parents[3],
+        Path(sys.executable).resolve().parent.parent,
+    )
+    candidates: list[Path] = []
+    for root in roots:
+        for relative in (
+            (name,),
+            (".tools", name),
+            ("tools", name),
+            ("build", "tools", name),
+        ):
+            path = root.joinpath(*relative)
+            if path not in candidates:
+                candidates.append(path)
+    return candidates
+
+
 def executable() -> str | None:
     configured = os.environ.get("SPIRITSCOUT_TRAFFIC_PROXY", "")
-    path = Path(configured) if configured else Path(__file__).parents[3] / ".tools" / "spiritscout-traffic-proxy"
-    return str(path.resolve()) if path.is_file() and os.access(path, os.X_OK) else shutil.which("spiritscout-traffic-proxy")
+    candidates = [Path(configured).expanduser()] if configured else _candidate_paths()
+    for path in candidates:
+        if path.is_file() and (os.name == "nt" or os.access(path, os.X_OK)):
+            return str(path.resolve())
+    return shutil.which(Path(_proxy_filename()).stem)
 
 
 def _private(root: Path) -> Path:
@@ -202,8 +236,14 @@ class SessionProxy:
         try:
             binary = executable()
             if binary is None:
-                raise ValueError("未构建 Linux 录制代理，请运行 scripts/build-traffic-proxy.sh")
-            env = {key: value for key, value in os.environ.items() if key in {"PATH", "SSL_CERT_FILE", "SSL_CERT_DIR", "LANG"}}
+                raise ValueError(_build_hint())
+            allowed_env = {"PATH", "SSL_CERT_FILE", "SSL_CERT_DIR", "LANG"}
+            if os.name == "nt":
+                allowed_env.update({
+                    "SYSTEMROOT", "WINDIR", "COMSPEC", "PATHEXT",
+                    "TEMP", "TMP", "USERPROFILE", "LOCALAPPDATA", "APPDATA",
+                })
+            env = {key: value for key, value in os.environ.items() if key in allowed_env}
             env["HOME"] = str(self.root)
             self.proc = await asyncio.create_subprocess_exec(binary, stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, env=env,
@@ -337,7 +377,7 @@ class ProxyManager:
         if session_id in self.sessions:
             return self.sessions[session_id].status()
         return {"available": bool(executable()), "status": "stopped", "address": "", "records": 0,
-                "error": "" if executable() else "未构建代理：运行 scripts/build-traffic-proxy.sh"}
+                "error": "" if executable() else _build_hint()}
 
     async def start(self, session_id: str, upstream: str = "") -> dict[str, Any]:
         session = self.manager.get(session_id)

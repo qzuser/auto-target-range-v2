@@ -546,7 +546,7 @@ class KnowledgeStore:
             add("poc_templates", r["template_id"], r["name"], r["verify_method"])
         for r in self._rows("exp_report_templates"):
             struct = " ".join(
-                s.get("name", "") + " " + s.get("guidance", "")
+                str(s.get("name") or "") + " " + str(s.get("guidance") or "")
                 if isinstance(s, dict) else str(s) for s in r["structure"])
             add("report_templates", r["template_id"], r["title"], struct,
                 r["example"], r["platform"])

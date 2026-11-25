@@ -160,7 +160,7 @@ Requires Python 3.11+. The native browser tool additionally needs Node.js 22+ an
 python3 -m venv .venv
 .venv/bin/python -m pip install -e .
 sudo apt install bubblewrap   # Debian / Ubuntu; Fedora: sudo dnf install bubblewrap
-./launch.sh
+./scripts/linux/launch.sh
 ```
 
 **Windows (cmd)**
@@ -168,10 +168,12 @@ sudo apt install bubblewrap   # Debian / Ubuntu; Fedora: sudo dnf install bubble
 ```bat
 py -3 -m venv .venv
 .venv\Scripts\python.exe -m pip install -e .
-launch.cmd
+.\scripts\windows\start-console.cmd
 ```
 
-Open <http://127.0.0.1:8000>, stop with `Ctrl+C`. Change the port with `./launch.sh --port 10010` or `launch.cmd --port 10010`.
+Open <http://127.0.0.1:8000>, stop with `Ctrl+C`. Change the port with
+`./scripts/linux/launch.sh --port 10010` or
+`.\scripts\windows\start-console.cmd --port 10010`.
 
 **Windows native desktop build**
 
@@ -223,7 +225,7 @@ Build the wheel first, then let the native packager create the embedded Python r
 Compose app image and zip:
 
 ```powershell
-python -m build --outdir dist\python .
+uv build --wheel --outdir dist\python .
 powershell -ExecutionPolicy Bypass -File packaging\windows\build-desktop.ps1
 ```
 
@@ -260,12 +262,9 @@ pip install spiritscout-1.3.1-py3-none-any.whl
 spiritscout --help
 ```
 
-A pip install only has the built-in skills; add the repository pack from the unzipped
-zip or sdist with:
-
-```bash
-python -m spiritscout.resources.skill_sync import skills
-```
+A pip install contains the built-in skills. Custom repository skills are stored in
+`configs/skills.yaml`; the raw top-level `skills/` directory is not part of the
+current source layout.
 
 **How the packages are produced**: pushing a `v*` tag runs
 `.github/workflows/package.yml` at the repository root. It checks the tag against

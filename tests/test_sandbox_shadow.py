@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -15,6 +16,7 @@ from _platform import CAN_SYMLINK
 from spiritscout.tools.sandbox import _build_argv, _cuda_devices
 
 
+@unittest.skipIf(sys.platform == "win32", "bubblewrap path semantics are Linux-only")
 class ShadowRootArgvTests(unittest.TestCase):
     def test_cuda_nodes_are_mapped_after_private_dev_without_opening_host_dev(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, patch('spiritscout.tools.sandbox._cuda_devices',

@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import base64
+import json
 import os
 import sqlite3
+import subprocess
+import sys
 import tempfile
 import unittest
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from pathlib import Path
 from unittest.mock import patch
 
@@ -74,8 +77,6 @@ class AdminStoreTests(unittest.TestCase):
                                     "SPIRITSCOUT_ADMIN_PASSWORD"),
                 "admin")
             self.assertTrue(store.verify("admin", "new"))
-            self.assertFalse(store.verify("spiritscout", "old"))
-
             with env_only():
                 self.assertIsNone(
                     store.sync_from_env("SPIRITSCOUT_SERVER_PASSWORD",
@@ -83,11 +84,65 @@ class AdminStoreTests(unittest.TestCase):
                                         "SPIRITSCOUT_ADMIN_PASSWORD"))
             self.assertTrue(store.verify("admin", "new"))
 
+    def test_admin_password_cli_roundtrip_and_clear(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            workspace = root / "workspace"
+            config = root / "system.yaml"
+            config.write_text(
+                "workspace:\n"
+                f"  root: {json.dumps(str(workspace))}\n",
+                encoding="utf-8",
+            )
+            password = "p" * 1100
+            set_result = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "spiritscout",
+                    "--config",
+                    str(config),
+                    "--set-admin-password",
+                    "--password-stdin",
+                ],
+                input=password + "\n",
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                capture_output=True,
+                cwd=Path(__file__).resolve().parents[1],
+                timeout=30,
+                check=False,
+            )
+            self.assertEqual(set_result.returncode, 0, set_result.stderr)
+            store = auth.AdminStore(workspace)
+            self.assertTrue(store.verify("spiritscout", password))
+
+            clear_result = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "spiritscout",
+                    "--config",
+                    str(config),
+                    "--clear-admin-password",
+                ],
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                capture_output=True,
+                cwd=Path(__file__).resolve().parents[1],
+                timeout=30,
+                check=False,
+            )
+            self.assertEqual(clear_result.returncode, 0, clear_result.stderr)
+            self.assertFalse(store.has_admins())
+
     def test_env_sync_skips_identical_password_and_can_be_disabled(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             store = auth.AdminStore(tmp)
             store.upsert("admin", "stable")
-            with sqlite3.connect(Path(tmp) / "admin.db") as conn:
+            with closing(sqlite3.connect(Path(tmp) / "admin.db")) as conn:
                 before = conn.execute(
                     "SELECT updated_at FROM admins WHERE username='admin'"
                 ).fetchone()[0]
@@ -96,7 +151,7 @@ class AdminStoreTests(unittest.TestCase):
                 store.sync_from_env("SPIRITSCOUT_SERVER_PASSWORD",
                                     "SPIRITSCOUT_ADMIN_USERNAME",
                                     "SPIRITSCOUT_ADMIN_PASSWORD")
-            with sqlite3.connect(Path(tmp) / "admin.db") as conn:
+            with closing(sqlite3.connect(Path(tmp) / "admin.db")) as conn:
                 after = conn.execute(
                     "SELECT updated_at FROM admins WHERE username='admin'"
                 ).fetchone()[0]

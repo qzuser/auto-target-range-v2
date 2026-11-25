@@ -319,7 +319,11 @@ class BackgroundArchiveTests(unittest.TestCase):
         self.assertIn("关键内容", match["text"])
         self.assertIsNone(self.store.output("one", "stdout", query="关键内容", after=match["match"] + 1)["match"])
         self.assertLess(first["stored_bytes"], len(stdout), "压缩存档不重复保存大段文本")
-        self.assertEqual((self.root / 'background-tasks/archive.db').stat().st_mode & 0o777, 0o600)
+        if __import__("os").name != "nt":
+            self.assertEqual(
+                (self.root / 'background-tasks/archive.db').stat().st_mode & 0o777,
+                0o600,
+            )
 
     def test_quota_and_manual_clear_do_not_delete_other_history_or_replay(self):
         import os

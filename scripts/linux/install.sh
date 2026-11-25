@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # 源码安装：准备项目虚拟环境、核心依赖和缺失配置，保留已有数据。
 set -euo pipefail
-cd "$(dirname "$0")"
+repo_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
+cd "$repo_root"
 
 fail() {
   echo "[安装失败] $*" >&2
@@ -11,17 +12,17 @@ fail() {
 case "${1:-}" in
   -h|--help)
     cat <<'HELP'
-用法：./install.sh
+用法：./scripts/linux/install.sh
 创建或复用 .venv，安装核心依赖并检查兼容性，只创建缺失的配置文件。
-已有配置、.env 和运行数据保持不变；安装后运行 ./launch.sh。
+已有配置、.env 和运行数据保持不变；安装后运行 ./scripts/linux/launch.sh。
 Linux/WSL2 默认使用 /usr/bin/python3；macOS 使用 PATH 中的 python3。
-新建虚拟环境时可指定：SPIRITSCOUT_PYTHON=/usr/bin/python3.12 ./install.sh
+新建虚拟环境时可指定：SPIRITSCOUT_PYTHON=/usr/bin/python3.12 ./scripts/linux/install.sh
 HELP
     exit 0
     ;;
 esac
 if [[ $# -ne 0 ]]; then
-  fail "不支持参数；用 ./install.sh --help 查看用法。"
+  fail "不支持参数；用 ./scripts/linux/install.sh --help 查看用法。"
 fi
 
 install_system=$(uname -s)
@@ -57,9 +58,9 @@ fi
 
 echo "[2/3] 安装并检查核心依赖"
 .venv/bin/python -m pip install -e . ||
-  fail "依赖安装失败。按上方 pip 错误修复后，重新运行 ./install.sh。"
+  fail "依赖安装失败。按上方 pip 错误修复后，重新运行 ./scripts/linux/install.sh。"
 .venv/bin/python -m pip check ||
-  fail "依赖检查失败。按上方冲突信息修复后，重新运行 ./install.sh。"
+  fail "依赖检查失败。按上方冲突信息修复后，重新运行 ./scripts/linux/install.sh。"
 
 echo "[3/3] 准备配置"
 .venv/bin/python - <<'PY' || fail "配置初始化失败，请检查上方错误；已有配置不会被覆盖。"
@@ -89,4 +90,4 @@ if [[ "$install_system" == Linux ]] && ! command -v bwrap >/dev/null 2>&1; then
 elif [[ "$install_system" == Darwin ]]; then
   echo "[提示] macOS 原生可运行控制台；shell/Python 工具沙箱需要 Linux。"
 fi
-echo "核心依赖和配置已准备好。启动：./launch.sh"
+echo "核心依赖和配置已准备好。启动：./scripts/linux/launch.sh"

@@ -49,7 +49,10 @@ class ReportEvidenceTests(unittest.IsolatedAsyncioTestCase):
                               blackboard=self.bb, journal=journal, workspace=self.root)
         evidence = digest['technical_evidence']
         self.assertEqual(evidence['executions'][0]['parameters']['command'], 'python exp.py')
-        self.assertEqual(evidence['source_files'][0]['content'], source.read_text())
+        self.assertEqual(
+            evidence['source_files'][0]['content'],
+            source.read_bytes().decode('utf-8'),
+        )
         self.assertEqual(evidence['source_files'][0]['start_line'], 1)
         self.assertEqual(evidence['source_files'][0]['symbols'][0], {'name': 'solve', 'line': 1, 'end_line': 2})
         appendix = technical_appendix(digest)
@@ -214,7 +217,10 @@ class ReportEvidenceTests(unittest.IsolatedAsyncioTestCase):
         evidence = digest['technical_evidence']
         self.assertIn('inv-code', [row['invocation_id'] for row in evidence['executions']])
         self.assertEqual(evidence['source_files'][0]['path'], 'sandbox/one/challenge/chal.py')
-        self.assertEqual(evidence['source_files'][0]['content'], (challenge / 'chal.py').read_text())
+        self.assertEqual(
+            evidence['source_files'][0]['content'],
+            (challenge / 'chal.py').read_bytes().decode('utf-8'),
+        )
         self.assertEqual(evidence['analysis_notes'][0]['content'], (artifacts / 'analysis.md').read_text())
         self.assertEqual(digest['flags'][0]['answer_review'], flag.answer_review)
 

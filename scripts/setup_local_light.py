@@ -105,7 +105,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.docker:
         print("下一步：python deploy.py init，然后 docker compose -f docker-compose.light.yml up -d --build --wait")
     elif args.output is None:
-        print("启动：./launch.sh start --offline")
+        print("启动：./scripts/linux/launch.sh start --offline")
     else:
         print(f"启动：python -m spiritscout --config {output.as_posix()}/system.yaml")
     return 0

@@ -8,6 +8,7 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from contextlib import nullcontext
 from pathlib import Path
@@ -220,7 +221,10 @@ class PersistenceTests(unittest.IsolatedAsyncioTestCase):
         registry = ToolRegistry(LocalExecutor(), journal=self.journal)
         # 角色目录只暴露已声明工具；此隔离场景用本地 echo 作为只读适配器。
         registry.register(ToolSpec(name="http_probe", kind=ToolKind.CLI,
-                                  command_template=["/bin/echo", "{value}"]))
+                                  command_template=[
+                                      sys.executable, "-c",
+                                      "import sys; print(sys.argv[1])", "{value}",
+                                  ]))
         policy = PolicyEngine(RunMode.CTF, ScopeGuard(Scope(local_analysis=True)))
         convergence = ConvergenceEngine(self.bb)
         context = SubAgentContext(bus=bus, blackboard=self.bb, convergence=convergence,
@@ -260,7 +264,7 @@ class PersistenceTests(unittest.IsolatedAsyncioTestCase):
         route = self.journal.latest_checkpoint("route", invocation["route_id"])
         self.assertEqual(route["phase"], "after_step")
         self.assertEqual(route["state"]["step_index"], 0)
-        self.assertEqual(route["state"]["result"]["note"], "local-evidence\n")
+        self.assertEqual(route["state"]["result"]["note"].strip(), "local-evidence")
         planning = self.journal.planning_context(read_recovery_view(self.root / "bb.db"))
         self.assertEqual(planning["mode"], "checkpoint_replan")
         self.assertEqual(planning["checkpoint"]["phase"], "after_review")
@@ -285,7 +289,14 @@ class LockProcessTests(unittest.TestCase):
                         lock.acquire()
                     child.kill()
                     child.wait(timeout=3)
-                    lock.acquire()
+                    for _ in range(100):
+                        try:
+                            lock.acquire()
+                            break
+                        except ConfigurationError:
+                            time.sleep(0.02)
+                    else:
+                        self.fail("owner lock was not released")
                     self.assertTrue(lock.owned)
                 finally:
                     lock.close()

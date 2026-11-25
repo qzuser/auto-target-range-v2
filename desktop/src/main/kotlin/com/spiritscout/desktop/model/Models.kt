@@ -27,12 +27,14 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.longOrNull
+import kotlinx.serialization.json.put
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -64,7 +66,7 @@ enum class Section(
     LOCAL_TOOLS("本地工具", "暂存、扫描和隔离运行", Icons.Outlined.Terminal, NavGroup.CAPABILITY, "/api/local-tools"),
     EXPERIENCE("经验提炼", "沉淀可复用的测试经验", Icons.Outlined.Lightbulb, NavGroup.CAPABILITY, "/api/experience"),
 
-    INTELLIGENCE("资产情报", "漏洞分类和资产情报", Icons.Outlined.Radar, NavGroup.CONNECTION, "/api/resources/vulnerability-taxonomy"),
+    INTELLIGENCE("资产情报", "空间测绘与企业归属 Provider", Icons.Outlined.Radar, NavGroup.CONNECTION, "/api/resources/assets/providers"),
     PROXIES("代理池", "节点、线路和出口计划", Icons.Outlined.Route, NavGroup.CONNECTION, "/api/proxies"),
     BROWSER_ACCOUNTS("浏览器账号", "会话隔离与账号绑定", Icons.Outlined.ManageAccounts, NavGroup.CONNECTION, "/api/browser-accounts"),
     TRAFFIC("流量", "HTTP、DNS、TCP 和会话代理记录", Icons.Outlined.SwapHoriz, NavGroup.CONNECTION, "/api/traffic"),
@@ -103,8 +105,15 @@ data class SessionItem(
     val cost: Double,
     val rounds: Long,
     val createdAt: String,
-    val paused: Boolean
+    val paused: Boolean,
+    val projectId: String = "",
+    val sideParentId: String = "",
+    val sideAgent: String = "",
+    val sideTaskId: String = ""
 ) {
+    val isSideSession: Boolean
+        get() = sideParentId.isNotBlank()
+
     val stateLabel: String
         get() = when {
             paused -> "已暂停"
@@ -118,6 +127,7 @@ data class SessionItem(
     companion object {
         fun fromJson(element: JsonElement): SessionItem {
             val obj = element.objectOrEmpty()
+            val side = obj.element("side_session")?.objectOrEmpty()
             return SessionItem(
                 id = obj.string("session_id"),
                 title = obj.string("title").ifBlank { obj.string("target") }.ifBlank { "未命名任务" },
@@ -130,11 +140,27 @@ data class SessionItem(
                 cost = obj.double("cost_usd"),
                 rounds = obj.long("rounds"),
                 createdAt = formatTimestamp(obj.double("created_at")),
-                paused = obj.boolean("paused")
+                paused = obj.boolean("paused"),
+                projectId = obj.string("project_id"),
+                sideParentId = side?.string("parent_session_id").orEmpty(),
+                sideAgent = side?.string("agent").orEmpty(),
+                sideTaskId = side?.string("task_id").orEmpty()
             )
         }
     }
 }
+
+data class SideAgentOption(
+    val actor: String,
+    val label: String,
+    val status: String = "",
+    val modes: Set<String> = emptySet()
+)
+
+data class SideMessage(
+    val role: String,
+    val content: String
+)
 
 data class ResourceItem(
     val id: String,
@@ -172,6 +198,7 @@ enum class WorkspaceTab(val title: String) {
     TRAFFIC("流量"),
     BACKGROUND("后台任务"),
     EVENTS("事件"),
+    RECORDS("运行记录"),
     DELIVERABLES("交付物"),
     REPORT("报告")
 }
@@ -216,6 +243,24 @@ data class PendingQuestionItem(
     val rawJson: String
 )
 
+data class TaskOption(
+    val id: String,
+    val label: String,
+    val detail: String = "",
+    val selectedByDefault: Boolean = false
+)
+
+data class AssetProviderItem(
+    val provider: String,
+    val name: String,
+    val category: String,
+    val enabled: Boolean,
+    val keyConfigured: Boolean,
+    val keySource: String,
+    val storedCredentials: Boolean,
+    val version: Long
+)
+
 data class SystemResourceSnapshot(
     val cpu: Double,
     val memory: Double,
@@ -237,6 +282,8 @@ data class NewTaskRequest(
     val projectId: String = "",
     val proxyPlanId: String = "direct",
     val assetStrategy: String = "edge_first",
+    val assetCampaignId: String = "",
+    val assetValues: List<String> = emptyList(),
     val excludedAssets: List<String> = emptyList(),
     val platform: String = "",
     val flagFormat: String = "",
@@ -253,6 +300,57 @@ data class NewTaskRequest(
     val acceptRuleConflicts: Boolean = false,
     val browserAccountIds: List<String> = emptyList()
 )
+
+fun NewTaskRequest.toPayloadJson(stagedUploadIds: List<String> = emptyList()): JsonObject {
+    val selectedAssets = assetValues.map(String::trim).filter(String::isNotBlank).distinct()
+    val payloadTarget = selectedAssets.firstOrNull() ?: target.trim()
+    val payloadScope = (scope + selectedAssets)
+        .map(String::trim)
+        .filter(String::isNotBlank)
+        .distinct()
+    val payloadExcluded = excludedAssets
+        .map(String::trim)
+        .filter(String::isNotBlank)
+        .distinct()
+    return buildJsonObject {
+        put("title", title.trim())
+        put("mode", mode)
+        put("target", payloadTarget)
+        put("mission", mission.trim())
+        put("scope", JsonArray(payloadScope.map(::JsonPrimitive)))
+        put("model", model.trim())
+        put("generate_wp", generateWriteup)
+        put("multiple_answers", multipleAnswers)
+        put("allow_sensitive", allowSensitive)
+        put("authorized", true)
+        put("project_id", projectId.trim())
+        put("proxy_plan_id", proxyPlanId.trim().ifBlank { "direct" })
+        put("asset_strategy", assetStrategy)
+        put("asset_campaign_id", assetCampaignId.trim())
+        put("asset_values", JsonArray(selectedAssets.map(::JsonPrimitive)))
+        put("excluded_assets", JsonArray(payloadExcluded.map(::JsonPrimitive)))
+        put("platform", platform.trim())
+        put("flag_format", flagFormat.trim())
+        put("ctf_type_hints", JsonArray(ctfTypeHints.map(String::trim).filter(String::isNotBlank).distinct().map(::JsonPrimitive)))
+        put("ctf_type_note", ctfTypeNote.trim())
+        put("challenges_yaml", challengesYaml.trim().ifBlank { null })
+        put("platform_yaml", platformYaml.trim().ifBlank { null })
+        put("rules_yaml", rulesYaml.trim().ifBlank { null })
+        put("contest_type", contestType.trim())
+        put("budget_tokens", budgetTokens)
+        put("rps", rps)
+        put("no_llm", noLlm)
+        put("accept_rule_conflicts", acceptRuleConflicts)
+        put(
+            "browser_account_ids",
+            JsonArray(browserAccountIds.map(String::trim).filter(String::isNotBlank).distinct().map(::JsonPrimitive))
+        )
+        put(
+            "upload_ids",
+            JsonArray((uploadIds + stagedUploadIds).map(String::trim).filter(String::isNotBlank).distinct().map(::JsonPrimitive))
+        )
+    }
+}
 
 fun JsonElement.objectOrEmpty(): JsonObject =
     runCatching { jsonObject }.getOrElse { JsonObject(emptyMap()) }

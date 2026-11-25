@@ -21,6 +21,8 @@ jobs:
         python: ["3.11", "3.14"]
     env:
       LITELLM_LOCAL_MODEL_COST_MAP: "True"
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: "utf-8"
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
@@ -30,10 +32,23 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.3"
+          cache-dependency-path: traffic-proxy/go.sum
       - run: uv lock --check
       - run: uv sync --extra test
       - run: uv run --no-sync python -m ruff check src/spiritscout tests deploy.py deploy
       - run: uv run --no-sync python -m compileall -q src/spiritscout tests
+      - name: Build and test traffic proxy
+        working-directory: traffic-proxy
+        env:
+          GOTOOLCHAIN: local
+          GOPROXY: https://goproxy.cn,direct
+        run: |
+          mkdir -p ../.tools
+          go test ./...
+          go build -trimpath -buildvcs=false -o ../.tools/spiritscout-traffic-proxy .
       - run: uv run --no-sync python -m unittest discover -s tests -v
       - name: Check frontend types
         if: matrix.python == '3.11'
@@ -57,6 +72,8 @@ jobs:
     env:
       LITELLM_LOCAL_MODEL_COST_MAP: "True"
       PYTHON_DOTENV_DISABLED: "1"
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: "utf-8"
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
@@ -66,7 +83,25 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.3"
+          cache-dependency-path: traffic-proxy/go.sum
       - run: uv sync --extra test
+      - name: Build and test Windows traffic proxy
+        shell: pwsh
+        run: |
+          ./packaging/windows/build-traffic-proxy.ps1
+          Push-Location traffic-proxy
+          try {
+            $env:GOTOOLCHAIN = 'local'
+            $env:GOPROXY = 'https://goproxy.cn,direct'
+            & go.exe test ./...
+            if ($LASTEXITCODE -ne 0) { throw "Go traffic proxy tests failed" }
+          } finally {
+            Pop-Location
+          }
+      - run: uv run --no-sync python -m unittest tests.test_traffic_proxy -v
       - run: uv run --no-sync python -m unittest discover -s tests -p test_platform_support.py -v
       - run: uv run --no-sync python -m unittest discover -s tests -p test_deployment.py -v
       - run: uv run --no-sync python -m unittest discover -s tests -p test_chrome_mcp.py -v

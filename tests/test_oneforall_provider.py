@@ -1,5 +1,7 @@
 import unittest
 
+import psutil
+
 from spiritscout.assets.providers.oneforall import OneForAllProvider
 
 
@@ -49,7 +51,6 @@ class OneForAll:
 
     async def test_cancellation_reaps_the_real_subprocess(self):
         import asyncio
-        import os
         import tempfile
         from pathlib import Path
 
@@ -75,5 +76,8 @@ class OneForAll:
             finally:
                 task.cancel()
                 await asyncio.gather(task, return_exceptions=True)
-            with self.assertRaises(ProcessLookupError):
-                os.kill(pids[0], 0)
+            for _ in range(50):
+                if not psutil.pid_exists(pids[0]):
+                    break
+                await __import__("asyncio").sleep(0.02)
+            self.assertFalse(psutil.pid_exists(pids[0]))

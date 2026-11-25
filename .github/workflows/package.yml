@@ -96,6 +96,7 @@ jobs:
           print("版本", spiritscout.__version__)
           # count.js 在单根化重构里并进了 core.js；这里校验核心前端与经验摘要都在 wheel 里。
           for rel in ("web/static/js/core.js",
+                      "web/static/app/session.js",
                       "knowledge/data/experience.json",
                       "knowledge/data/experience.md"):
               assert (root / rel).is_file(), f"wheel 里缺 {rel}"

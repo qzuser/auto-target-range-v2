@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import io
 import json
 import os
 import sqlite3
+import zipfile
 from datetime import date
 from pathlib import Path
 from typing import Any, Literal
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import Response
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -446,6 +449,23 @@ def mount_resources(
         from spiritscout.resources.skill_search import metadata
 
         return {**item, **metadata(item)}
+
+    @app.get("/api/resources/skills/{key}/export")
+    def skill_export(key: str) -> Response:
+        item = skill_detail(key)
+        files = item.get("files") or {"SKILL.md": item.get("body", "")}
+        payload = io.BytesIO()
+        with zipfile.ZipFile(payload, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+            for path, content in sorted(files.items()):
+                archive.writestr(f"{key}/{path}", content)
+        return Response(
+            payload.getvalue(),
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f'attachment; filename="{key}.zip"',
+                "Cache-Control": "no-store",
+            },
+        )
 
     @app.put("/api/resources/skills/{key}")
     def skill_save(key: str, payload: ResourceChange) -> dict[str, Any]:

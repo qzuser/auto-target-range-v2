@@ -6,8 +6,8 @@
 > Desktop + SaltUI，直接运行后端进程，不使用 WebView2，也不把浏览器标签页当成
 > 产品界面。旧的 `DesktopApp/`、WebView2 壳和单文件兼容流程已移除。
 >
-> 当前源码版本为 `1.3.0`。打包产物按用途放在 `dist/windows/desktop/`、
-> `dist/windows/backend/` 和 `dist/python/`，这些目录不进入 Git。
+> 当前源码版本为 `1.3.1`。打包产物按用途放在 `dist/windows/desktop/` 和
+> `dist/python/`，这些目录不进入 Git。
 
 > 上游项目：**[FLIAZ/SpiritScout](https://github.com/FLIAZ/SpiritScout)**（灵枢，多智能体渗透/CTF 系统）。
 > 本仓库是它的工作区级超集：上游源码 + 本机免 Docker 启动器 + 便携包构建脚本 + 运行期经验沉淀导出。

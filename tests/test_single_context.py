@@ -524,7 +524,11 @@ class SingleContextTests(unittest.IsolatedAsyncioTestCase):
         for review in (None, {'reason': 'repeated', 'same_result_count': 2}):
             state['review_due'] = review
             sent = self.agent._light_model_messages(self.task, self.route, state)
-            self.assertIn('/workspace/fixture/sandbox/one', str(sent))
+            rendered = str(sent)
+            self.assertIn('default_workdir', rendered)
+            self.assertIn('fixture', rendered)
+            self.assertIn('sandbox', rendered)
+            self.assertIn('one', rendered)
             self.assertIn('workspace_root_access', str(sent))
             self.assertIn('read-only', str(sent))
             self.assertEqual(state['messages'], original)

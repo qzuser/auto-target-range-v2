@@ -51,7 +51,7 @@ shots_usage_tmp_*/
 u1[0-9]*/
 sh[0-9]*_*/
 
-# 技能库运行时下载数据
+# 本地导入技能素材；可提交的技能真源是 configs/skills.yaml
 skills/
 
 # 备份文件（改脚本时留的 .bak-时间戳）

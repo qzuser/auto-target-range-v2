@@ -1,4 +1,4 @@
-"""真实 Linux Go 代理、本机 TLS/HTTP/WS、沙箱、隔离及证据读取。"""
+"""真实 Go 代理、本机 TLS/HTTP/WS、沙箱、隔离及证据读取。"""
 from __future__ import annotations
 
 import asyncio
@@ -9,6 +9,7 @@ import ipaddress
 import json
 import os
 import ssl
+import sys
 import tempfile
 import time
 import unittest
@@ -21,6 +22,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import httpx
+import psutil
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -38,12 +40,31 @@ from spiritscout.tools.sandbox import sandbox_available, sandbox_exec
 from spiritscout.traffic import recorder
 from spiritscout.traffic.proxy import (
     ProxyManager,
+    _candidate_paths,
     executable,
     raw_evidence,
     tool_environment,
 )
 from spiritscout.traffic.tools import traffic_body_read, traffic_get, traffic_search
 from spiritscout.web.traffic import mount_traffic
+
+
+class ProxyExecutableTests(unittest.TestCase):
+    def test_packaged_runtime_finds_proxy_beside_python_layer(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            app = Path(temp) / "SpiritScout"
+            python = app / "py" / "python.exe"
+            proxy = app / "tools" / ("spiritscout-traffic-proxy.exe"
+                                     if os.name == "nt" else "spiritscout-traffic-proxy")
+            python.parent.mkdir(parents=True)
+            proxy.parent.mkdir(parents=True)
+            python.touch()
+            proxy.touch()
+            with patch("spiritscout.traffic.proxy.sys.executable", str(python)):
+                self.assertIn(
+                    proxy.resolve(),
+                    {path.resolve() for path in _candidate_paths()},
+                )
 
 
 def tls_fixture(root: Path) -> Path:
@@ -65,7 +86,7 @@ def tls_fixture(root: Path) -> Path:
     return root / "origin-ca.pem"
 
 
-@unittest.skipUnless(executable(), "需要先运行 scripts/build-traffic-proxy.sh，验证真实 Go 代理")
+@unittest.skipUnless(executable(), "requires the traffic proxy to be built")
 class ProxyTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -259,8 +280,11 @@ class ProxyTests(unittest.IsolatedAsyncioTestCase):
         await self.manager.stop("a")
         self.assertEqual(await tool_environment(self.sessions["a"].workspace), {})
         self.assertEqual(self.manager.status("a")["status"], "stopped")
-        with self.assertRaises(ProcessLookupError):
-            os.kill(old_pid, 0)
+        for _ in range(50):
+            if not psutil.pid_exists(old_pid):
+                break
+            await asyncio.sleep(0.02)
+        self.assertFalse(psutil.pid_exists(old_pid))
         self.assertEqual((await self.manager.start("a"))["status"], "running")
 
     async def test_parent_control_pipe_eof_stops_proxy(self):
@@ -322,7 +346,7 @@ class ProxyTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(result.ok, result.error)
             self.assertEqual(json.loads(result.stdout)["items"], [])
 
-    @unittest.skipUnless(sandbox_available(), "真实 Linux bubblewrap 不可用")
+    @unittest.skipUnless(sandbox_available(), "Linux bubblewrap sandbox is unavailable")
     async def test_real_sandbox_curl_and_ca_isolation(self):
         await self.enable(trust_origin=True)
         result = await sandbox_exec(f"curl -sS --max-time 5 {self.https_url}/sandbox", workspace_root=str(self.sessions["a"].workspace),
@@ -342,8 +366,16 @@ class ProxyTests(unittest.IsolatedAsyncioTestCase):
         await self.enable(trust_origin=True)
         executor = LocalExecutor()
         executor.traffic_workspace = self.sessions["a"].workspace
-        result = await executor.run_argv(ToolSpec(name="curl-fixture", kind=ToolKind.CLI),
-            ["curl", "-sS", "--max-time", "5", self.https_url + "/cli"])
+        if os.name == "nt":
+            script = (
+                "import httpx; "
+                f"r=httpx.get({(self.https_url + '/cli')!r}, trust_env=True, timeout=5); "
+                "print(r.text)"
+            )
+            argv = [sys.executable, "-c", script]
+        else:
+            argv = ["curl", "-sS", "--max-time", "5", self.https_url + "/cli"]
+        result = await executor.run_argv(ToolSpec(name="proxy-client-fixture", kind=ToolKind.CLI), argv)
         self.assertTrue(result.ok, result.stderr)
         self.assertIn("local proxy evidence", result.stdout)
         self.assertEqual(len(self.requests), 1)
@@ -354,7 +386,7 @@ class ProxyTests(unittest.IsolatedAsyncioTestCase):
             import websockets
             from websockets.asyncio.server import serve
         except ImportError:
-            self.skipTest("本机未安装 websockets，未覆盖真实 WS")
+            self.skipTest("websockets is not installed")
         env = await self.enable(trust_origin=True)
         seen = []
         async def echo(ws):
@@ -379,7 +411,7 @@ class ProxyTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(row["status"], 101)
 
 
-@unittest.skipUnless(executable(), "需要先构建真实 Linux Go 代理")
+@unittest.skipUnless(executable(), "requires the traffic proxy to be built")
 class ProxyAPITests(unittest.TestCase):
     def test_real_proxy_api_lifecycle_filters_and_original_download(self):
         payload = b'{"message":"api proxy evidence","password":"fixture-private"}'

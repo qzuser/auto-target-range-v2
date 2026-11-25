@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
     Build a self-contained Python runtime for the native SpiritScout desktop app.
@@ -49,6 +49,22 @@ function Test-ZipArchive([string]$Path) {
     }
 }
 
+function Invoke-Download([string]$Url, [string]$Destination) {
+    if (Get-Command curl.exe -ErrorAction SilentlyContinue) {
+        & curl.exe -L --fail --retry 3 --retry-delay 2 --connect-timeout 20 --max-time 600 `
+            --output $Destination $Url
+        return $LASTEXITCODE -eq 0
+    }
+    try {
+        $ProgressPreference = 'SilentlyContinue'
+        Invoke-WebRequest -Uri $Url -OutFile $Destination -UseBasicParsing -TimeoutSec 600
+        return $true
+    }
+    catch {
+        return $false
+    }
+}
+
 $packagingDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Split-Path -Parent (Split-Path -Parent $packagingDir)
 $versionFile = Join-Path $repoRoot 'src\spiritscout\__init__.py'
@@ -76,7 +92,7 @@ if (-not $Wheel) {
     }
     $candidates = @($candidates | Sort-Object LastWriteTime -Descending)
     if ($candidates.Count -eq 0) {
-        throw "No spiritscout-*.whl found. Build one first: python -m build --outdir dist\python ."
+        throw "No spiritscout-*.whl found. Build one first: uv build --wheel --outdir dist\python ."
     }
     $Wheel = $candidates[0].FullName
 }
@@ -92,22 +108,33 @@ if (-not $PythonZip) {
         if (Test-Path -LiteralPath $PythonZip) {
             Remove-Item -LiteralPath $PythonZip -Force
         }
-        $url = "https://www.python.org/ftp/python/$PythonVersion/python-$PythonVersion-embed-amd64.zip"
         Write-Step "Download Python embeddable $PythonVersion"
         $download = "$PythonZip.download"
-        if (Test-Path -LiteralPath $download) {
-            Remove-Item -LiteralPath $download -Force
+        $fileName = "python-$PythonVersion-embed-amd64.zip"
+        $urls = @()
+        if ($env:SPIRITSCOUT_PYTHON_URL) {
+            $urls += $env:SPIRITSCOUT_PYTHON_URL
         }
-        try {
-            $ProgressPreference = 'SilentlyContinue'
-            Invoke-WebRequest -Uri $url -OutFile $download -UseBasicParsing -TimeoutSec 600
-            Move-Item -LiteralPath $download -Destination $PythonZip -Force
-        }
-        catch {
+        $urls += @(
+            "https://mirrors.huaweicloud.com/python/$PythonVersion/$fileName",
+            "https://registry.npmmirror.com/-/binary/python/$PythonVersion/$fileName",
+            "https://mirrors.tuna.tsinghua.edu.cn/python/$PythonVersion/$fileName",
+            "https://www.python.org/ftp/python/$PythonVersion/$fileName"
+        )
+        $downloaded = $false
+        foreach ($url in $urls | Select-Object -Unique) {
             if (Test-Path -LiteralPath $download) {
                 Remove-Item -LiteralPath $download -Force
             }
-            throw "Python download failed: $($_.Exception.Message). Pass -PythonZip with a local copy."
+            Write-Host "    $url"
+            if (Invoke-Download $url $download) {
+                Move-Item -LiteralPath $download -Destination $PythonZip -Force
+                $downloaded = $true
+                break
+            }
+        }
+        if (-not $downloaded) {
+            throw "Python download failed. Pass -PythonZip with a local copy."
         }
     }
 }
@@ -160,16 +187,27 @@ if (-not $SkipInstall) {
             if (Test-Path -LiteralPath $download) {
                 Remove-Item -LiteralPath $download -Force
             }
-            try {
-                $ProgressPreference = 'SilentlyContinue'
-                Invoke-WebRequest -Uri 'https://bootstrap.pypa.io/get-pip.py' -OutFile $download -UseBasicParsing -TimeoutSec 600
-                Move-Item -LiteralPath $download -Destination $GetPip -Force
+            $getPipUrls = @()
+            if ($env:SPIRITSCOUT_GET_PIP_URL) {
+                $getPipUrls += $env:SPIRITSCOUT_GET_PIP_URL
             }
-            catch {
+            $getPipUrls += @(
+                'https://mirrors.aliyun.com/pypi/get-pip.py',
+                'https://bootstrap.pypa.io/get-pip.py'
+            )
+            $downloaded = $false
+            foreach ($getPipUrl in $getPipUrls) {
+                if (Invoke-Download $getPipUrl $download) {
+                    Move-Item -LiteralPath $download -Destination $GetPip -Force
+                    $downloaded = $true
+                    break
+                }
                 if (Test-Path -LiteralPath $download) {
                     Remove-Item -LiteralPath $download -Force
                 }
-                throw "get-pip.py download failed: $($_.Exception.Message)"
+            }
+            if (-not $downloaded) {
+                throw "get-pip.py download failed: $($getPipUrls -join ', ')"
             }
         }
     }
@@ -177,12 +215,23 @@ if (-not $SkipInstall) {
         throw "get-pip.py not found: $GetPip"
     }
 
-    $mirror = if ($IndexUrl) { $IndexUrl } elseif ($env:SPIRITSCOUT_PIP_INDEX) { $env:SPIRITSCOUT_PIP_INDEX } else { '' }
+    $mirror = if ($IndexUrl) {
+        $IndexUrl
+    } elseif ($env:SPIRITSCOUT_PIP_INDEX) {
+        $env:SPIRITSCOUT_PIP_INDEX
+    } else {
+        'https://pypi.tuna.tsinghua.edu.cn/simple'
+    }
+    $officialIndex = 'https://pypi.org/simple'
     $getPipArgs = @($GetPip, '--no-warn-script-location', '--disable-pip-version-check')
     if ($mirror) { $getPipArgs += @('--index-url', $mirror) }
 
     Write-Step 'Install pip into the embedded interpreter'
     & $pyExe @getPipArgs
+    if ($LASTEXITCODE -ne 0 -and $mirror -ne $officialIndex) {
+        Write-Warn2 "pip bootstrap mirror failed; retrying with official PyPI: $officialIndex"
+        & $pyExe $GetPip --index-url $officialIndex --no-warn-script-location --disable-pip-version-check
+    }
     if ($LASTEXITCODE -ne 0) {
         throw "get-pip.py failed (exit code $LASTEXITCODE)"
     }
@@ -205,7 +254,24 @@ if (-not $SkipInstall) {
     Write-Step "Install $([System.IO.Path]::GetFileName($Wheel)) and dependencies"
     & $pyExe @pipArgs
     if ($LASTEXITCODE -ne 0) {
-        throw "pip install failed (exit code $LASTEXITCODE)"
+        if ($mirror -ne $officialIndex) {
+            Write-Warn2 "Dependency mirror failed; retrying with official PyPI: $officialIndex"
+            $fallbackArgs = @(
+                '-m', 'pip', 'install',
+                '--no-warn-script-location',
+                '--disable-pip-version-check',
+                '--no-user',
+                '--target', $sitePackages,
+                '--upgrade',
+                '--no-compile',
+                '--index-url', $officialIndex,
+                $Wheel
+            )
+            & $pyExe @fallbackArgs
+        }
+        if ($LASTEXITCODE -ne 0) {
+            throw "pip install failed (exit code $LASTEXITCODE)"
+        }
     }
 }
 else {

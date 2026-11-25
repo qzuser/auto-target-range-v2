@@ -7,12 +7,6 @@
 `experience-insights.json` —— 可复用的解题洞察，每条含 `insight` 结论、`context` 适用场景、`tags` 标签、`source_model`、`captured_at`。
 条数以文件里的 `total` 为准（每次提交都会刷新，别在这里写死数字）。
 
-`legacy-state-0.12.9.json` —— 0.12.9 世代（2026-10-27~28）那份运行期状态根的**脱敏清点记录**：
-只记条数、层级分布、时间范围、有多少条记录里出现过 flag 字面量，不落任何原文。
-那份状态根本身（`blackboard.db` 11.9M + `usage.db` + `probe-audit.jsonl`）是早期以仓库根为
-工作目录跑出来的游离数据——配置认的当前状态根是 `.spiritscout`（启动器
-`cwd = 仓库根`），两边从来不是同一个落点。它已移出工作区，本文件是它留下的唯一痕迹。
-
 ## 每次提交自动带上
 
 `git-hooks/pre-commit` 是本仓库的提交前钩子，做三件事：读运行库 → 与已提交的快照
@@ -112,5 +106,5 @@ python tools/experience-export/export_experience.py --import             # 真�
 
 手工往 `inbox/` 丢一个符合格式的 JSON 同样算一次提交，可以走网页或 PR。
 格式见本目录 `experience-insights.json`（老清单格式）或
-`src/spiritscout/knowledge/sync.py` 的 `FORMAT = "spiritscout.experience/v1"`；
+`src/spiritscout/knowledge/digest.py` 的 `FORMAT = "spiritscout.experience/v1"`；
 两种格式「拉取」都认。脱敏规则与钩子一致（URL / IP:端口 / 密钥 / flag 字面量一律替换）。

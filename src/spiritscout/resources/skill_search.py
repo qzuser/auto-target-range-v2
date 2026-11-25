@@ -40,21 +40,23 @@ _CORE = frozenset({'web-idor', 'web-sqli', 'web-xss', 'web-ssrf', 'web-authentic
 _STOP = frozenset(['the', 'a', 'an', 'and', 'or', 'to', 'of', 'in', 'for', 'with', 'when', 'this', 'that', 'is', 'are', 'testing', 'test', 'security', 'please', 'help', 'how', 'can', 'use', 'using', '用于', '测试', '安全', '请问', '帮我', '如何', '进行', '一个', '这个'])
 
 
-def normalize(value: str) -> str:
-    return re.sub(r'\s+', ' ', unicodedata.normalize('NFKC', value).casefold()).strip()
+def normalize(value: Any) -> str:
+    text = str(value or '')
+    return re.sub(r'\s+', ' ', unicodedata.normalize('NFKC', text).casefold()).strip()
 
 
 @lru_cache(maxsize=8192)
-def tokens(value: str) -> set[str]:
-    result = set(re.findall(r'[a-z0-9]+', normalize(value))) - _STOP
-    for phrase in re.findall(r'[\u3400-\u9fff]+', value):
+def tokens(value: Any) -> set[str]:
+    text = normalize(value)
+    result = set(re.findall(r'[a-z0-9]+', text)) - _STOP
+    for phrase in re.findall(r'[\u3400-\u9fff]+', text):
         result.update(phrase[i:i + 2] for i in range(len(phrase) - 1)
                       if phrase[i:i + 2] not in _STOP)
     return result
 
 
 @lru_cache(maxsize=8192)
-def concepts(value: str) -> set[str]:
+def concepts(value: Any) -> set[str]:
     text = normalize(value).replace('-', ' ')
     return {f'concept:{i}' for i, group in enumerate(SYNONYMS)
             if any((term in text if re.search(r'[\u3400-\u9fff]', term) else

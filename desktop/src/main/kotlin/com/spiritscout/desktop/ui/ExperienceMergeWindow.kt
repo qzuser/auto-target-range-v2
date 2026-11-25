@@ -33,7 +33,7 @@ import com.spiritscout.desktop.AppController
 @Composable
 fun ExperienceMergeWindow(controller: AppController) {
     if (!controller.experienceMergeOpen) return
-    DialogWindow(
+    LocalizedDialogWindow(
         onCloseRequest = controller::closeExperienceMerge,
         title = "整理相似经验",
         state = rememberDialogState(
@@ -49,8 +49,8 @@ fun ExperienceMergeWindow(controller: AppController) {
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     Column {
-                        Text("整理相似经验", style = SaltTheme.textStyles.largeTitle)
-                        Text(
+                        LocalizedText("整理相似经验", style = SaltTheme.textStyles.largeTitle)
+                        LocalizedText(
                             "先查找字符相似候选，再填写 2–6 个经验 ID 生成合并稿。确认前不会修改原件。",
                             style = SaltTheme.textStyles.sub,
                             color = SaltTheme.colors.subText
@@ -60,7 +60,7 @@ fun ExperienceMergeWindow(controller: AppController) {
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Text("字符相似度", style = SaltTheme.textStyles.sub)
+                        LocalizedText("字符相似度", style = SaltTheme.textStyles.sub)
                         Box(Modifier.width(120.dp)) {
                             SpiritTextField(
                                 controller.experienceMergeThreshold,
@@ -68,13 +68,13 @@ fun ExperienceMergeWindow(controller: AppController) {
                                 "90"
                             )
                         }
-                        Button(
+                        LocalizedButton(
                             onClick = controller::loadExperienceMergeCandidates,
                             text = "查找候选",
                             appearance = ButtonAppearance.Subtle
                         )
                         if (controller.experienceMergeLoading) {
-                            Text("处理中…", color = SaltTheme.colors.subText)
+                            LocalizedText("处理中…", color = SaltTheme.colors.subText)
                         }
                     }
                     Row(
@@ -99,25 +99,25 @@ fun ExperienceMergeWindow(controller: AppController) {
                         modifier = Modifier.fillMaxWidth()
                     )
                     controller.experienceMergeError?.let {
-                        Text(it, color = SaltTheme.colors.error, style = SaltTheme.textStyles.sub)
+                        LocalizedText(it, color = SaltTheme.colors.error, style = SaltTheme.textStyles.sub)
                     }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.End
                     ) {
-                        Button(
+                        LocalizedButton(
                             onClick = controller::closeExperienceMerge,
                             text = "关闭",
                             appearance = ButtonAppearance.Subtle
                         )
                         Spacer(Modifier.width(10.dp))
-                        Button(
+                        LocalizedButton(
                             onClick = controller::previewExperienceMerge,
                             text = "生成合并稿",
                             appearance = ButtonAppearance.Subtle
                         )
                         Spacer(Modifier.width(10.dp))
-                        Button(
+                        LocalizedButton(
                             onClick = controller::confirmExperienceMerge,
                             text = "确认并保存"
                         )
@@ -133,7 +133,7 @@ fun ExperienceMergeWindow(controller: AppController) {
 private fun CodeCard(title: String, value: String, modifier: Modifier = Modifier) {
     Card(modifier, color = SaltTheme.colors.subBackground) {
         Column(Modifier.fillMaxSize().padding(10.dp)) {
-            Text(
+            LocalizedText(
                 title,
                 style = SaltTheme.textStyles.sub,
                 color = SaltTheme.colors.subText,

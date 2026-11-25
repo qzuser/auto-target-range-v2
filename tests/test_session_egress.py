@@ -103,8 +103,12 @@ class EgressTests(unittest.IsolatedAsyncioTestCase):
                 async with session_egress(store, session):
                     self.assertEqual(session.request['proxy_binding']['exit_ip'], '8.8.8.8')
                     env = await tool_environment(workspace)
-                    self.assertTrue(Path(env['SPIRITSCOUT_EGRESS_SOCKET']).is_socket())
-            self.assertFalse(Path(env['SPIRITSCOUT_EGRESS_SOCKET']).exists())
+                    if hasattr(asyncio, "start_unix_server"):
+                        self.assertTrue(Path(env['SPIRITSCOUT_EGRESS_SOCKET']).is_socket())
+                    else:
+                        self.assertNotIn('SPIRITSCOUT_EGRESS_SOCKET', env)
+            if hasattr(asyncio, "start_unix_server"):
+                self.assertFalse(Path(env['SPIRITSCOUT_EGRESS_SOCKET']).exists())
             with self.assertRaisesRegex(ValueError, '未回退直连'):
                 await tool_environment(workspace)
             with patch('spiritscout.traffic.egress.verify_exit', new=AsyncMock(return_value='1.1.1.1')):

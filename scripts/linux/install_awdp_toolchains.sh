@@ -4,7 +4,7 @@ set -euo pipefail
 
 usage() {
     cat <<'EOF'
-用法：bash scripts/install_awdp_toolchains.sh [--plan|--install|--packages]
+用法：bash scripts/linux/install_awdp_toolchains.sh [--plan|--install|--packages]
 
 默认 --plan：使用本地 DNF 元数据显示事务与空间，不安装。
 --install：通过发行版仓库补齐工具链，需要在本机终端用 sudo 执行。

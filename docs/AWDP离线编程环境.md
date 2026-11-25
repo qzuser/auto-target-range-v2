@@ -9,8 +9,8 @@ Fedora 44 使用发行版包补齐 C/C++、Python、Node.js、Java/Maven、Go、
 Rust/Cargo、.NET/Mono、Ruby/Bundler、Perl、Lua/LuaRocks 和 SQLite CLI：
 
 ```bash
-bash scripts/install_awdp_toolchains.sh --plan
-sudo bash scripts/install_awdp_toolchains.sh --install
+bash scripts/linux/install_awdp_toolchains.sh --plan
+sudo bash scripts/linux/install_awdp_toolchains.sh --install
 .venv/bin/python scripts/prepare_awdp_portable.py --install
 ```
 

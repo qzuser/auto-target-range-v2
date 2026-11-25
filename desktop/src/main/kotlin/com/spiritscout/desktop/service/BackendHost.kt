@@ -27,6 +27,7 @@ class BackendHost {
         private set
 
     private var process: Process? = null
+    private var windowsJob: WindowsJob? = null
     private val recentLines = ArrayDeque<String>()
 
     val isRunning: Boolean
@@ -42,22 +43,41 @@ class BackendHost {
         Files.createDirectories(logRoot)
         logPath = logRoot.resolve("desktop-${LocalDate.now()}.log")
 
-        val command = listOf(
+        val parentPid = ProcessHandle.current().pid()
+        val parentStartMs = ProcessHandle.current().info().startInstant().orElse(null)?.toEpochMilli()
+        val command = mutableListOf(
             runtime.python.toString(),
             "-X", "utf8",
             "-m", "spiritscout",
             "--config", "configs/system.yaml",
             "--host", "127.0.0.1",
-            "--port", port.toString()
+            "--port", port.toString(),
+            "--desktop-parent-pid", parentPid.toString()
         )
+        parentStartMs?.let {
+            command += listOf("--desktop-parent-start-ms", it.toString())
+        }
         val builder = ProcessBuilder(command)
             .directory(runtime.baseDirectory.toFile())
             .redirectErrorStream(false)
         builder.environment()["PYTHONUNBUFFERED"] = "1"
+        builder.environment()["PYTHONUTF8"] = "1"
         builder.environment()["PYTHONIOENCODING"] = "utf-8"
         builder.environment()["SPIRITSCOUT_DESKTOP"] = "1"
+        builder.environment()["SPIRITSCOUT_DESKTOP_PARENT_PID"] = parentPid.toString()
+        parentStartMs?.let { startedAt ->
+            builder.environment()["SPIRITSCOUT_DESKTOP_PARENT_START_MS"] = startedAt.toString()
+        }
         val started = builder.start()
         process = started
+        WindowsJob.attach(started.pid())
+            .onSuccess {
+                windowsJob = it
+                appendLog("后端已加入 Windows KILL_ON_JOB_CLOSE 作业对象", onLog)
+            }
+            .onFailure {
+                appendLog("警告：Windows Job Object 绑定失败，回退到父进程 watchdog：${it.message}", onLog)
+            }
 
         capture(started.inputStream.bufferedReader(StandardCharsets.UTF_8), "stdout", onLog)
         capture(started.errorStream.bufferedReader(StandardCharsets.UTF_8), "stderr", onLog)
@@ -128,17 +148,23 @@ class BackendHost {
     }
 
     suspend fun stop() {
-        val current = process ?: return
         withContext(Dispatchers.IO) {
-            runCatching {
-                current.descendants().forEach { it.destroyForcibly() }
-                current.destroy()
-                if (!current.waitFor(4, TimeUnit.SECONDS)) {
-                    current.destroyForcibly()
-                    current.waitFor(4, TimeUnit.SECONDS)
-                }
+            stopBlocking()
+        }
+    }
+
+    fun stopBlocking() {
+        val current = process ?: return
+        runCatching {
+            current.descendants().forEach { it.destroyForcibly() }
+            current.destroy()
+            if (!current.waitFor(4, TimeUnit.SECONDS)) {
+                current.destroyForcibly()
+                current.waitFor(4, TimeUnit.SECONDS)
             }
         }
+        runCatching { windowsJob?.close() }
+        windowsJob = null
         process = null
     }
 }

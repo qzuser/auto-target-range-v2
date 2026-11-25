@@ -292,13 +292,24 @@ shell / Python 沙箱需要 Linux + bubblewrap；Windows 与 macOS 原生控制�
 `SpiritScout.exe`、精简 JRE、Python embeddable 运行时和配置模板放在同一目录：
 
 ```powershell
-python -m build --outdir dist\python .
+uv build --wheel --outdir dist\python .
 powershell -ExecutionPolicy Bypass -File packaging\windows\build-desktop.ps1
 ```
 
 产物在 `dist\windows\desktop\SpiritScout-<版本>-windows-x64.zip`，解压后双击
 `SpiritScout.exe`。目标机器不需要安装 Java、Python 或 WebView2；模型和外部工具仍需按
 各自文档配置。旧的单文件尾载荷和 `desktop.json` 兼容流程不再维护。
+
+桌面端覆盖全部 Web 导航域：任务创建与会话工作区、项目、资产收集与情报、模型与供应商、
+MCP、Skill 文件编辑、本地工具、自动任务、代理池、浏览器账号、经验、流量/PCAP 和设置。
+正式业务操作均使用原生 Compose/SaltUI 控件，高级 API 只作为诊断入口。
+
+发布前可自动检查打包结果：
+
+```powershell
+.\packaging\windows\smoke-desktop.ps1 `
+  -AppDir .\build\windows-desktop\package\SpiritScout
+```
 
 
 ### 发行包（Release 附件）
@@ -328,7 +339,7 @@ python -m spiritscout.resources.skill_sync import skills   # 从解开的 zip / 
 
 **怎么出的包**：推一个 `v*` tag，仓库根 `.github/workflows/package.yml` 会自动
 核对 tag 与 `__version__` 是否一致（不一致直接失败）、用
-`python -m spiritscout.knowledge.digest` 现算一份经验摘要、`python -m build` 出
+`python -m spiritscout.knowledge.digest` 现算一份经验摘要、`uv build` 出
 wheel 与 sdist、`git archive` 打整仓 zip 并把摘要塞进去、再装进干净 venv 验证
 `web/static/js/core.js` 和 `knowledge/data/experience.json` 真在包里。完整桌面版
 在 Windows 任务里通过 Compose/jpackage 打包，两边产物汇到

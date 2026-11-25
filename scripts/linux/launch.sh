@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # 灵枢 SpiritScout 启动器
-#   ./launch.sh                      前台启动（Ctrl+C 停止）；额外参数透传给程序（如 --port 8000）
-#   ./launch.sh start --offline      启动本地轻量控制台（Ollama / llama.cpp，默认端口 8001）
-#   ./launch.sh stop    [端口] [--force]        停止控制台（默认端口 8000；--force = 放弃运行中会话现场）
-#   ./launch.sh restart [端口] [--force] [参数]  先停再起；显式给了端口会一并转给新进程，其余参数透传
-#   ./launch.sh -h                   启动器用法说明（程序自身参数：./launch.sh start -h）
+#   ./scripts/linux/launch.sh                      前台启动（Ctrl+C 停止）；额外参数透传给程序（如 --port 8000）
+#   ./scripts/linux/launch.sh start --offline      启动本地轻量控制台（Ollama / llama.cpp，默认端口 8001）
+#   ./scripts/linux/launch.sh stop    [端口] [--force]        停止控制台（默认端口 8000；--force = 放弃运行中会话现场）
+#   ./scripts/linux/launch.sh restart [端口] [--force] [参数]  先停再起；显式给了端口会一并转给新进程，其余参数透传
+#   ./scripts/linux/launch.sh -h                   启动器用法说明（程序自身参数：./scripts/linux/launch.sh start -h）
 set -euo pipefail
-cd "$(dirname "$0")"
+repo_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
+cd "$repo_root"
 shopt -s nullglob
 
 OFFLINE=""
@@ -30,7 +31,7 @@ PORT="${WEBCONSOLE_PORT:-$DEFAULT_PORT}"
 
 start_console() {
   if [ -n "$OFFLINE" ]; then
-    exec bash scripts/run_ollama_light.sh "$@"
+    exec bash scripts/linux/run_ollama_light.sh "$@"
   fi
   exec .venv/bin/python -m spiritscout --config configs/system.yaml "$@"
 }
@@ -39,7 +40,7 @@ case "${1:-start}" in
   help|-h|--help|stop) ;;
   *)
     if [ ! -x .venv/bin/python ]; then
-      echo "缺少虚拟环境：先执行 ./install.sh，再重新启动。" >&2
+      echo "缺少虚拟环境：先执行 ./scripts/linux/install.sh，再重新启动。" >&2
       exit 1
     fi
     ;;
@@ -74,7 +75,7 @@ stop_console() {
   if [ "$running" -gt 0 ] && [ -z "$force" ]; then
     local mode_flag=""
     [ -n "$OFFLINE" ] && mode_flag=" --offline"
-    echo "有 ${running} 个会话正在运行。确认放弃现场请用：./launch.sh ${cmd}${mode_flag} ${port} --force" >&2
+    echo "有 ${running} 个会话正在运行。确认放弃现场请用：./scripts/linux/launch.sh ${cmd}${mode_flag} ${port} --force" >&2
     return 1
   fi
   local pid
@@ -106,22 +107,22 @@ case "${1:-start}" in
 灵枢 SpiritScout 启动器
 
 用法：
-  ./launch.sh                        前台启动（Ctrl+C 停止）；额外参数透传给程序（如 --port 8000）
-  ./launch.sh start [参数...]        同上（显式 start）
-  ./launch.sh start --offline        启动本地轻量控制台（Ollama / llama.cpp，默认端口 8001）
-  ./launch.sh stop     [端口] [--force]         停止控制台（默认端口 8000，或环境变量 WEBCONSOLE_PORT）
+  ./scripts/linux/launch.sh                        前台启动（Ctrl+C 停止）；额外参数透传给程序（如 --port 8000）
+  ./scripts/linux/launch.sh start [参数...]        同上（显式 start）
+  ./scripts/linux/launch.sh start --offline        启动本地轻量控制台（Ollama / llama.cpp，默认端口 8001）
+  ./scripts/linux/launch.sh stop     [端口] [--force]         停止控制台（默认端口 8000，或环境变量 WEBCONSOLE_PORT）
                                                 --force = 有运行中会话时确认放弃现场
-  ./launch.sh restart  [端口] [--force] [参数]  先停再起；显式端口会转成 --port 传给新进程，其余参数透传
-  ./launch.sh stop --offline [端口] [--force]  停止轻量控制台（默认端口 8001）
-  ./launch.sh restart --offline [端口] [--force] [参数]  重启轻量控制台，检查其独立会话目录
-  ./launch.sh -h | --help | help     本说明
+  ./scripts/linux/launch.sh restart  [端口] [--force] [参数]  先停再起；显式端口会转成 --port 传给新进程，其余参数透传
+  ./scripts/linux/launch.sh stop --offline [端口] [--force]  停止轻量控制台（默认端口 8001）
+  ./scripts/linux/launch.sh restart --offline [端口] [--force] [参数]  重启轻量控制台，检查其独立会话目录
+  ./scripts/linux/launch.sh -h | --help | help     本说明
 
 示例：
-  ./launch.sh start --offline --port 8101  # 轻量控制台改用 8101
-  ./launch.sh stop --offline         # 停轻量控制台（默认端口 8001）
-  ./launch.sh stop                   # 停默认端口 8000
-  ./launch.sh restart 8100 --force   # 放弃会话现场，重启在 8100
-  ./launch.sh --host 0.0.0.0         # 透传给程序前台启动
+  ./scripts/linux/launch.sh start --offline --port 8101  # 轻量控制台改用 8101
+  ./scripts/linux/launch.sh stop --offline         # 停轻量控制台（默认端口 8001）
+  ./scripts/linux/launch.sh stop                   # 停默认端口 8000
+  ./scripts/linux/launch.sh restart 8100 --force   # 放弃会话现场，重启在 8100
+  ./scripts/linux/launch.sh --host 0.0.0.0         # 透传给程序前台启动
 
 --offline：统一使用 .spiritscout-ollama/ 的轻量配置与会话，后端由 models.yaml 选择。
 Ollama 与 llama.cpp 共用工作区；目录沿用旧名以保留已有会话。
@@ -129,7 +130,7 @@ Ollama 与 llama.cpp 共用工作区；目录沿用旧名以保留已有会话�
 scripts/setup_local_light.py --backend llama_cpp --model <模型名> --context <实际上下文> 初始化。
 不安装依赖、不下载模型、不修改正常配置，也不隔离系统网络或启停模型服务。
 停止行为：按端口找 PID，SIGTERM 优雅退出（最多等 10 秒），超时 SIGKILL。
-程序自身参数说明：./launch.sh start -h
+程序自身参数说明：./scripts/linux/launch.sh start -h
 USAGE
     ;;
   stop)

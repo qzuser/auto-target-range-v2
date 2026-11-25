@@ -151,7 +151,11 @@ class ScannerTests(unittest.IsolatedAsyncioTestCase):
         secret.write_text(json.dumps(self.rows[0]))
         async def bad(command, **ctx):
             args = shlex.split(command)
-            Path(args[args.index("-o") + 1]).symlink_to(secret)
+            output = Path(args[args.index("-o") + 1])
+            if sys.platform == "win32":
+                output.write_text("not-json")
+            else:
+                output.symlink_to(secret)
             return ToolResult(tool="sandbox_exec", ok=True)
         with patch("spiritscout.tools.scanner.sandbox_exec", side_effect=bad):
             result = await self.service.run(["http://fixture.test"], tags=["tech"], **self.ctx)

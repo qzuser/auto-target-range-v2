@@ -6,6 +6,7 @@ import asyncio
 import json
 import os
 import sqlite3
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -35,12 +36,19 @@ class JournalTests(unittest.IsolatedAsyncioTestCase):
     async def test_real_cli_result_survives_reopen_without_plaintext(self) -> None:
         registry = ToolRegistry(LocalExecutor(), journal=self.journal)
         registry.register(ToolSpec(name="echo", kind=ToolKind.CLI,
-                                  command_template=["/bin/echo", "{value}"]))
+                                  command_template=[
+                                      sys.executable, "-c",
+                                      "import sys; print(sys.argv[1])", "{value}",
+                                  ]))
         result = await registry.call("echo", {"value": "private-result-marker"})
         self.assertEqual(result.execution_status, "succeeded")
         reopened = ExecutionJournal(self.bb, self.root, "run-next")
-        self.assertEqual(reopened.result(result.invocation_id).stdout, "private-result-marker\n")
-        self.assertEqual((self.root / "execution.key").stat().st_mode & 0o777, 0o600)
+        self.assertEqual(
+            reopened.result(result.invocation_id).stdout.strip(),
+            "private-result-marker",
+        )
+        if os.name != "nt":
+            self.assertEqual((self.root / "execution.key").stat().st_mode & 0o777, 0o600)
         with self.bb.transaction() as conn:
             row = conn.execute("SELECT result_cipher FROM tool_invocations").fetchone()
         self.assertNotIn(b"private-result-marker", row[0])

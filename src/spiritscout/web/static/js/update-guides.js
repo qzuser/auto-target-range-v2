@@ -19,9 +19,9 @@ const UpdateGuides = (() => {
         p(I18n.t("先单独运行 git status --short；输出不为空时先自行备份和处理本地改动，再继续。提交本地修改也可能造成分支分叉，不能靠强制覆盖解决。")) +
         code(I18n.t("检查后同步目标标签；遇到冲突或无法快进时停止处理"), sync) +
         p(I18n.t("同步成功后，按原安装方式更新依赖。以下是基础安装示例；原来启用的 extras / groups 需保留。若此前使用网页更新，请先查看更新状态目录 active.json 的 python 字段，使用其中的解释器安装依赖，不要只更新旧 .venv。")) +
-        code(I18n.t("Linux · pip 虚拟环境"), '.venv/bin/python -m pip install -e .\n./launch.sh') +
-        code(I18n.t("Windows PowerShell · pip 虚拟环境"), '.\\.venv\\Scripts\\python.exe -m pip install -e .\n.\\launch.ps1') +
-        code(I18n.t("uv 环境 · 增量安装基础依赖"), 'uv pip install --python .venv/bin/python -e .\n./launch.sh') +
+        code(I18n.t("Linux · pip 虚拟环境"), '.venv/bin/python -m pip install -e .\n./scripts/linux/launch.sh') +
+        code(I18n.t("Windows PowerShell · pip 虚拟环境"), '.\\.venv\\Scripts\\python.exe -m pip install -e .\n.\\scripts\\windows\\start-console.ps1') +
+        code(I18n.t("uv 环境 · 增量安装基础依赖"), 'uv pip install --python .venv/bin/python -e .\n./scripts/linux/launch.sh') +
         p(I18n.t("uv sync 用户：有 uv.lock 时沿用原有 groups / extras 参数并添加 --frozen；sync 会按选择的依赖组同步环境，不要忽略原来的可选依赖。重启时沿用原 --config、端口和环境变量。") )},
       {id:"package", title:I18n.t("Python 包 · pip / uv / wheel"), body:
         p(I18n.t("结束任务、备份数据并正常停止服务。先激活原运行环境；下面的 python 必须是运行灵枢的解释器。若曾网页更新过，以 active.json 记录的解释器为准。")) +

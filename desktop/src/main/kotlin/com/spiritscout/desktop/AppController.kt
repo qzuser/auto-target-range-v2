@@ -7,6 +7,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.spiritscout.desktop.model.MetricItem
 import com.spiritscout.desktop.model.MetricTone
+import com.spiritscout.desktop.model.AssetProviderItem
 import com.spiritscout.desktop.model.NewTaskRequest
 import com.spiritscout.desktop.model.PendingApprovalItem
 import com.spiritscout.desktop.model.PendingQuestionItem
@@ -15,7 +16,10 @@ import com.spiritscout.desktop.model.ResourceItem
 import com.spiritscout.desktop.model.ResourcePaging
 import com.spiritscout.desktop.model.Section
 import com.spiritscout.desktop.model.SessionItem
+import com.spiritscout.desktop.model.SideAgentOption
+import com.spiritscout.desktop.model.SideMessage
 import com.spiritscout.desktop.model.SystemResourceSnapshot
+import com.spiritscout.desktop.model.TaskOption
 import com.spiritscout.desktop.model.TimelineItem
 import com.spiritscout.desktop.model.TimelineKind
 import com.spiritscout.desktop.model.WorkTask
@@ -29,14 +33,32 @@ import com.spiritscout.desktop.model.int
 import com.spiritscout.desktop.model.long
 import com.spiritscout.desktop.model.objectOrEmpty
 import com.spiritscout.desktop.model.string
+import com.spiritscout.desktop.model.toPayloadJson
 import com.spiritscout.desktop.service.ApiException
 import com.spiritscout.desktop.service.BackendHost
 import com.spiritscout.desktop.service.RuntimeResolver
 import com.spiritscout.desktop.service.SpiritApi
+import com.spiritscout.desktop.ui.DesktopI18n
+import com.spiritscout.desktop.state.TrafficController
+import com.spiritscout.desktop.state.AssetCollectionController
+import com.spiritscout.desktop.state.ModelProviderController
+import com.spiritscout.desktop.state.SkillController
+import com.spiritscout.desktop.state.McpController
+import com.spiritscout.desktop.state.ProjectController
+import com.spiritscout.desktop.state.BrowserAccountController
+import com.spiritscout.desktop.state.ProxyController
+import com.spiritscout.desktop.state.ScheduleController
+import com.spiritscout.desktop.state.AgentController
+import com.spiritscout.desktop.state.LocalToolsController
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.swing.Swing
 import kotlinx.coroutines.withContext
@@ -52,15 +74,72 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.net.URLEncoder
 import java.net.URI
+import java.awt.Image
+import java.awt.RenderingHints
+import java.awt.SystemTray
+import java.awt.Toolkit
+import java.awt.TrayIcon
+import java.awt.MenuItem
+import java.awt.PopupMenu
+import java.awt.datatransfer.DataFlavor
+import java.awt.image.BufferedImage
+import javax.imageio.ImageIO
 import java.nio.charset.StandardCharsets
 import java.time.Instant
+import java.util.prefs.Preferences
 
-data class PendingUpload(val id: String, val name: String)
+enum class UploadKind {
+    FILE,
+    FOLDER
+}
+
+data class PendingUpload(
+    val id: String,
+    val name: String,
+    val sourcePath: Path? = null,
+    val kind: UploadKind = UploadKind.FILE,
+    val error: String? = null
+)
+
+private fun Image.toBufferedImage(): BufferedImage {
+    if (this is BufferedImage) return this
+    val width = getWidth(null).coerceAtLeast(1)
+    val height = getHeight(null).coerceAtLeast(1)
+    return BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB).also { target ->
+        val graphics = target.createGraphics()
+        try {
+            graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC)
+            graphics.drawImage(this, 0, 0, null)
+        } finally {
+            graphics.dispose()
+        }
+    }
+}
 
 class AppController {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Swing)
     private val backend = BackendHost()
     private var api: SpiritApi? = null
+    val traffic = TrafficController({ api }, scope)
+    val assetCollection = AssetCollectionController({ api }, scope)
+    val modelProviders = ModelProviderController({ api }, scope)
+    val skills = SkillController({ api }, scope)
+    val mcp = McpController({ api }, scope)
+    val projectCatalog = ProjectController({ api }, scope)
+    val browserAccounts = BrowserAccountController({ api }, scope)
+    val proxyPool = ProxyController({ api }, scope)
+    val schedules = ScheduleController({ api }, scope)
+    val agentCatalog = AgentController({ api }, scope)
+    val localTools = LocalToolsController({ api }, scope)
+
+    init {
+        Runtime.getRuntime().addShutdownHook(
+            Thread(
+                { runCatching { backend.stopBlocking() } },
+                "spiritscout-backend-shutdown"
+            )
+        )
+    }
 
     var booting by mutableStateOf(true)
         private set
@@ -77,6 +156,10 @@ class AppController {
     var loginError by mutableStateOf<String?>(null)
         private set
     var darkTheme by mutableStateOf(false)
+        private set
+    var language by mutableStateOf("zh-CN")
+        private set
+    var motionPreference by mutableStateOf("system")
         private set
 
     var section by mutableStateOf(Section.DASHBOARD)
@@ -99,6 +182,28 @@ class AppController {
         private set
     var workspaceTabError by mutableStateOf<String?>(null)
         private set
+    private var workspaceEventJob: Job? = null
+    private var workspaceEventOffset = 0L
+    val sideAgents = mutableStateListOf<SideAgentOption>()
+    val sideMessages = mutableStateListOf<SideMessage>()
+    val sidePendingApprovals = mutableStateListOf<PendingApprovalItem>()
+    val sidePendingQuestions = mutableStateListOf<PendingQuestionItem>()
+    var sideActor by mutableStateOf("")
+        private set
+    var sideTaskId by mutableStateOf("")
+        private set
+    var sideChildSessionId by mutableStateOf("")
+        private set
+    var sideDraft by mutableStateOf("")
+        private set
+    var sideStatus by mutableStateOf("")
+        private set
+    var sideError by mutableStateOf<String?>(null)
+        private set
+    var sideBusy by mutableStateOf(false)
+        private set
+    private var sideRosterLoadedFor by mutableStateOf("")
+    private var sideRosterCache = emptyList<SideAgentOption>()
 
     val sessions = mutableStateListOf<SessionItem>()
     val metrics = mutableStateListOf<MetricItem>()
@@ -108,10 +213,46 @@ class AppController {
     val logs = mutableStateListOf<String>()
     val models = mutableStateListOf<String>()
     val pendingUploads = mutableStateListOf<PendingUpload>()
+    val failedUploads = mutableStateListOf<PendingUpload>()
+    val taskProjects = mutableStateListOf<TaskOption>()
+    val taskProxyPlans = mutableStateListOf<TaskOption>()
+    val taskBrowserAccounts = mutableStateListOf<TaskOption>()
+    val taskAssetCampaigns = mutableStateListOf<TaskOption>()
+    val taskAssetTargets = mutableStateListOf<TaskOption>()
+    val taskAssetExcludedAssets = mutableStateListOf<String>()
+    val assetProviders = mutableStateListOf<AssetProviderItem>()
+    var taskOptionsLoading by mutableStateOf(false)
+        private set
+    var taskCampaignsLoading by mutableStateOf(false)
+        private set
+    var taskTargetsLoading by mutableStateOf(false)
+        private set
+    var taskAssetTargetsCampaignId by mutableStateOf("")
+        private set
+    var taskInitialProjectId by mutableStateOf("")
+        private set
+    var taskInitialCampaignId by mutableStateOf("")
+        private set
+    private var taskCampaignRequestSerial = 0
+    private var taskTargetRequestSerial = 0
+    var assetProvidersLoading by mutableStateOf(false)
+        private set
+    var assetProvidersError by mutableStateOf<String?>(null)
+        private set
 
     var system by mutableStateOf<SystemResourceSnapshot?>(null)
         private set
     var settingsJson by mutableStateOf<JsonElement?>(null)
+        private set
+    var updateJson by mutableStateOf<JsonElement?>(null)
+        private set
+    var updateError by mutableStateOf<String?>(null)
+        private set
+    var updateBusy by mutableStateOf(false)
+        private set
+    var storageJson by mutableStateOf<JsonElement?>(null)
+        private set
+    var storagePreviewJson by mutableStateOf<JsonElement?>(null)
         private set
     var dashboardPeriod by mutableStateOf("today")
         private set
@@ -120,6 +261,20 @@ class AppController {
     var taskError by mutableStateOf<String?>(null)
         private set
     var uploading by mutableStateOf(false)
+        private set
+    var showRuleConflict by mutableStateOf(false)
+        private set
+    var taskRuleConflicts by mutableStateOf<List<String>>(emptyList())
+        private set
+    private var pendingRuleConflictRequest: NewTaskRequest? = null
+    private var pendingRuleConflictCallback: ((SessionItem) -> Unit)? = null
+    private var activeUploadOperations = 0
+    private val desktopPreferences = Preferences.userNodeForPackage(AppController::class.java)
+    var notificationsEnabled by mutableStateOf(true)
+        private set
+    var notificationJson by mutableStateOf<JsonElement?>(null)
+        private set
+    var notificationUnread by mutableStateOf(0)
         private set
     var toast by mutableStateOf<String?>(null)
         private set
@@ -155,6 +310,12 @@ class AppController {
     fun bootstrap() {
         scope.launch {
             try {
+                darkTheme = desktopPreferences.getBoolean("dark_theme", false)
+                notificationsEnabled = desktopPreferences.getBoolean("notifications_enabled", true)
+                language = desktopPreferences.get("language", "zh-CN")
+                motionPreference = desktopPreferences.get("motion_preference", "system")
+                DesktopI18n.applyLanguage(language)
+                DesktopI18n.applyMotionPreference(motionPreference)
                 booting = true
                 bootError = null
                 val runtime = withContext(Dispatchers.IO) {
@@ -189,6 +350,12 @@ class AppController {
                 loadDashboardInternal()
                 loadSessionsInternal()
                 booting = false
+                scope.launch {
+                    while (true) {
+                        loadNotifications()
+                        delay(30_000)
+                    }
+                }
             } catch (error: Exception) {
                 bootError = error.message ?: error.toString()
                 booting = false
@@ -198,6 +365,7 @@ class AppController {
     }
 
     fun navigate(next: Section) {
+        stopWorkspaceEventStream()
         section = next
         selectedSession = null
         workspace = null
@@ -229,31 +397,64 @@ class AppController {
     }
 
     fun openSession(session: SessionItem) {
+        stopWorkspaceEventStream()
         selectedSession = session
         section = Section.WORKSPACE
         workspace = null
         workspaceTab = WorkspaceTab.CHAT
         workspaceTabJson = null
         workspaceError = null
+        traffic.reset()
+        clearSideChat()
         scope.launch { refreshWorkspaceInternal() }
+        startWorkspaceEventStream(session.id)
     }
 
     fun returnToTasks() {
+        stopWorkspaceEventStream()
         section = Section.TASKS
         selectedSession = null
         workspace = null
+        traffic.reset()
+        clearSideChat()
         scope.launch { loadSessionsInternal() }
     }
 
     fun openNewTask() {
+        taskInitialProjectId = ""
+        taskInitialCampaignId = ""
         taskError = null
         pendingUploads.clear()
+        failedUploads.clear()
+        pendingRuleConflictRequest = null
+        pendingRuleConflictCallback = null
+        taskRuleConflicts = emptyList()
+        showRuleConflict = false
+        taskAssetCampaigns.clear()
+        taskAssetTargets.clear()
+        taskAssetExcludedAssets.clear()
+        taskAssetTargetsCampaignId = ""
+        taskCampaignsLoading = false
+        taskTargetsLoading = false
         showNewTask = true
-        scope.launch { loadModelsInternal() }
+        scope.launch {
+            loadModelsInternal()
+            loadTaskOptionsInternal()
+        }
+    }
+
+    fun openNewTaskForAssets(projectId: String, campaignId: String) {
+        openNewTask()
+        taskInitialProjectId = projectId
+        taskInitialCampaignId = campaignId
     }
 
     fun closeNewTask() {
         showNewTask = false
+        showRuleConflict = false
+        pendingRuleConflictRequest = null
+        pendingRuleConflictCallback = null
+        taskRuleConflicts = emptyList()
         taskError = null
     }
 
@@ -364,6 +565,79 @@ class AppController {
         openJsonAction(action)
     }
 
+    fun loadSessionProjectOptions() {
+        val currentApi = api ?: return
+        scope.launch {
+            try {
+                taskProjects.clear()
+                taskProjects += currentApi.get("/api/projects").array("projects")
+                    .map { it.objectOrEmpty() }
+                    .filter { it.string("project_id").isNotBlank() && !it.boolean("read_only") }
+                    .map {
+                        TaskOption(
+                            id = it.string("project_id"),
+                            label = it.string("name").ifBlank { it.string("project_id") }
+                        )
+                    }
+            } catch (error: Exception) {
+                toast = "读取项目失败：${error.message}"
+            }
+        }
+    }
+
+    fun renameSelectedSession(title: String, onDone: () -> Unit) {
+        val currentApi = api ?: return
+        val current = selectedSession ?: return
+        scope.launch {
+            try {
+                currentApi.patch(
+                    "/api/sessions/${url(current.id)}",
+                    buildJsonObject { put("title", title.trim()) }.toString()
+                )
+                toast = "会话已重命名"
+                onDone()
+                refreshWorkspaceInternal()
+                loadSessionsInternal()
+            } catch (error: Exception) {
+                toast = "重命名失败：${error.message}"
+            }
+        }
+    }
+
+    fun moveSelectedSession(projectId: String, onDone: () -> Unit) {
+        val currentApi = api ?: return
+        val current = selectedSession ?: return
+        scope.launch {
+            try {
+                currentApi.patch(
+                    "/api/sessions/${url(current.id)}",
+                    buildJsonObject { put("project_id", projectId) }.toString()
+                )
+                toast = if (projectId.isBlank()) "会话已移到未分类" else "会话项目已更新"
+                onDone()
+                refreshWorkspaceInternal()
+                loadSessionsInternal()
+            } catch (error: Exception) {
+                toast = "移动会话失败：${error.message}"
+            }
+        }
+    }
+
+    fun deleteSelectedSession(onDone: () -> Unit) {
+        val currentApi = api ?: return
+        val current = selectedSession ?: return
+        scope.launch {
+            try {
+                currentApi.delete("/api/sessions/${url(current.id)}?confirm=true")
+                toast = "会话已删除"
+                onDone()
+                returnToTasks()
+            } catch (error: Exception) {
+                toast = "删除会话失败：${error.message}"
+            }
+        }
+    }
+
     fun decideApproval(approvalId: String, allow: Boolean) {
         val currentApi = api ?: return
         val current = selectedSession ?: return
@@ -412,6 +686,213 @@ class AppController {
         )
     }
 
+    fun selectSideAgent(actor: String) {
+        sideActor = actor
+        sideError = null
+        sideMessages.clear()
+        sidePendingApprovals.clear()
+        sidePendingQuestions.clear()
+        sideChildSessionId = ""
+        sideTaskId = ""
+        sideStatus = ""
+        if (actor.isBlank()) return
+        val parent = selectedSession ?: return
+        val child = sessions.firstOrNull {
+            it.sideParentId == parent.id && it.sideAgent == actor
+        }
+        if (child != null) {
+            sideChildSessionId = child.id
+            sideTaskId = child.sideTaskId
+            sideStatus = child.status
+            refreshSideChat()
+        }
+    }
+
+    fun setSideTask(taskId: String) {
+        if (sideChildSessionId.isBlank()) sideTaskId = taskId
+    }
+
+    fun updateSideDraft(value: String) {
+        sideDraft = value
+    }
+
+    fun sendSideMessage() {
+        val currentApi = api ?: return
+        val parent = selectedSession ?: return
+        val mission = sideDraft.trim()
+        if (sideActor.isBlank() || mission.isBlank() || sideBusy) return
+        if (sideChildSessionId.isBlank() && pendingUploads.isNotEmpty()) {
+            sideError = "首次旁路对话创建后再添加附件。"
+            return
+        }
+        val childSession = sideChildSessionId
+        scope.launch {
+            sideBusy = true
+            sideError = null
+            sideStatus = "running"
+            try {
+                val child = if (childSession.isBlank()) {
+                    val payload = buildJsonObject {
+                        put("actor", sideActor)
+                        put("task_id", sideTaskId)
+                        put("mission", mission)
+                    }
+                    val created = currentApi.post(
+                        "/api/sessions/${url(parent.id)}/agent-sessions",
+                        payload.toString()
+                    )
+                    SessionItem.fromJson(created).also {
+                        sideChildSessionId = it.id
+                        sideTaskId = it.sideTaskId.ifBlank { sideTaskId }
+                    }
+                } else {
+                    currentApi.postMessage(
+                        childSession,
+                        mission,
+                        pendingUploads.map { it.id }
+                    )
+                    sessions.firstOrNull { it.id == childSession }
+                        ?: SessionItem.fromJson(
+                            currentApi.get("/api/sessions/${url(childSession)}")
+                        )
+                }
+                sideMessages += SideMessage("user", mission)
+                sideDraft = ""
+                sideStatus = child.status.ifBlank { "running" }
+                pendingUploads.clear()
+                failedUploads.clear()
+                loadSessionsInternal()
+                refreshSideChat()
+            } catch (error: Exception) {
+                sideError = error.message ?: "旁路消息发送失败"
+                sideStatus = "failed"
+            } finally {
+                sideBusy = false
+            }
+        }
+    }
+
+    fun refreshSideChat() {
+        val currentApi = api ?: return
+        val child = sideChildSessionId
+        if (child.isBlank()) return
+        scope.launch {
+            try {
+                val root = currentApi.get("/api/sessions/${url(child)}/conversation")
+                    .objectOrEmpty()
+                sideMessages.clear()
+                root.array("messages").forEach { raw ->
+                    val item = raw.objectOrEmpty()
+                    val role = item.string("role")
+                    if (role !in setOf("user", "assistant", "agent")) return@forEach
+                    val content = item.string("content")
+                        .ifBlank { item.string("text") }
+                        .ifBlank { item.string("detail") }
+                    if (content.isNotBlank()) {
+                        sideMessages += SideMessage(
+                            if (role == "user") "user" else "assistant",
+                            content
+                        )
+                    }
+                }
+                val session = root.element("session")?.objectOrEmpty()
+                sideStatus = session?.string("status").orEmpty()
+                sideError = session?.string("error").takeIf { !it.isNullOrBlank() }
+                sidePendingApprovals.clear()
+                sidePendingApprovals += root.array("pending_approvals").map { raw ->
+                    val item = raw.objectOrEmpty()
+                    PendingApprovalItem(
+                        id = item.string("approval_id").ifBlank { item.string("id") },
+                        action = item.string("action"),
+                        purpose = item.string("purpose").ifBlank { item.string("detail") },
+                        detail = item.string("detail")
+                    )
+                }
+                sidePendingQuestions.clear()
+                sidePendingQuestions += root.array("pending_questions").map { raw ->
+                    val item = raw.objectOrEmpty()
+                    PendingQuestionItem(
+                        id = item.string("question_id").ifBlank { item.string("id") },
+                        agent = item.string("agent").ifBlank { sideActor },
+                        question = item.string("question"),
+                        options = item.array("options").map { it.toString().trim('"') },
+                        multiple = item.boolean("multiple"),
+                        secret = item.boolean("secret"),
+                        rawJson = pretty(raw)
+                    )
+                }
+            } catch (error: Exception) {
+                sideError = error.message
+            }
+        }
+    }
+
+    fun decideSideApproval(approvalId: String, allow: Boolean) {
+        val currentApi = api ?: return
+        val child = sideChildSessionId
+        if (child.isBlank()) return
+        scope.launch {
+            try {
+                currentApi.post(
+                    "/api/sessions/${url(child)}/approvals/${url(approvalId)}",
+                    buildJsonObject { put("allow", allow) }.toString()
+                )
+                refreshSideChat()
+            } catch (error: Exception) {
+                sideError = error.message
+            }
+        }
+    }
+
+    fun answerSideQuestion(questionId: String, choice: Int? = null, text: String = "") {
+        val currentApi = api ?: return
+        val child = sideChildSessionId
+        if (child.isBlank()) return
+        scope.launch {
+            try {
+                val payload = if (choice != null) {
+                    buildJsonObject { put("choice", choice) }
+                } else {
+                    buildJsonObject { put("text", text.trim()) }
+                }
+                currentApi.post(
+                    "/api/sessions/${url(child)}/questions/${url(questionId)}",
+                    payload.toString()
+                )
+                refreshSideChat()
+            } catch (error: Exception) {
+                sideError = error.message
+            }
+        }
+    }
+
+    fun openSideChildSession() {
+        val child = sessions.firstOrNull { it.id == sideChildSessionId } ?: return
+        openSession(child)
+    }
+
+    fun returnToSideParent() {
+        val parentId = selectedSession?.sideParentId.orEmpty()
+        val parent = sessions.firstOrNull { it.id == parentId } ?: return
+        openSession(parent)
+    }
+
+    private fun clearSideChat() {
+        sideAgents.clear()
+        sideMessages.clear()
+        sidePendingApprovals.clear()
+        sidePendingQuestions.clear()
+        sideActor = ""
+        sideTaskId = ""
+        sideChildSessionId = ""
+        sideDraft = ""
+        sideStatus = ""
+        sideError = null
+        sideBusy = false
+        sideRosterLoadedFor = ""
+        sideRosterCache = emptyList()
+    }
+
     fun stopBackgroundTask(jobId: String) {
         val currentApi = api ?: return
         val current = selectedSession ?: return
@@ -454,73 +935,315 @@ class AppController {
         scope.launch {
             try {
                 taskError = null
-                val payload = buildJsonObject {
-                    put("title", request.title)
-                    put("mode", request.mode)
-                    put("target", request.target)
-                    put("mission", request.mission)
-                    put("scope", kotlinx.serialization.json.JsonArray(request.scope.map { kotlinx.serialization.json.JsonPrimitive(it) }))
-                    put("model", request.model)
-                    put("generate_wp", request.generateWriteup)
-                    put("multiple_answers", request.multipleAnswers)
-                    put("allow_sensitive", request.allowSensitive)
-                    put("authorized", true)
-                    put("project_id", request.projectId)
-                    put("proxy_plan_id", request.proxyPlanId.ifBlank { "direct" })
-                    put("asset_strategy", request.assetStrategy)
-                    put("excluded_assets", kotlinx.serialization.json.JsonArray(
-                        request.excludedAssets.map { kotlinx.serialization.json.JsonPrimitive(it) }
-                    ))
-                    put("platform", request.platform)
-                    put("flag_format", request.flagFormat)
-                    put("ctf_type_hints", kotlinx.serialization.json.JsonArray(
-                        request.ctfTypeHints.map { kotlinx.serialization.json.JsonPrimitive(it) }
-                    ))
-                    put("ctf_type_note", request.ctfTypeNote)
-                    put("challenges_yaml", request.challengesYaml.ifBlank { null })
-                    put("platform_yaml", request.platformYaml.ifBlank { null })
-                    put("rules_yaml", request.rulesYaml.ifBlank { null })
-                    put("contest_type", request.contestType)
-                    put("budget_tokens", request.budgetTokens)
-                    put("rps", request.rps)
-                    put("no_llm", request.noLlm)
-                    put("accept_rule_conflicts", request.acceptRuleConflicts)
-                    put("browser_account_ids", kotlinx.serialization.json.JsonArray(
-                        request.browserAccountIds.map { kotlinx.serialization.json.JsonPrimitive(it) }
-                    ))
-                    put("upload_ids", kotlinx.serialization.json.JsonArray(
-                        (request.uploadIds + pendingUploads.map { it.id })
-                            .distinct()
-                            .map { kotlinx.serialization.json.JsonPrimitive(it) }
-                    ))
-                }
+                val payload = request.toPayloadJson(pendingUploads.map { it.id })
                 val result = currentApi.post("/api/sessions", payload.toString())
                 val created = SessionItem.fromJson(result)
                 showNewTask = false
+                showRuleConflict = false
+                pendingRuleConflictRequest = null
+                pendingRuleConflictCallback = null
+                taskRuleConflicts = emptyList()
                 loadSessionsInternal()
                 onCreated(created)
             } catch (error: Exception) {
-                taskError = error.message ?: "创建任务失败"
+                val conflicts = ruleConflicts(error)
+                if (conflicts != null) {
+                    pendingRuleConflictRequest = request
+                    pendingRuleConflictCallback = onCreated
+                    taskRuleConflicts = conflicts
+                    showRuleConflict = true
+                    taskError = null
+                } else {
+                    taskError = error.message ?: "创建任务失败"
+                }
             }
         }
+    }
+
+    fun confirmRuleConflicts() {
+        val request = pendingRuleConflictRequest ?: return
+        val callback = pendingRuleConflictCallback ?: return
+        showRuleConflict = false
+        taskRuleConflicts = emptyList()
+        createTask(request.copy(acceptRuleConflicts = true), callback)
+    }
+
+    fun cancelRuleConflicts() {
+        showRuleConflict = false
+        taskRuleConflicts = emptyList()
+        pendingRuleConflictRequest = null
+        pendingRuleConflictCallback = null
+    }
+
+    private fun ruleConflicts(error: Exception): List<String>? {
+        if (error !is ApiException || error.status != 422 || error.body.isBlank()) return null
+        return runCatching {
+            val detail = Json.parseToJsonElement(error.body)
+                .objectOrEmpty()
+                .element("detail")
+                ?.objectOrEmpty()
+                ?: return@runCatching null
+            if (detail.string("code") != "rule_conflict") return@runCatching null
+            val conflicts = detail.array("conflicts").map { it.toString().trim('"') }
+                .filter { it.isNotBlank() }
+            conflicts.ifEmpty {
+                listOf(detail.string("message").ifBlank { "任务规则存在冲突，需要确认后继续。" })
+            }
+        }.getOrNull()
     }
 
     fun addUploads(paths: List<Path>) {
         val currentApi = api ?: return
         if (paths.isEmpty()) return
+        uploadPaths(currentApi, paths)
+    }
+
+    fun addFolderUploads(root: Path) {
+        val currentApi = api ?: return
         scope.launch {
-            uploading = true
+            beginUpload()
+            taskError = null
+            try {
+                val id = currentApi.uploadFolder(root.toAbsolutePath().normalize())
+                pendingUploads += PendingUpload(
+                    id,
+                    root.fileName.toString(),
+                    root.toAbsolutePath().normalize(),
+                    UploadKind.FOLDER
+                )
+            } catch (error: Exception) {
+                taskError = "文件夹上传失败：${error.message}"
+                failedUploads += failedUpload(
+                    root.fileName.toString(),
+                    root.toAbsolutePath().normalize(),
+                    UploadKind.FOLDER,
+                    error
+                )
+            } finally {
+                endUpload()
+            }
+        }
+    }
+
+    fun addClipboardImage() {
+        try {
+            val clipboard = Toolkit.getDefaultToolkit().systemClipboard
+            if (!clipboard.isDataFlavorAvailable(DataFlavor.imageFlavor)) {
+                taskError = "剪贴板中没有可上传的图片"
+                return
+            }
+            val image = clipboard.getData(DataFlavor.imageFlavor) as? Image
+                ?: throw IllegalArgumentException("剪贴板图片格式不受支持")
+            val path = Files.createTempFile("spiritscout-clipboard-", ".png")
+            path.toFile().deleteOnExit()
+            if (!ImageIO.write(image.toBufferedImage(), "png", path.toFile())) {
+                Files.deleteIfExists(path)
+                throw IllegalStateException("无法编码剪贴板图片")
+            }
+            addUploads(listOf(path))
+        } catch (error: Exception) {
+            taskError = "读取剪贴板图片失败：${error.message}"
+        }
+    }
+
+    fun loadTaskAssetCampaigns(projectId: String) {
+        val currentApi = api ?: return
+        val requestSerial = ++taskCampaignRequestSerial
+        taskAssetCampaigns.clear()
+        taskAssetTargets.clear()
+        taskAssetExcludedAssets.clear()
+        taskAssetTargetsCampaignId = ""
+        if (projectId.isBlank()) {
+            taskCampaignsLoading = false
+            return
+        }
+        scope.launch {
+            taskCampaignsLoading = true
+            try {
+                val result = currentApi.get("/api/projects/${url(projectId)}/asset-campaigns")
+                if (requestSerial != taskCampaignRequestSerial) return@launch
+                val campaigns = result.array("campaigns")
+                    .filter {
+                        it.objectOrEmpty().string("status") in setOf(
+                            "completed", "completed_with_errors", "stopped", "failed"
+                        )
+                    }
+                    .filter {
+                        it.objectOrEmpty().element("stats")?.objectOrEmpty()?.int("candidates") != 0
+                    }
+                    .map {
+                        val item = it.objectOrEmpty()
+                        val candidates = item.element("stats")?.objectOrEmpty()?.int("candidates") ?: 0
+                        TaskOption(
+                            id = item.string("campaign_id"),
+                            label = item.array("targets").joinToString("、") {
+                                target -> target.toString().trim('"')
+                            }.ifBlank { item.string("campaign_id") },
+                            detail = "${item.string("status")} · $candidates 个资产"
+                        )
+                    }
+                taskAssetCampaigns += campaigns
+            } catch (error: Exception) {
+                if (requestSerial == taskCampaignRequestSerial) {
+                    taskError = "读取资产采集批次失败：${error.message}"
+                }
+            } finally {
+                if (requestSerial == taskCampaignRequestSerial) taskCampaignsLoading = false
+            }
+        }
+    }
+
+    fun loadTaskAssetTargets(campaignId: String) {
+        val currentApi = api ?: return
+        val requestSerial = ++taskTargetRequestSerial
+        taskAssetTargets.clear()
+        taskAssetExcludedAssets.clear()
+        taskAssetTargetsCampaignId = ""
+        if (campaignId.isBlank()) {
+            taskTargetsLoading = false
+            return
+        }
+        scope.launch {
+            taskTargetsLoading = true
+            try {
+                val result = currentApi.get("/api/asset-campaigns/${url(campaignId)}/targets")
+                if (requestSerial != taskTargetRequestSerial) return@launch
+                taskAssetTargets += result.array("targets").mapNotNull {
+                    val item = it.objectOrEmpty()
+                    val value = item.string("value")
+                    if (value.isBlank()) null else TaskOption(
+                        id = value,
+                        label = item.string("title").ifBlank { value },
+                        detail = listOf(
+                            item.string("verification_status").ifBlank { "待验证" },
+                            item.string("http_status").let { code ->
+                                if (code.isBlank()) "" else "HTTP $code"
+                            },
+                            item.string("egress_name").ifBlank { "历史出口未知" }
+                        ).filter { value -> value.isNotBlank() }.joinToString(" · "),
+                        selectedByDefault = item.string("verification_status") in
+                            setOf("http_responded", "http_verified", "dns_resolved")
+                    )
+                }
+                taskAssetExcludedAssets += result.array("excluded_assets")
+                    .map { it.toString().trim('"') }
+                    .filter { it.isNotBlank() }
+                taskAssetTargetsCampaignId = campaignId
+            } catch (error: Exception) {
+                if (requestSerial == taskTargetRequestSerial) {
+                    taskError = "读取资产列表失败：${error.message}"
+                }
+            } finally {
+                if (requestSerial == taskTargetRequestSerial) taskTargetsLoading = false
+            }
+        }
+    }
+
+    private fun uploadPaths(currentApi: SpiritApi, paths: List<Path>) {
+        scope.launch {
+            beginUpload()
             taskError = null
             try {
                 paths.forEach { path ->
-                    val id = currentApi.upload(path)
-                    pendingUploads += PendingUpload(id, path.fileName.toString())
+                    try {
+                        val id = currentApi.upload(path)
+                        pendingUploads += PendingUpload(
+                            id,
+                            path.fileName.toString(),
+                            path.toAbsolutePath().normalize(),
+                            UploadKind.FILE
+                        )
+                    } catch (error: Exception) {
+                        failedUploads += failedUpload(
+                            path.fileName.toString(),
+                            path.toAbsolutePath().normalize(),
+                            UploadKind.FILE,
+                            error
+                        )
+                    }
                 }
-            } catch (error: Exception) {
-                taskError = "附件上传失败：${error.message}"
+                if (failedUploads.isNotEmpty()) {
+                    taskError = "部分附件上传失败，可在附件列表点击重试。"
+                }
             } finally {
-                uploading = false
+                endUpload()
             }
+        }
+    }
+
+    private fun beginUpload() {
+        activeUploadOperations += 1
+        uploading = true
+    }
+
+    private fun endUpload() {
+        activeUploadOperations = (activeUploadOperations - 1).coerceAtLeast(0)
+        uploading = activeUploadOperations > 0
+    }
+
+    private fun failedUpload(
+        name: String,
+        path: Path,
+        kind: UploadKind,
+        error: Exception
+    ) = PendingUpload(
+        id = "failed-${System.nanoTime()}",
+        name = name,
+        sourcePath = path,
+        kind = kind,
+        error = error.message ?: "上传失败"
+    )
+
+    fun retryUpload(id: String) {
+        val failed = failedUploads.firstOrNull { it.id == id } ?: return
+        val path = failed.sourcePath ?: return
+        failedUploads.removeAll { it.id == id }
+        when (failed.kind) {
+            UploadKind.FILE -> addUploads(listOf(path))
+            UploadKind.FOLDER -> addFolderUploads(path)
+        }
+    }
+
+    private suspend fun loadTaskOptionsInternal() {
+        val currentApi = api ?: return
+        taskOptionsLoading = true
+        try {
+            val (projects, proxies, accounts) = coroutineScope {
+                val projectsRequest = async { currentApi.get("/api/projects").array("projects") }
+                val proxiesRequest = async { currentApi.get("/api/proxies") }
+                val accountsRequest = async { currentApi.get("/api/browser-accounts").array("items") }
+                Triple(projectsRequest.await(), proxiesRequest.await(), accountsRequest.await())
+            }
+            taskProjects.clear()
+            taskProjects += projects.map {
+                val item = it.objectOrEmpty()
+                TaskOption(
+                    id = item.string("project_id"),
+                    label = item.string("name").ifBlank { item.string("project_id") },
+                    detail = item.string("description")
+                )
+            }
+            taskProxyPlans.clear()
+            taskProxyPlans += proxies.array("plans").map {
+                val item = it.objectOrEmpty()
+                TaskOption(
+                    id = item.string("id"),
+                    label = item.string("name").ifBlank { item.string("id") }
+                )
+            }
+            taskBrowserAccounts.clear()
+            taskBrowserAccounts += accounts.map {
+                val item = it.objectOrEmpty()
+                TaskOption(
+                    id = item.string("id"),
+                    label = item.string("name").ifBlank { item.string("id") },
+                    detail = item.string("role")
+                )
+            }
+        } catch (error: Exception) {
+            taskError = "读取任务选项失败：${error.message}"
+        } finally {
+            taskOptionsLoading = false
         }
     }
 
@@ -810,6 +1533,20 @@ class AppController {
         }
     }
 
+    fun deleteExperience(item: ResourceItem) {
+        val currentApi = api ?: return
+        scope.launch {
+            try {
+                currentApi.delete("/api/experience/${url(item.id)}")
+                toast = "经验记录已删除"
+                resources.remove(Section.EXPERIENCE)
+                loadSection(Section.EXPERIENCE)
+            } catch (error: Exception) {
+                toast = error.message
+            }
+        }
+    }
+
     fun openExperienceSource(item: ResourceItem) {
         val currentApi = api ?: return
         val sessionId = runCatching {
@@ -1045,6 +1782,124 @@ class AppController {
 
     fun toggleTheme() {
         darkTheme = !darkTheme
+        desktopPreferences.putBoolean("dark_theme", darkTheme)
+    }
+
+    fun updateLanguage(value: String) {
+        language = if (value == "en-US") "en-US" else "zh-CN"
+        desktopPreferences.put("language", language)
+        DesktopI18n.applyLanguage(language)
+    }
+
+    fun updateMotionPreference(value: String) {
+        motionPreference = value.takeIf {
+            it in setOf("system", "soft", "fast", "off")
+        } ?: "system"
+        desktopPreferences.put("motion_preference", motionPreference)
+        DesktopI18n.applyMotionPreference(motionPreference)
+    }
+
+    fun updateNotificationsEnabled(enabled: Boolean) {
+        notificationsEnabled = enabled
+        desktopPreferences.putBoolean("notifications_enabled", enabled)
+    }
+
+    fun loadNotifications() {
+        val currentApi = api ?: return
+        scope.launch {
+            try {
+                notificationJson = currentApi.get("/api/notifications")
+                val items = notificationJson?.objectOrEmpty()?.array("items").orEmpty()
+                val readAt = desktopPreferences.getLong("notifications_read_at", 0L) / 1000.0
+                notificationUnread = items.count { raw ->
+                    val ts = raw.objectOrEmpty().element("ts")?.toString()?.toDoubleOrNull() ?: 0.0
+                    ts > readAt
+                }
+                val notified = desktopPreferences.get("notified_notification_ids", "")
+                    .split('|')
+                    .filter(String::isNotBlank)
+                    .toSet()
+                val pending = items.map { it.objectOrEmpty() }
+                    .filter { item ->
+                        val ts = item.element("ts")?.toString()?.toDoubleOrNull() ?: 0.0
+                        ts > readAt && item.string("id") !in notified
+                    }
+                    .take(3)
+                if (notificationsEnabled && pending.isNotEmpty()) {
+                    pending.forEach { item -> showTrayNotification(item) }
+                    val ids = (notified.toList() + pending.map { it.string("id") })
+                        .takeLast(120)
+                        .toSet()
+                    desktopPreferences.put("notified_notification_ids", ids.joinToString("|"))
+                }
+            } catch (error: Exception) {
+                toast = "通知读取失败：${error.message}"
+            }
+        }
+    }
+
+    fun markNotificationsRead() {
+        notificationUnread = 0
+        desktopPreferences.putLong("notifications_read_at", System.currentTimeMillis())
+    }
+
+    private fun showTrayNotification(item: kotlinx.serialization.json.JsonObject) {
+        if (!SystemTray.isSupported()) return
+        runCatching {
+            val tray = SystemTray.getSystemTray()
+            val iconUrl = AppController::class.java.getResource("/composeResources/favicon.png")
+                ?: AppController::class.java.getResource("/favicon.png")
+            val image = iconUrl?.let { Toolkit.getDefaultToolkit().getImage(it) }
+                ?: BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB).also { fallback ->
+                    val graphics = fallback.createGraphics()
+                    graphics.color = java.awt.Color(51, 156, 255)
+                    graphics.fillOval(0, 0, 16, 16)
+                    graphics.dispose()
+                }
+            val sessionId = item.string("session_id")
+            val trayIcon = TrayIcon(image, "灵枢 · SpiritScout").apply {
+                isImageAutoSize = true
+                toolTip = item.string("title").ifBlank { "灵枢提醒" }
+                addActionListener {
+                    if (sessionId.isNotBlank()) openNotificationSession(sessionId)
+                    tray.remove(this)
+                }
+            }
+            val popup = PopupMenu()
+            popup.add(MenuItem("打开灵枢").apply {
+                addActionListener {
+                    if (sessionId.isNotBlank()) openNotificationSession(sessionId)
+                    tray.remove(trayIcon)
+                }
+            })
+            trayIcon.popupMenu = popup
+            tray.add(trayIcon)
+            trayIcon.displayMessage(
+                item.string("title").ifBlank { "灵枢提醒" },
+                item.string("message").ifBlank { item.string("session_title") },
+                TrayIcon.MessageType.INFO
+            )
+            scope.launch {
+                kotlinx.coroutines.delay(12_000)
+                runCatching { tray.remove(trayIcon) }
+            }
+        }
+    }
+
+    fun openNotificationSession(sessionId: String) {
+        val currentApi = api ?: return
+        if (sessionId.isBlank()) return
+        scope.launch {
+            try {
+                openSession(
+                    SessionItem.fromJson(
+                        currentApi.get("/api/sessions/${url(sessionId)}")
+                    )
+                )
+            } catch (error: Exception) {
+                toast = error.message
+            }
+        }
     }
 
     fun chooseDashboardPeriod(period: String) {
@@ -1089,11 +1944,50 @@ class AppController {
     fun checkUpdates() {
         val currentApi = api ?: return
         scope.launch {
+            updateBusy = true
+            updateError = null
             try {
-                settingsJson = currentApi.post("/api/updates/check", "{}")
+                updateJson = currentApi.post("/api/updates/check", "{}")
                 toast = "更新检查完成"
             } catch (error: Exception) {
-                toast = "更新检查失败：${error.message}"
+                updateError = error.message ?: "更新检查失败"
+            } finally {
+                updateBusy = false
+            }
+        }
+    }
+
+    fun refreshUpdateStatus(details: Boolean = true) {
+        val currentApi = api ?: return
+        scope.launch {
+            updateBusy = true
+            updateError = null
+            try {
+                updateJson = currentApi.get("/api/updates?details=$details")
+            } catch (error: Exception) {
+                updateError = error.message
+            } finally {
+                updateBusy = false
+            }
+        }
+    }
+
+    fun applyUpdate(tag: String) {
+        val currentApi = api ?: return
+        if (tag.isBlank()) return
+        scope.launch {
+            updateBusy = true
+            updateError = null
+            try {
+                updateJson = currentApi.post(
+                    "/api/updates/apply",
+                    buildJsonObject { put("tag", tag) }.toString()
+                )
+                toast = "更新已开始，服务将短暂重启"
+            } catch (error: Exception) {
+                updateError = error.message ?: "更新启动失败"
+            } finally {
+                updateBusy = false
             }
         }
     }
@@ -1102,9 +1996,134 @@ class AppController {
         val currentApi = api ?: return
         scope.launch {
             try {
-                settingsJson = currentApi.get("/api/storage/sessions")
+                storageJson = currentApi.get("/api/storage/sessions")
             } catch (error: Exception) {
                 toast = "存储读取失败：${error.message}"
+            }
+        }
+    }
+
+    fun loadStoragePreview(sessionId: String) {
+        val currentApi = api ?: return
+        if (sessionId.isBlank()) return
+        scope.launch {
+            try {
+                storagePreviewJson = currentApi.get("/api/sessions/${url(sessionId)}/storage")
+            } catch (error: Exception) {
+                toast = "存储预览失败：${error.message}"
+            }
+        }
+    }
+
+    fun runStorageCleanup(sessionId: String, database: Boolean, caches: Boolean) {
+        val currentApi = api ?: return
+        if (sessionId.isBlank()) return
+        scope.launch {
+            try {
+                val result = currentApi.post(
+                    "/api/sessions/${url(sessionId)}/storage/cleanup",
+                    buildJsonObject {
+                        put("confirm", true)
+                        put("database", database)
+                        put("caches", caches)
+                    }.toString()
+                )
+                storagePreviewJson = result
+                toast = "存储清理已启动"
+            } catch (error: Exception) {
+                toast = "存储清理失败：${error.message}"
+            }
+        }
+    }
+
+    fun loadAssetProviders() {
+        val currentApi = api ?: return
+        scope.launch {
+            assetProvidersLoading = true
+            assetProvidersError = null
+            try {
+                val items = currentApi.get("/api/resources/assets/providers").array("providers")
+                assetProviders.clear()
+                assetProviders += items.map { raw ->
+                    val item = raw.objectOrEmpty()
+                    AssetProviderItem(
+                        provider = item.string("provider"),
+                        name = providerDisplayName(item.string("provider")),
+                        category = item.string("category"),
+                        enabled = item.boolean("enabled"),
+                        keyConfigured = item.boolean("key_configured"),
+                        keySource = item.string("key_source"),
+                        storedCredentials = item.boolean("stored_credentials"),
+                        version = item.long("version")
+                    )
+                }
+            } catch (error: Exception) {
+                assetProvidersError = error.message ?: "资产情报 Provider 读取失败"
+            } finally {
+                assetProvidersLoading = false
+            }
+        }
+    }
+
+    fun saveAssetProvider(
+        provider: String,
+        enabled: Boolean,
+        version: Long,
+        email: String = "",
+        apiKey: String = "",
+        cookie: String = ""
+    ) {
+        val currentApi = api ?: return
+        scope.launch {
+            assetProvidersLoading = true
+            assetProvidersError = null
+            try {
+                val payload = buildJsonObject {
+                    put("enabled", enabled)
+                    put("expected_version", version)
+                    if (email.isNotBlank()) put("email", email.trim())
+                    if (apiKey.isNotBlank()) put("api_key_value", apiKey.trim())
+                    if (cookie.isNotBlank()) put("cookie_value", cookie.trim())
+                }
+                val path = if (provider == "fofa") {
+                    "/api/resources/assets/fofa"
+                } else {
+                    "/api/resources/assets/providers/${url(provider)}"
+                }
+                currentApi.put(path, payload.toString())
+                toast = "Provider 配置已保存"
+                loadAssetProviders()
+            } catch (error: Exception) {
+                assetProvidersError = error.message ?: "Provider 配置保存失败"
+            } finally {
+                assetProvidersLoading = false
+            }
+        }
+    }
+
+    fun clearAssetProviderCredentials(provider: String, version: Long) {
+        val currentApi = api ?: return
+        scope.launch {
+            assetProvidersLoading = true
+            assetProvidersError = null
+            try {
+                val payload = buildJsonObject {
+                    put("enabled", false)
+                    put("clear_credentials", true)
+                    put("expected_version", version)
+                }
+                val path = if (provider == "fofa") {
+                    "/api/resources/assets/fofa"
+                } else {
+                    "/api/resources/assets/providers/${url(provider)}"
+                }
+                currentApi.put(path, payload.toString())
+                toast = "Provider 凭据已清除"
+                loadAssetProviders()
+            } catch (error: Exception) {
+                assetProvidersError = error.message ?: "Provider 凭据清除失败"
+            } finally {
+                assetProvidersLoading = false
             }
         }
     }
@@ -1119,6 +2138,16 @@ class AppController {
         }
     }
 
+    private fun providerDisplayName(provider: String): String = when (provider) {
+        "fofa" -> "FOFA"
+        "hunter" -> "Hunter"
+        "quake" -> "Quake"
+        "zoomeye" -> "ZoomEye"
+        "aiqicha" -> "爱企查"
+        "qichacha" -> "企查查"
+        else -> provider
+    }
+
     suspend fun shutdown() {
         backend.stop()
         scope.cancel()
@@ -1126,117 +2155,28 @@ class AppController {
 
     private suspend fun loadSection(target: Section) {
         when (target) {
-            Section.AGENTS -> loadResourceInternal(target, "/api/agents", "roster") { item ->
+            Section.AGENTS -> agentCatalog.refresh()
+            Section.MODELS -> modelProviders.open()
+            Section.MCP -> mcp.refresh()
+            Section.SKILLS -> skills.refresh()
+            Section.LOCAL_TOOLS -> localTools.refresh()
+            Section.PROJECTS -> projectCatalog.refresh()
+            Section.ASSETS -> assetCollection.open()
+            Section.INTELLIGENCE -> loadResourceInternal(target, "/api/resources/assets/providers", "providers") { item ->
                 ResourceItem(
-                    id = item.string("key"),
-                    title = item.string("name"),
-                    subtitle = item.string("duty"),
-                    meta = "${item.string("modes").ifBlank { item.array("modes").joinToString(" · ") { it.toString().trim('"') }}} · ${item.string("status")}",
-                    status = item.string("status"),
+                    id = item.string("id").ifBlank { item.string("provider") },
+                    title = item.string("name").ifBlank { item.string("label") },
+                    subtitle = item.string("description").ifBlank { item.string("category") },
+                    meta = item.string("credential_source").ifBlank {
+                        if (item.boolean("configured")) "凭据已配置" else "凭据未配置"
+                    },
+                    status = if (item.boolean("enabled")) "enabled" else "disabled",
                     rawJson = pretty(item)
                 )
             }
-            Section.MODELS -> loadResourceInternal(target, "/api/models", "models") { item ->
-                ResourceItem(
-                    id = item.string("model"),
-                    title = item.string("model"),
-                    subtitle = item.string("provider").ifBlank { item.string("provider_ref") },
-                    meta = item.array("capabilities").joinToString(" · ") { it.toString().trim('"') },
-                    status = if (item.boolean("enabled")) "enabled" else "",
-                    rawJson = pretty(item)
-                )
-            }
-            Section.MCP -> loadResourceInternal(target, "/api/resources/mcp", "items") { item ->
-                val data = item.element("data")?.objectOrEmpty() ?: item
-                ResourceItem(
-                    id = data.string("name").ifBlank { item.string("id") },
-                    title = data.string("name").ifBlank { item.string("id") },
-                    subtitle = data.string("command").ifBlank { data.string("url") },
-                    meta = data.string("transport"),
-                    status = if (data.boolean("enabled")) "enabled" else "disabled",
-                    rawJson = pretty(item)
-                )
-            }
-            Section.SKILLS -> loadPagedResourceInternal(target, "/api/resources/skills", "items") { item ->
-                ResourceItem(
-                    id = item.string("skill_id"),
-                    title = item.string("skill_id"),
-                    subtitle = item.string("description"),
-                    meta = item.string("domain"),
-                    status = item.string("severity"),
-                    rawJson = pretty(item)
-                )
-            }
-            Section.LOCAL_TOOLS -> loadResourceInternal(target, "/api/local-tools", "tools") { item ->
-                ResourceItem(
-                    id = item.string("id").ifBlank { item.string("path") },
-                    title = item.string("name").ifBlank { item.string("path") },
-                    subtitle = item.string("path"),
-                    meta = item.string("kind"),
-                    status = item.string("status"),
-                    rawJson = pretty(item)
-                )
-            }
-            Section.PROJECTS -> loadResourceInternal(target, "/api/projects", "projects") { item ->
-                ResourceItem(
-                    id = item.string("project_id"),
-                    title = item.string("name"),
-                    subtitle = item.string("description"),
-                    meta = "资产 ${item.long("asset_count")} · 会话 ${item.long("session_count")}",
-                    status = if (item.boolean("read_only")) "readonly" else "",
-                    rawJson = pretty(item)
-                )
-            }
-            Section.ASSETS -> loadPagedResourceInternal(target, "/api/assets", "items") { item ->
-                ResourceItem(
-                    id = item.string("key").ifBlank { item.string("value") },
-                    title = item.string("value"),
-                    subtitle = item.string("source"),
-                    meta = item.string("asset_type").ifBlank { item.string("type") },
-                    status = item.string("status"),
-                    rawJson = pretty(item)
-                )
-            }
-            Section.INTELLIGENCE -> loadResourceInternal(target, "/api/resources/vulnerability-taxonomy", "items") { item ->
-                ResourceItem(
-                    id = item.string("taxonomy_id").ifBlank { item.string("id") },
-                    title = item.string("label").ifBlank { item.string("label_en") },
-                    subtitle = item.string("label_en"),
-                    meta = item.string("family").ifBlank { item.string("category") },
-                    status = item.array("aliases").joinToString(" · ") { it.toString().trim('"') },
-                    rawJson = pretty(item)
-                )
-            }
-            Section.PROXIES -> loadResourceInternal(target, "/api/proxies", "nodes") { item ->
-                ResourceItem(
-                    id = item.string("id").ifBlank { item.string("name") },
-                    title = item.string("name"),
-                    subtitle = item.string("server"),
-                    meta = item.string("type"),
-                    status = item.string("verification"),
-                    rawJson = pretty(item)
-                )
-            }
-            Section.TRAFFIC -> loadResourceInternal(target, "/api/traffic", "sessions") { item ->
-                ResourceItem(
-                    id = item.string("session_id"),
-                    title = item.string("title").ifBlank { item.string("target") },
-                    subtitle = item.string("target"),
-                    meta = "请求 ${item.long("total")} · 错误 ${item.long("errors")}",
-                    status = item.string("status"),
-                    rawJson = pretty(item)
-                )
-            }
-            Section.SCHEDULES -> loadResourceInternal(target, "/api/schedules", "items") { item ->
-                ResourceItem(
-                    id = item.string("schedule_id").ifBlank { item.string("id") },
-                    title = item.string("name"),
-                    subtitle = item.string("message"),
-                    meta = item.string("run_at"),
-                    status = item.string("mode"),
-                    rawJson = pretty(item)
-                )
-            }
+            Section.PROXIES -> proxyPool.refresh()
+            Section.TRAFFIC -> traffic.loadCatalog()
+            Section.SCHEDULES -> schedules.refresh()
             Section.EXPERIENCE -> loadPagedResourceInternal(target, "/api/experience", "items") { item ->
                 ResourceItem(
                     id = item.string("insight_id").ifBlank { item.string("id") },
@@ -1248,16 +2188,7 @@ class AppController {
                     rawJson = pretty(item)
                 )
             }
-            Section.BROWSER_ACCOUNTS -> loadResourceInternal(target, "/api/browser-accounts", "items") { item ->
-                ResourceItem(
-                    id = item.string("id").ifBlank { item.string("key") },
-                    title = item.string("name").ifBlank { item.string("label") },
-                    subtitle = item.string("username").ifBlank { item.string("profile") },
-                    meta = item.string("browser"),
-                    status = item.string("status"),
-                    rawJson = pretty(item)
-                )
-            }
+            Section.BROWSER_ACCOUNTS -> browserAccounts.refresh()
             Section.SETTINGS -> loadSystemInternal()
             Section.DASHBOARD -> loadDashboardInternal()
             Section.TASKS -> loadSessionsInternal()
@@ -1456,6 +2387,7 @@ class AppController {
                     routesTotal = routes.size
                 )
             }
+            loadSideAgentsInternal(currentApi, session, tasks)
 
             val vulns = root.element("vulns")?.objectOrEmpty()?.long("total") ?: 0
             val flags = root.element("flags")?.objectOrEmpty()?.long("total") ?: 0
@@ -1506,6 +2438,122 @@ class AppController {
         }
     }
 
+    private fun startWorkspaceEventStream(sessionId: String) {
+        stopWorkspaceEventStream()
+        val currentApi = api ?: return
+        workspaceEventOffset = 0L
+        workspaceEventJob = scope.launch(Dispatchers.IO) {
+            var retry = 0
+            while (isActive) {
+                val current = selectedSession ?: break
+                if (current.id != sessionId) break
+                try {
+                    var streamDone = false
+                    val stream = currentApi.openEventStream(
+                        "/api/sessions/${url(sessionId)}/events?cursor=bytes&offset=$workspaceEventOffset"
+                    )
+                    stream.bufferedReader(StandardCharsets.UTF_8).use { reader ->
+                        var eventType = "message"
+                        var eventId = ""
+                        val data = StringBuilder()
+                        while (isActive) {
+                            val line = reader.readLine() ?: break
+                            when {
+                                line.isBlank() -> {
+                                    if (data.isNotEmpty()) {
+                                        if (eventId.isNotBlank()) {
+                                            workspaceEventOffset = eventId.toLongOrNull()
+                                                ?: workspaceEventOffset
+                                        }
+                                        if (eventType == "audit") {
+                                            handleWorkspaceAuditEvent(data.toString(), sessionId)
+                                        }
+                                        if (eventType == "done") streamDone = true
+                                    }
+                                    eventType = "message"
+                                    eventId = ""
+                                    data.clear()
+                                    if (streamDone) break
+                                }
+                                line.startsWith("event:") -> eventType = line.substringAfter(':').trim()
+                                line.startsWith("id:") -> eventId = line.substringAfter(':').trim()
+                                line.startsWith("data:") -> {
+                                    if (data.isNotEmpty()) data.append('\n')
+                                    data.append(line.substringAfter(':').trimStart())
+                                }
+                            }
+                        }
+                    }
+                    retry = 0
+                    if (streamDone || doneForEventStream(sessionId)) break
+                } catch (_: Exception) {
+                    if (!isActive || selectedSession?.id != sessionId) break
+                    retry += 1
+                    delay((retry.coerceAtMost(5) * 1500).toLong())
+                }
+            }
+        }
+    }
+
+    private fun doneForEventStream(sessionId: String): Boolean {
+        val session = selectedSession ?: return true
+        return session.id != sessionId || session.status in setOf(
+            "completed", "stopped", "failed", "interrupted"
+        )
+    }
+
+    private fun stopWorkspaceEventStream() {
+        workspaceEventJob?.cancel()
+        workspaceEventJob = null
+    }
+
+    private suspend fun handleWorkspaceAuditEvent(data: String, sessionId: String) {
+        val event = runCatching { Json.parseToJsonElement(data).objectOrEmpty() }.getOrNull() ?: return
+        val type = event.string("type")
+        val detail = event.element("detail")?.objectOrEmpty() ?: JsonObject(emptyMap())
+        val body = listOf(
+            "content", "text", "message", "result", "result_summary",
+            "summary", "command", "error", "detail"
+        ).firstNotNullOfOrNull { key ->
+            val value = detail.string(key).ifBlank { event.string(key) }
+            value.takeIf(String::isNotBlank)
+        }.orEmpty()
+        if (body.isBlank() && type.isBlank()) return
+        val kind = when {
+            type.startsWith("user.") -> TimelineKind.USER
+            type.startsWith("agent.") || type.startsWith("task.") -> TimelineKind.AGENT
+            type.startsWith("vuln.") || type.startsWith("flag.") -> TimelineKind.FINDING
+            type.startsWith("master.") -> TimelineKind.MASTER
+            else -> TimelineKind.SYSTEM
+        }
+        val title = when {
+            type.startsWith("user.") -> "你"
+            type.startsWith("master.") -> "灵枢"
+            type.startsWith("agent.") -> "子 Agent"
+            type.startsWith("vuln.") -> "漏洞"
+            type.startsWith("flag.") -> "Flag"
+            type.startsWith("task.") -> "任务"
+            type.isBlank() -> "轨迹"
+            else -> type.substringBefore('.').replaceFirstChar { it.uppercase() }
+        }
+        withContext(Dispatchers.Swing) {
+            if (selectedSession?.id != sessionId) return@withContext
+            val current = workspace ?: return@withContext
+            val next = TimelineItem(
+                title = title,
+                body = body.ifBlank { type },
+                kind = kind
+            )
+            workspace = current.copy(timeline = (current.timeline + next).takeLast(200))
+        }
+        if (type.startsWith("task.") || type.startsWith("agent.") ||
+            type.startsWith("vuln.") || type.startsWith("flag.") ||
+            type.startsWith("system.")
+        ) {
+            scope.launch { refreshWorkspaceInternal() }
+        }
+    }
+
     private suspend fun loadWorkspaceTabInternal(tab: WorkspaceTab) {
         val currentApi = api ?: return
         val current = selectedSession ?: return
@@ -1521,10 +2569,14 @@ class AppController {
                 WorkspaceTab.ASSETS,
                 WorkspaceTab.OPPORTUNITIES,
                 WorkspaceTab.CHALLENGES,
-                WorkspaceTab.FLAGS -> currentApi.get("/api/sessions/$sid/state")
+                WorkspaceTab.FLAGS,
+                WorkspaceTab.RECORDS -> currentApi.get("/api/sessions/$sid/state")
                 WorkspaceTab.VULNERABILITIES -> currentApi.get("/api/sessions/$sid/vulnerabilities?limit=100")
                 WorkspaceTab.EXPERIENCE -> currentApi.get("/api/sessions/$sid/experience")
-                WorkspaceTab.TRAFFIC -> currentApi.get("/api/sessions/$sid/traffic")
+                WorkspaceTab.TRAFFIC -> {
+                    traffic.refresh(sid)
+                    JsonObject(emptyMap())
+                }
                 WorkspaceTab.BACKGROUND -> currentApi.get("/api/sessions/$sid/background-tasks")
                 WorkspaceTab.EVENTS -> currentApi.get("/api/sessions/$sid/audit-page?activity=true&limit=250")
                 WorkspaceTab.REPORT -> currentApi.get("/api/sessions/$sid/report")
@@ -1533,6 +2585,58 @@ class AppController {
             workspaceTabError = error.message
         } finally {
             workspaceTabLoading = false
+        }
+    }
+
+    private suspend fun loadSideAgentsInternal(
+        currentApi: SpiritApi,
+        session: SessionItem,
+        tasks: List<WorkTask>
+    ) {
+        val mode = session.mode.lowercase()
+        if (session.isSideSession || mode !in setOf("src", "ctf")) {
+            sideAgents.clear()
+            return
+        }
+        val rosterKey = "${session.id}:$mode"
+        if (sideRosterLoadedFor != rosterKey || sideRosterCache.isEmpty()) {
+            val roster = currentApi.get("/api/agents").array("roster")
+            sideRosterCache = roster.mapNotNull { raw ->
+                val item = raw.objectOrEmpty()
+                val actor = item.string("key")
+                if (actor.isBlank() || actor in setOf("master", "secretary", "report")) {
+                    null
+                } else {
+                    SideAgentOption(
+                        actor = actor,
+                        label = item.string("name").ifBlank { actor },
+                        status = item.string("status"),
+                        modes = item.array("modes").map { it.toString().trim('"').lowercase() }.toSet()
+                    )
+                }
+            }
+            sideRosterLoadedFor = rosterKey
+        }
+        val merged = linkedMapOf<String, SideAgentOption>()
+        sideRosterCache
+            .filter { it.status.isBlank() || it.status == "available" }
+            .filter { it.modes.isEmpty() || mode in it.modes }
+            .forEach { merged[it.actor] = it }
+        tasks.map { it.agent }.filter(String::isNotBlank).distinct().forEach { actor ->
+            merged.putIfAbsent(
+                actor,
+                SideAgentOption(
+                    actor = actor,
+                    label = sideRosterCache.firstOrNull { it.actor == actor }?.label ?: actor,
+                    status = tasks.firstOrNull { it.agent == actor }?.status.orEmpty(),
+                    modes = setOf(mode)
+                )
+            )
+        }
+        sideAgents.clear()
+        sideAgents += merged.values
+        if (sideActor.isNotBlank() && sideAgents.none { it.actor == sideActor }) {
+            selectSideAgent("")
         }
     }
 

@@ -1,4 +1,4 @@
-﻿"""灵枢（SpiritScout）Web 控制台启动入口。
+"""灵枢（SpiritScout）Web 控制台启动入口。
 
 用法::
 
@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import argparse
+import getpass
 import os
 import shutil
 import sys
@@ -27,7 +28,7 @@ redirect()
 # litellm 导入前设置。
 os.environ.setdefault("LITELLM_LOCAL_MODEL_COST_MAP", "True")
 
-from spiritscout import __version__  # noqa: E402
+from spiritscout import __version__  # noqa: E402 — 更新环境切换必须先于服务依赖导入。
 from spiritscout.config import load_model_config, load_system_config  # noqa: E402
 from spiritscout.core.exceptions import SpiritScoutError  # noqa: E402
 
@@ -123,43 +124,97 @@ def build_parser() -> argparse.ArgumentParser:
                         help="绑定地址（默认取配置 web.host=127.0.0.1）")
     parser.add_argument("--port", type=int, default=None,
                         help="端口（默认取配置 web.port=8000）")
+    parser.add_argument("--desktop-parent-pid", type=int, default=0,
+                        help=argparse.SUPPRESS)
+    parser.add_argument("--desktop-parent-start-ms", type=int, default=None,
+                        help=argparse.SUPPRESS)
+    parser.add_argument("--auth", choices=("none", "password"), default=None,
+                        help="控制台登录：none=不启用（默认），password=启用管理员登录")
     parser.add_argument("--set-admin-password", action="store_true",
-                        help="交互式设置管理员密码（标准输入读两次），设完退出")
+                        help="设置/重置控制台管理员密码后退出（只保存 scrypt 哈希）")
+    parser.add_argument("--clear-admin-password", action="store_true",
+                        help="删除所有管理员账号后退出（彻底解除控制台登录）")
+    parser.add_argument("--admin-username", default=None,
+                        help=f"配合 --set-admin-password，默认 {DEFAULT_ADMIN_USERNAME}")
     parser.add_argument("--if-missing", action="store_true",
-                        help="配合 --set-admin-password：已有管理员账号时跳过")
+                        help="已有管理员账号时直接跳过（启动脚本用）")
+    parser.add_argument("--password-stdin", action="store_true",
+                        help="从标准输入读一行作为密码（自动化用，不做二次确认）")
     return parser
 
 
-def _set_admin_password(cfg, *, if_missing: bool = False) -> int:
-    """交互式设管理员密码：明文不落盘，库里只存 scrypt 哈希。
+DEFAULT_ADMIN_USERNAME = "spiritscout"
+EXIT_PASSWORD_REJECTED = 3
 
-    start-local.ps1 首次启动时调这个。非交互终端（脚本 / CI）直接跳过 ——
-    无人值守的启动绝不能卡在等输入上。
-    """
-    import getpass
 
-    from spiritscout.web.auth import AdminStore
+def set_admin_password(cfg: object, args: argparse.Namespace) -> int:
+    """Write a scrypt-hashed admin password without starting the server."""
+    from spiritscout.web import auth as web_auth
 
-    store = AdminStore(cfg.workspace.root)
-    if if_missing and store.has_admins():
-        print("[设置密码] 已有管理员账号，跳过（--if-missing）")
+    store = web_auth.AdminStore(cfg.workspace.root)
+    if args.if_missing and store.has_admins():
+        print(f"[跳过] 已存在管理员账号（{store.db_path}），本次不改密码")
         return 0
-    if not sys.stdin.isatty():
-        print("[设置密码] 当前不是交互终端，跳过（无人值守启动不能卡在等输入）")
-        return 1
-    username = (os.environ.get(cfg.web.admin_username_env, "").strip()
-                or "spiritscout")
-    while True:
-        first = getpass.getpass("管理员密码（长度不限，回车跳过）：")
-        if not first:
-            print("[设置密码] 未设置（空密码等于不设密码）")
-            return 1
-        if first != getpass.getpass("再输一次："):
-            print("[设置密码] 两次不一致，重新输入")
-            continue
-        store.upsert(username, first)
-        print("[设置密码] 已保存（只存 scrypt 哈希）；明文不再显示。")
+
+    interactive = sys.stdin.isatty() and not args.password_stdin
+    try:
+        username = (args.admin_username or "").strip()
+        if interactive and not username:
+            username = input(f"管理员用户名 [{DEFAULT_ADMIN_USERNAME}]: ").strip()
+        username = username or DEFAULT_ADMIN_USERNAME
+
+        if args.password_stdin:
+            password = confirm = sys.stdin.readline().rstrip("\r\n")
+        elif interactive:
+            print("设置控制台管理员密码：只保存 scrypt 哈希；密码长度不限，"
+                  "明文只在设完后于本终端显示一次，不写入任何文件。")
+            password = getpass.getpass("密码（输入不回显，长度不限）: ")
+            confirm = getpass.getpass("再输一次: ")
+        elif args.if_missing:
+            print("[跳过] 当前不是交互终端，未设置管理员密码；"
+                  "需要时运行 python -m spiritscout --set-admin-password")
+            return 0
+        else:
+            print("[错误] 当前不是交互终端，请改用 --password-stdin 传入密码",
+                  file=sys.stderr)
+            return EXIT_PASSWORD_REJECTED
+    except (EOFError, KeyboardInterrupt):
+        if args.if_missing:
+            print("[跳过] 没读到输入，未设置管理员密码；"
+                  "需要时在终端里运行 python -m spiritscout --set-admin-password")
+            return 0
+        print("[错误] 没读到密码输入，已取消", file=sys.stderr)
+        return EXIT_PASSWORD_REJECTED
+
+    if password != confirm:
+        print("[错误] 两次输入不一致，未写入", file=sys.stderr)
+        return EXIT_PASSWORD_REJECTED
+    if not password:
+        print("[跳过] 密码为空，未设置管理员密码（等于不开启登录）")
         return 0
+    try:
+        web_auth.validate_credentials(username, password)
+    except SpiritScoutError as exc:
+        print(f"[错误] {exc}", file=sys.stderr)
+        return EXIT_PASSWORD_REJECTED
+    store.upsert(username, password)
+    print(f"[完成] 管理员 {username} 已写入 {store.db_path}")
+    if interactive:
+        print(f"       本次设置的密码（只在这里显示一次，之后不再显示）：{password}")
+    return 0
+
+
+def clear_admin_password(cfg: object) -> int:
+    """Delete all admin accounts and exit."""
+    from spiritscout.web import auth as web_auth
+
+    store = web_auth.AdminStore(cfg.workspace.root)
+    removed = store.clear()
+    if removed:
+        print(f"[完成] 已删除 {removed} 个管理员账号（{store.db_path}）")
+    else:
+        print(f"[跳过] 本来就没有管理员账号（{store.db_path}）")
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -177,6 +232,27 @@ def main(argv: list[str] | None = None) -> int:
         if hasattr(stream, "reconfigure"):
             stream.reconfigure(encoding="utf-8", errors="backslashreplace")
     args = build_parser().parse_args(args_list)
+    from spiritscout.desktop_lifecycle import install_parent_watchdog
+
+    install_parent_watchdog(
+        parent_pid_override=args.desktop_parent_pid or None,
+        parent_start_ms_override=args.desktop_parent_start_ms,
+    )
+    if args.set_admin_password or args.clear_admin_password:
+        try:
+            _prepare_frozen_runtime()
+            dotenv = _find_dotenv()
+            if dotenv:
+                _load_dotenv(dotenv)
+            cfg = load_system_config(args.config)
+            if args.auth:
+                cfg.web.auth_mode = args.auth
+            if args.clear_admin_password:
+                return clear_admin_password(cfg)
+            return set_admin_password(cfg, args)
+        except SpiritScoutError as exc:
+            print(f"[错误] {exc}", file=sys.stderr)
+            return 2
     from spiritscout.startup import StartupDisplay, serve
 
     display = StartupDisplay()
@@ -192,14 +268,13 @@ def main(argv: list[str] | None = None) -> int:
         _load_dotenv(dotenv)      # 忘记管理员凭据时改 .env 重启即可恢复
     try:
         cfg = load_system_config(args.config)
+        if args.auth:
+            cfg.web.auth_mode = args.auth
         _ensure_default_model_config(cfg.models_config_path)
         models = load_model_config(cfg.models_config_path)
     except SpiritScoutError as exc:
         display.failed(str(exc))
         return 2
-
-    if args.set_admin_password:
-        return _set_admin_password(cfg, if_missing=args.if_missing)
 
     display.phase("装配控制台")
     from spiritscout.web import create_app

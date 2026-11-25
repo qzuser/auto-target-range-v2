@@ -5,17 +5,17 @@
 # 解释器版本不够只报命令不动手——重建 venv 的影响面比装几个包大得多。
 # 依赖：Python 3.11+（.venv）、Git for Windows 的 bash。
 #
-#   powershell -ExecutionPolicy Bypass -File .\start-local.ps1
-#   powershell -ExecutionPolicy Bypass -File .\start-local.ps1 -Port 8010
-#   powershell -ExecutionPolicy Bypass -File .\start-local.ps1 -NoInstall   # 只报告，不自动装
-#   powershell -ExecutionPolicy Bypass -File .\start-local.ps1 -PipIndex official   # 走 PyPI 官方源
+#   powershell -ExecutionPolicy Bypass -File .\scripts\windows\start-web.ps1
+#   powershell -ExecutionPolicy Bypass -File .\scripts\windows\start-web.ps1 -Port 8010
+#   powershell -ExecutionPolicy Bypass -File .\scripts\windows\start-web.ps1 -NoInstall
+#   powershell -ExecutionPolicy Bypass -File .\scripts\windows\start-web.ps1 -PipIndex official
 #
 # 装依赖默认走国内镜像（清华 TUNA），镜像不可用时自动退回 PyPI 官方源重试一次。
 # 换源：-PipIndex <url>，或环境变量 SPIRITSCOUT_PIP_INDEX；`-PipIndex official` 强制官方源。
 # 只看当前解析出的源不动手：-ShowPipIndex。
 #
 # -Port 以 `--port` 传给 CLI，**覆盖** configs\system.yaml 里的 web.port
-# （配置里写的是 8000）；双击入口「启动服务.cmd」固定 8010，两个数字不一样是正常的。
+# （配置里写的是 8000）；双击入口「Start-SpiritScout.cmd」固定 8010。
 # 跑的是 src 下的当前代码（editable 安装），下面的版本号与
 # `python -m spiritscout --version`、控制台横幅同源。
 param(
@@ -28,7 +28,9 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$root = $PSScriptRoot
+$env:PYTHONUTF8 = '1'
+$env:PYTHONIOENCODING = 'utf-8'
+$root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $venvPy = Join-Path $root '.venv\Scripts\python.exe'
 $depsProbe = Join-Path $root 'scripts\probe_deps.py'
 $minPython = [version]'3.11'
@@ -219,8 +221,8 @@ if (-not $deps) {
         $code = Invoke-PipInstall 'SpiritScout'
         if ($code -ne 0) {
             Write-Host "[x] pip 安装失败（退出码 $code），常见原因是网络、代理或镜像没同步" -ForegroundColor Red
-            Write-Host "    换官方源试：start-local.ps1 -PipIndex official" -ForegroundColor Red
-            Write-Host "    换别的镜像：start-local.ps1 -PipIndex https://mirrors.aliyun.com/pypi/simple/" -ForegroundColor Red
+            Write-Host "    换官方源试：Start-SpiritScout.cmd -PipIndex official" -ForegroundColor Red
+            Write-Host "    换别的镜像：Start-SpiritScout.cmd -PipIndex https://mirrors.aliyun.com/pypi/simple/" -ForegroundColor Red
             Write-Host "    手工执行：$cmdCore"
             exit 1
         }
@@ -272,7 +274,7 @@ try {
     if (Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue) {
         Write-Host "[x] 端口 $Port 已被占用（常见于上次没退干净的控制台）" -ForegroundColor Red
         Write-Host "    看是谁：Get-NetTCPConnection -LocalPort $Port | Select-Object OwningProcess"
-        Write-Host "    或换端口：start-local.ps1 -Port $($Port + 1)"
+        Write-Host "    或换端口：Start-SpiritScout.cmd -Port $($Port + 1)"
         exit 1
     }
 } catch { }

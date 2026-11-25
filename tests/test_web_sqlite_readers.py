@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import sqlite3
+import sys
 import tempfile
 import unittest
 from contextlib import closing, contextmanager
@@ -22,7 +23,9 @@ class WebSqliteReaderTests(unittest.TestCase):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
         self.parent = Path(temp.name)
-        self.root = self.parent / '会话 #1?mode=rw%20'
+        name = ('session-1_mode=rw_20'
+                if sys.platform == 'win32' else '会话 #1?mode=rw%20')
+        self.root = self.parent / name
         self.root.mkdir()
         self.session = Session('reader-fixture', 'ctf', 'fixture', self.root)
         bb = Blackboard(self.session.bb_path)
