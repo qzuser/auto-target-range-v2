@@ -323,7 +323,7 @@ MCP、Skill 文件编辑、本地工具、自动任务、代理池、浏览器�
 | `spiritscout-1.3.1.tar.gz` | sdist：整份源码 + 技能文本素材 + 配置模板 + 经验 |
 | `SpiritScout-1.3.1-source.zip` | 整仓源码：代码、`skills/`、`configs/`、`tools/experience-export/`、`docs/workspace/EXPERIENCE.md` |
 | `SpiritScout-1.3.1-windows-x64.zip` | **Windows 原生桌面完整版**：SaltUI/Compose Desktop，内嵌 JRE 与 Python 运行时 |
-| `SpiritScout-1.3.1-windows-x64-backend.zip` | 纯 Python/Web 后端兼容包 |
+| `SpiritScout-1.3.1-windows-x64-backend.zip` | 纯 Python/Web 后端兼容包（仅首次发布该版本的 Release 附带；本地可用 `build-backend-console.ps1` 自行构建） |
 | `SHA256SUMS` | 上面几个包的校验和，装前先对一遍 |
 
 ```bash

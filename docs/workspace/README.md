@@ -198,7 +198,7 @@ Release 上按需取：
 | 附件 | 给谁用 |
 | --- | --- |
 | `SpiritScout-<版本>-windows-x64.zip` | **Windows 原生桌面完整版**：SaltUI/Compose 窗口，内嵌 JRE 与 Python 运行时 |
-| `SpiritScout-<版本>-windows-x64-backend.zip` | 兼容性后端运行时包，仅用于不能启用原生桌面的场景 |
+| `SpiritScout-<版本>-windows-x64-backend.zip` | 兼容性后端运行时包，仅用于不能启用原生桌面的场景；只在首次发布该版本的 Release 里附带，其余情况用 `build-backend-console.ps1` 本地构建 |
 | `spiritscout-<版本>-py3-none-any.whl` | `pip install` 用。带 CTF 工具箱要写成 `pip install "spiritscout[toolkit] @ file:///…whl"`——写成 `xxx.whl[toolkit]` 会被 pip **静默丢弃 extras**，一个工具箱依赖都不装还不报错 |
 | `spiritscout-<版本>.tar.gz` | sdist：源码 + `scripts/` + `skills/` 文本素材 + 配置模板 |
 | `SpiritScout-<版本>-source.zip` | 整仓源码，解开就能看/构建 |

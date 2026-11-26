@@ -254,7 +254,7 @@ Prefer a ready-made package over a source checkout? All three artifacts carry th
 | `spiritscout-1.3.1.tar.gz` | source distribution with skill text, config templates and experience |
 | `SpiritScout-1.3.1-source.zip` | full repository source |
 | `SpiritScout-1.3.1-windows-x64.zip` | native Windows desktop client with embedded JRE and Python |
-| `SpiritScout-1.3.1-windows-x64-backend.zip` | Python/Web backend portable runtime for compatibility use |
+| `SpiritScout-1.3.1-windows-x64-backend.zip` | Python/Web backend portable runtime for compatibility use (attached only to a release first created for that version; build locally with `build-backend-console.ps1`) |
 | `SHA256SUMS` | checksums for the release files above |
 
 ```bash
