@@ -1,0 +1,152 @@
+name: 补齐后端兼容包
+
+# 背景：package.yml（tag 触发）出 5 件套，但不含 windows-x64-backend.zip；
+# release.yml（CI 后触发）只在「首次为该版本建 Release」时才构建并附带这个 zip。
+# v1.3.1 的 Release 由 package.yml 先建好，release.yml 因 tag 已存在被 skip，
+# 于是 backend zip 缺席。这个 action 手动触发，把后端兼容包补/覆盖到任意已存在的 Release。
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "要附件的 tag（例如 v1.3.1）；填已经建好 Release 的那个 tag"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: backend-compat-${{ github.event.inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  build-backend:
+    name: 构建后端兼容包
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      PYTHON_DOTENV_DISABLED: '1'
+      LITELLM_LOCAL_MODEL_COST_MAP: 'True'
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: 取代码
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag }}
+
+      - name: 安装 uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: 读取源码版本
+        id: version
+        shell: python
+        run: |
+          import ast
+          import os
+          from pathlib import Path
+
+          tree = ast.parse(Path("src/spiritscout/__init__.py").read_text(encoding="utf-8"))
+          version = next(
+              ast.literal_eval(node.value)
+              for node in tree.body
+              if isinstance(node, ast.Assign)
+              and any(isinstance(t, ast.Name) and t.id == "__version__" for t in node.targets)
+          )
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
+              out.write(f"version={version}\n")
+          print(f"源码版本：{version}")
+
+      - name: 校验 tag 与源码版本一致
+        env:
+          TAG: ${{ github.event.inputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: pwsh
+        run: |
+          if ($env:TAG -ne "v$env:VERSION") {
+            throw "tag $env:TAG 与源码版本 v$env:VERSION 不一致——换对 tag 或先升版本"
+          }
+
+      - name: 构建后端控制台 exe
+        shell: pwsh
+        run: ./packaging/windows/build-backend-console.ps1 -OutputDir dist/windows/backend-console
+
+      - name: 首次启动冒烟测试
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: pwsh
+        run: |
+          $env:SPIRITSCOUT_DATA_HOME = Join-Path $env:RUNNER_TEMP 'spiritscout-smoke'
+          New-Item -ItemType Directory -Force $env:SPIRITSCOUT_DATA_HOME | Out-Null
+          $exe = "dist/windows/backend-console/SpiritScout-$env:VERSION-windows-x64-backend.exe"
+          if (-not (Test-Path $exe)) { throw "找不到构建产物 $exe" }
+          $app = Start-Process -FilePath (Resolve-Path $exe) `
+            -ArgumentList '--host','127.0.0.1','--port','18001' -PassThru
+          try {
+            $ready = $false
+            for ($i = 0; $i -lt 60; $i++) {
+              if ($app.HasExited) { throw 'exe 在就绪前退出' }
+              try {
+                $resp = Invoke-WebRequest http://127.0.0.1:18001/login -TimeoutSec 2
+                if ($resp.StatusCode -eq 200) { $ready = $true; break }
+              } catch { Start-Sleep -Seconds 1 }
+            }
+            if (-not $ready) { throw '登录页未在 60 秒内就绪' }
+          } finally {
+            if (-not $app.HasExited) { Stop-Process -Id $app.Id -Force }
+          }
+
+      - name: 打包 zip 并算校验和
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: pwsh
+        run: |
+          $exe = "dist/windows/backend-console/SpiritScout-$env:VERSION-windows-x64-backend.exe"
+          $zip = "dist/windows/backend-console/SpiritScout-$env:VERSION-windows-x64-backend.zip"
+          Compress-Archive -Path $exe,LICENSE -DestinationPath $zip -Force
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          $name = Split-Path $zip -Leaf
+          "$hash  $name" | Set-Content dist/windows/backend-console/SHA256SUMS-windows-x64 -Encoding ascii
+          Get-Content dist/windows/backend-console/SHA256SUMS-windows-x64
+
+      - name: 交出 zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-compat
+          path: |
+            dist/windows/backend-console/SpiritScout-*-windows-x64-backend.zip
+            dist/windows/backend-console/SHA256SUMS-windows-x64
+          if-no-files-found: error
+          retention-days: 1
+
+  attach:
+    name: 附到 Release
+    needs: build-backend
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.event.inputs.tag }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: backend-compat
+          path: dist
+
+      - name: 校验 Release 存在并上传（覆盖同名资产）
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $TAG 不存在——先让 package.yml 建好 Release 再跑本 action。" >&2
+            exit 1
+          fi
+          mapfile -d '' assets < <(find dist -type f -print0 | sort -z)
+          echo "上传资产："
+          printf '  %s\n' "${assets[@]}"
+          # --clobber：仓库里可能已有同名 backend zip（例如旧版 release.yml 产物），一概覆盖。
+          gh release upload "$TAG" "${assets[@]}" \
+            --repo "$GITHUB_REPOSITORY" --clobber
+          echo "完成：$TAG"
