@@ -229,6 +229,8 @@ jobs:
             flat/*.zip
             flat/SHA256SUMS
           fail_on_unmatched_files: true
+          # 用当前代码重编同名包后要能覆盖旧资产（例如把完整 Kotlin 桌面包刷进已有 Release）。
+          overwrite_files: true
           # Release 标题与正文由人写（CHANGELOG 摘出来的那份），这里既不覆盖也不动草稿状态。
           draft: false
           prerelease: false
